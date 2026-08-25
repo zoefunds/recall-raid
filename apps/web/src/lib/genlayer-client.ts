@@ -155,14 +155,32 @@ export async function callContractWrite({
       interval: 3000,
     });
 
-    // "FINALIZED" is a decided-and-settled outcome; "UNDETERMINED" and
-    // "CANCELED" are the other terminal states genlayer-js's own
-    // DECIDED_STATES list recognizes, and both mean the call did not
-    // succeed as submitted.
-    const receiptStatus = String((receipt as { status?: unknown })?.status ?? '').toUpperCase();
-    if (receiptStatus === 'UNDETERMINED' || receiptStatus === 'CANCELED') {
-      emit({ status: 'failed', txHash, message: describeChainError(receipt) });
-      throw new Error(`Transaction ended in status ${receiptStatus}`);
+    // IMPORTANT: transaction STATUS ("FINALIZED") and consensus RESULT
+    // ("AGREE"/"MAJORITY_DISAGREE"/"UNDETERMINED"/etc, exposed as
+    // `result_name`) are two entirely separate fields in genlayer-js's
+    // receipt shape — confirmed empirically against a real disagreement:
+    // `status_name` reads "FINALIZED" (the round finished processing)
+    // while `result_name` separately reads "MAJORITY_DISAGREE". An
+    // earlier version of this check inspected `receipt.status` for the
+    // string "UNDETERMINED", which never matches (status is a numeric
+    // status code, not a result label) — meaning a genuine consensus
+    // disagreement was being reported to the user as "Confirmed" even
+    // though nothing was actually decided and no contract state changed.
+    // Only AGREE/MAJORITY_AGREE (or an absent result_name, for
+    // deterministic non-nondet calls that don't carry one) count as a
+    // real success.
+    const resultName = String((receipt as { result_name?: unknown; resultName?: unknown })?.result_name ?? (receipt as { resultName?: unknown })?.resultName ?? '').toUpperCase();
+    const isAgreedResult = resultName === '' || resultName === 'AGREE' || resultName === 'MAJORITY_AGREE';
+    if (!isAgreedResult) {
+      emit({
+        status: 'failed',
+        txHash,
+        message:
+          "The network's validators could not reach consensus on this action (result: " +
+          resultName +
+          "). No changes were made — this is safe to retry.",
+      });
+      throw new Error(`Transaction did not reach agreement (result: ${resultName})`);
     }
 
     emit({ status: 'confirmed', txHash, message: 'Confirmed.' });

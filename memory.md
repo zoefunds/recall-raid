@@ -1,5 +1,59 @@
 # RecallRaid — Build Memory
 
+## Live test against audited revision + a real "Undetermined" report (2026-08-25)
+
+Redeployed to `0xDEf26cD6fb90F8C881E6436b6c8785f038C42112` and ran the full
+suite. Results and what they actually mean:
+
+**request_verdict genuinely hit `MAJORITY_DISAGREE`** (shown as "Consensus
+Result: Undetermined" in the GenLayer Studio explorer UI — same underlying
+outcome, different display label) on the very first live test after the
+round-3 exact-match fix. This is the trade-off explicitly called out when
+that fix landed: requiring exact agreement (correctly, per the audit) means
+genuinely ambiguous cases can fail to reach consensus more often than the
+old (unsafe) tolerant version did. **Confirmed safe**: `get_investigation`
+immediately after showed `status=1` (still EVIDENCE_SUBMITTED, unchanged)
+— GenVM correctly applied zero state change on disagreement. No funds
+moved, nothing corrupted; the caller can simply call `request_verdict`
+again. Real mitigation applied (not a full fix — LLM stochasticity can't be
+eliminated, and `exec_prompt` doesn't expose a temperature parameter to
+pin down): rewrote the verdict prompt's decision section from an
+open-ended "form your own impression" instruction into a strict 5-step
+decision procedure with explicit confidence-score ranges per step, so
+independent validators have much less room to land on different
+categorical answers for the same evidence.
+
+**Two real, separate bugs found and fixed while investigating this**,
+neither of which was the contract's fault:
+
+1. **Frontend was checking the wrong field for consensus failure.**
+   `callContractWrite` in `apps/web/src/lib/genlayer-client.ts` checked
+   `receipt.status` for the string `"UNDETERMINED"` — but `status`/
+   `status_name` ("FINALIZED", "PENDING", etc.) and the consensus RESULT
+   (`result_name`: "AGREE"/"MAJORITY_DISAGREE"/"UNDETERMINED"/etc.) are two
+   completely separate fields. The check could never match, meaning **a
+   genuine consensus disagreement was being reported to the user as
+   "Confirmed"** even though nothing was decided. Fixed to check
+   `result_name` against the actual `AGREE`/`MAJORITY_AGREE` values,
+   surfacing a clear "validators could not reach consensus — safe to
+   retry" message instead.
+2. **API cache upserts never updated foreign-key-ish columns on
+   conflict.** `syncEvidence`/`syncChallenge`/`syncSellerBond` in
+   `apps/api/src/lib/sync.ts` only updated "mutable ledger" fields on
+   `ON CONFLICT`, leaving `investigation_id`, `submitter_wallet`, etc.
+   stale. Harmless in a real single-deployment production setting (those
+   values never actually change for a given ID there) but broke visibly
+   across my repeated redeploy-testing cycles, since evidence/challenge/
+   bond IDs restart at 1 with every fresh contract address — evidence
+   for investigation 1 was being cached under a stale investigation_id=2
+   left over from an earlier test round against a different contract.
+   Fixed all three upserts to fully replace every column on conflict, not
+   just the "obviously mutable" ones. Verified live: re-syncing after the
+   fix immediately corrected the stale rows.
+
+Both fixes deployed. Contract prompt change requires yet another redeploy
+(the pattern continues) before it can be verified live.
+
 ## External audit round 3 response (2026-08-25) — score 2,380 → 3,000 → 3,180, final verdict-agreement fix
 
 Auditor confirmed round-2 fixes sound, found one more real hole in the

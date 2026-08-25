@@ -14,7 +14,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createPublicClient, http } from "viem";
 import { createHash } from "node:crypto";
 
-const CONTRACT_ADDRESS = "0x0D04E797bC40F62e631159663b5664186462D704";
+const CONTRACT_ADDRESS = "0xDEf26cD6fb90F8C881E6436b6c8785f038C42112";
 const RPC_URL = "https://studio.genlayer.com/api";
 const API_BASE = "https://recallraid-api.fly.dev";
 
@@ -109,12 +109,25 @@ async function write(client, functionName, args = [], value = 0n) {
 }
 
 async function expectRevert(label, fn) {
+  // A rejected write does NOT throw a JS exception — genlayer-js resolves
+  // waitForTransactionReceipt regardless of execution_result. A guard-
+  // clause rejection shows up as the LEADER's own result (confirmed live:
+  // e.g. `[EXPECTED] investigation is not awaiting first evidence`, with
+  // execution_result: ERROR and leader+validator agreeing on that exact
+  // message). So a correct rejection must be detected from the write()
+  // result's leaderErrored/errorDetail, not from a try/catch.
   try {
-    await fn();
-    record(label, "negative-write", false, "expected a revert/rejection but the call succeeded");
+    const result = await fn();
+    if (result && result.leaderErrored) {
+      record(label, "negative-write", true, `correctly rejected: ${(result.errorDetail || "").slice(0, 160)}`);
+    } else {
+      record(label, "negative-write", false, `expected a revert/rejection but the call succeeded (result=${JSON.stringify(result?.parsedResult)})`);
+    }
   } catch (err) {
+    // A genuine RPC/JS-level throw (e.g. network error) also counts as
+    // "did not go through", but is worth distinguishing in the log.
     const msg = err?.message || String(err);
-    record(label, "negative-write", true, `correctly rejected: ${msg.slice(0, 160)}`);
+    record(label, "negative-write", true, `correctly rejected (threw): ${msg.slice(0, 160)}`);
   }
 }
 
@@ -321,6 +334,9 @@ async function main() {
   const linkRes = await write(seller.client, "link_seller_bond", [inv2Id, bond1Id]);
   record("link_seller_bond (bond1 -> inv2)", "write", (!linkRes.leaderErrored && linkRes.consensusHealthy), `tx=${linkRes.txHash}`);
 
+  // While genuinely linked, withdraw_seller_bond must be rejected.
+  await expectRevert("withdraw_seller_bond while still linked (should be rejected)", () => write(seller.client, "withdraw_seller_bond", [bond1Id]));
+
   const cancelRes = await write(hunter.client, "cancel_investigation", [inv2Id]);
   record("cancel_investigation (inv2)", "write", (!cancelRes.leaderErrored && cancelRes.consensusHealthy), `tx=${cancelRes.txHash}`);
   await expectRevert("cancel_investigation twice (already cancelled)", () => write(hunter.client, "cancel_investigation", [inv2Id]));
@@ -328,6 +344,14 @@ async function main() {
   await apiCall("hunter", `/investigations/${inv2Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: cancelRes.txHash }) });
   const inv2After = await read(hunter.client, "get_investigation", [inv2Id]);
   record("get_investigation (inv2, post-cancel)", "view", inv2After.status === 7, `status=${inv2After.status} (expect 7=CANCELLED) bounty_deposited_wei=${inv2After.bounty_deposited_wei}`);
+
+  // Positive confirmation of the round-2 audit fix: cancelling the linked
+  // investigation must have decremented linked_investigation_count, so the
+  // bond should now be genuinely withdrawable — no longer permanently locked.
+  const bond1AfterCancel = await read(seller.client, "get_seller_bond", [bond1Id]);
+  record("get_seller_bond (bond1, post-cancel unlink)", "view", bond1AfterCancel.linked_investigation_count === 0, JSON.stringify(bond1AfterCancel));
+  const withdrawBond1Res = await write(seller.client, "withdraw_seller_bond", [bond1Id]);
+  record("withdraw_seller_bond (bond1, now unlinked)", "write", (!withdrawBond1Res.leaderErrored && withdrawBond1Res.consensusHealthy), `tx=${withdrawBond1Res.txHash}`);
 
   section("withdraw — hunter's refunded bounty from cancelled investigation 2");
   const balHunterBeforeWithdraw = await read(hunter.client, "get_balance", [hunter.address]);
@@ -349,8 +373,6 @@ async function main() {
 
   const topupRes = await write(seller.client, "topup_seller_bond", [bond2Id], 5n * 10n ** 15n);
   record("topup_seller_bond (bond 2)", "write", (!topupRes.leaderErrored && topupRes.consensusHealthy), `tx=${topupRes.txHash}`);
-
-  await expectRevert("withdraw_seller_bond on linked bond 1 (should be rejected)", () => write(seller.client, "withdraw_seller_bond", [bond1Id]));
 
   const bond2BeforeWithdraw = await read(seller.client, "get_seller_bond", [bond2Id]);
   record("get_seller_bond (bond2, pre-withdraw)", "view", true, JSON.stringify(bond2BeforeWithdraw));

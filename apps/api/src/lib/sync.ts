@@ -101,10 +101,13 @@ export async function syncEvidence(evidenceId: number): Promise<void> {
        description, submitted_at_chain, synced_at
      ) values ($1,$2,$3,$4,$5,$6,$7,$8, now())
      on conflict (evidence_id) do update set
+       investigation_id = excluded.investigation_id,
+       submitter_wallet = excluded.submitter_wallet,
        evidence_type = excluded.evidence_type,
        content_hash = excluded.content_hash,
        url = excluded.url,
        description = excluded.description,
+       submitted_at_chain = excluded.submitted_at_chain,
        synced_at = now()
     `,
     [
@@ -128,8 +131,15 @@ export async function syncChallenge(challengeId: number): Promise<void> {
        status, created_at_chain, resolution_deadline, prior_verdict, new_verdict, synced_at
      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
      on conflict (challenge_id) do update set
+       investigation_id = excluded.investigation_id,
+       challenger_wallet = excluded.challenger_wallet,
+       reason = excluded.reason,
+       stake_wei = excluded.stake_wei,
        stake_deposited_wei = excluded.stake_deposited_wei,
        status = excluded.status,
+       created_at_chain = excluded.created_at_chain,
+       resolution_deadline = excluded.resolution_deadline,
+       prior_verdict = excluded.prior_verdict,
        new_verdict = excluded.new_verdict,
        synced_at = now()
     `,
@@ -163,8 +173,11 @@ export async function syncSellerBond(bondId: number): Promise<void> {
        linked_investigation_count, slashed_total_wei, synced_at
      ) values ($1,$2,$3,$4,$5,$6,$7,$8, now())
      on conflict (bond_id) do update set
+       seller_wallet = excluded.seller_wallet,
+       bond_wei = excluded.bond_wei,
        bond_deposited_wei = excluded.bond_deposited_wei,
        status = excluded.status,
+       created_at_chain = excluded.created_at_chain,
        linked_investigation_count = excluded.linked_investigation_count,
        slashed_total_wei = excluded.slashed_total_wei,
        synced_at = now()

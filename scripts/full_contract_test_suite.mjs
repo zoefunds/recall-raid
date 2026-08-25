@@ -14,7 +14,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createPublicClient, http } from "viem";
 import { createHash } from "node:crypto";
 
-const CONTRACT_ADDRESS = "0xa7eB55895Fe2C527Cf0882855001f97af7c2e267";
+const CONTRACT_ADDRESS = "0x0D04E797bC40F62e631159663b5664186462D704";
 const RPC_URL = "https://studio.genlayer.com/api";
 const API_BASE = "https://recallraid-api.fly.dev";
 

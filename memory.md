@@ -1,5 +1,69 @@
 # RecallRaid — Build Memory
 
+## CRITICAL round 3: `0xa7eB55895Fe2C527Cf0882855001f97af7c2e267` — DynArray bug is GONE, but found a real consensus-disagreement bug (found 2026-08-25)
+
+Round 2's fix worked: `submit_investigation` and `add_evidence` both
+executed with `execution_result: SUCCESS` and no stderr, confirmed live
+(`investigation_count` incremented to 1, `get_investigation` returned the
+full real record). Good news first, because the next part is another real
+bug — this is exactly why "run the real test, don't just trust the fix"
+mattered.
+
+**The bug**: `request_verdict` (the nondet leader/validator pass) finalized
+with **`result_name: MAJORITY_DISAGREE`** — validators did not agree on the
+verdict. `execution_result` was `SUCCESS` (no crash) but alongside a
+telling runtime warning:
+```
+/py/libs/genlayer/gl/_internal/storage.py:21: UserWarning: Detected pickling storage class. Reading storage in nondet mode is not supported
+```
+**Root cause**: `_run_verdict_pass(inv, evidence_items)` was passed a live
+`Investigation` dataclass and a list of live `Evidence` dataclasses —
+both storage-backed objects — directly into the closure handed to
+`gl.vm.run_nondet_unsafe`. `_render_verdict_prompt` (called from inside
+`leader_fn`) then read fields off those objects (`inv.product_name`,
+`ev.evidence_type`, etc.) *during* nondet execution. Reading a
+storage-backed object's fields inside a nondet closure is explicitly
+unsupported by GenVM — different validators re-running the same closure
+can get inconsistent pickled/unpickled state, which plausibly explains why
+they built different prompts and got different LLM verdicts. Only the URL
+strings had been snapshotted into plain locals before this; the
+product/evidence fields were not.
+
+**Fix**: `_run_verdict_pass` now snapshots every single value the prompt
+needs — `product_name`, `brand`, `model_number`, `serial_number`,
+`category`, `hazard_class_int`, `description`, and a plain
+`evidence_snapshot` list of plain dicts (`type`/`description`/`url`/`hash`)
+— into ordinary Python primitives *before* `leader_fn` is defined.
+`_render_verdict_prompt`'s signature changed to accept only these plain
+values, never `Investigation`/`Evidence` objects. Confirmed by grepping
+the whole file: `gl.vm.run_nondet_unsafe` has exactly one call site in the
+entire contract (inside `_run_verdict_pass`, shared by both
+`request_verdict` and `resolve_challenge`), so this single fix covers
+every nondet path that exists.
+
+Also fixed two false-positive bugs in `scripts/full_contract_test_suite.mjs`
+itself while diagnosing this (not contract issues): (1) the write-receipt
+decoder was reading the wrong field — the method's actual JSON return
+value lives at `consensus_data.leader_receipt[<mode=leader>].result.payload.readable`
+(double-JSON-encoded), not the top-level `receipt.result` (an unrelated
+internal numeric code); (2) `consensus_data.leader_receipt` holds every
+node's receipt for the round (leader *and* validators, keyed by `mode`),
+and a validator showing `execution_result: ERROR` with
+`"Validator execution cancelled after quorum"` is GenVM's own
+short-circuit optimization once enough validators already agree — not a
+failure. The test suite now checks the leader's result specifically, and
+separately flags real consensus problems (`MAJORITY_DISAGREE`,
+`DISAGREEMENT`, `TIMEOUT`, `UNDETERMINED`) as `consensusHealthy: false`.
+
+`0xa7eB55895Fe2C527Cf0882855001f97af7c2e267` needs replacing too. This is
+the fourth deploy cycle — each one has fixed a genuinely different bug
+class (direct DynArray construction → inmem_allocate nested-value bug →
+nondet storage-read consensus disagreement), each only findable by
+actually executing the method live. No further `TreeMap`/`DynArray`
+nested-value patterns or nondet-adjacent storage reads remain anywhere
+in the contract (both swept exhaustively). Once redeployed, re-run
+`node scripts/full_contract_test_suite.mjs` (update `CONTRACT_ADDRESS`).
+
 ## CRITICAL round 2: `0xC36e1D9E8F7b88DC632EBB7bf2F1f57eceE84dd3` is ALSO broken — same root cause, deeper layer (found 2026-08-25, during full method test suite)
 
 The redeploy that fixed round 1's `DynArray[u32]()` direct-construction

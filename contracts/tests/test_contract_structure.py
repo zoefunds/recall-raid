@@ -182,22 +182,26 @@ class ContractStructureTests(unittest.TestCase):
         )
 
 
-    def test_verdict_tolerance_never_bridges_two_determinate_verdicts(self):
-        """A real audit finding: the previous adjacent-bucket tolerance let
-        a leader RECALL_CONFIRMED agree with a validator POTENTIAL_ISSUE
-        (one ordinal step apart), which could trigger a seller-bond slash
-        without the validator actually confirming a recall. _verdicts_agree
-        must explicitly guard that any two DIFFERENT determinate verdicts
-        require an exact match, with tolerance reserved for bridging
-        NEEDS_MORE_EVIDENCE with its neighbor only."""
+    def test_verdicts_agree_requires_exact_bucket_match(self):
+        """Two real audit findings closed the door on any ordinal
+        tolerance at all: (1) adjacent-bucket tolerance let a leader
+        RECALL_CONFIRMED agree with a validator POTENTIAL_ISSUE and slash a
+        seller bond the validator never confirmed; (2) narrowing the
+        bridge to NEEDS_MORE_EVIDENCE-and-neighbor still let a leader's
+        determinate, fund-moving verdict (NO_ISSUE/POTENTIAL_ISSUE) get
+        committed merely because a validator said NEEDS_MORE_EVIDENCE —
+        because gl.vm.run_nondet_unsafe always commits the LEADER's value,
+        validator_fn's bool return can never substitute a different one.
+        _verdicts_agree must require order_a == order_b with no exceptions."""
         source = CONTRACT_PATH.read_text(encoding="utf-8")
         start = source.index("def _verdicts_agree")
         end = source.index("def _stable_verdict")
         body = source[start:end]
-        self.assertIn(
-            "needs_more_evidence_order not in (order_a, order_b)", body,
-            "_verdicts_agree must reject tolerance-bridged agreement between two "
-            "different determinate verdicts (only NEEDS_MORE_EVIDENCE may bridge)",
+        self.assertIn("order_a != order_b", body)
+        self.assertNotIn("VERDICT_TOLERANCE_STEPS", body, "no ordinal tolerance constant should be referenced here anymore")
+        self.assertNotIn(
+            "needs_more_evidence_order", body,
+            "no bridging logic should remain — exact match is required unconditionally",
         )
 
     def test_recall_confirmed_requires_a_product_identifier(self):

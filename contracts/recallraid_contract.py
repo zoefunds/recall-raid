@@ -5,6 +5,7 @@ from genlayer import *
 from dataclasses import dataclass  # `from genlayer import *` does NOT re-export `dataclass` on the current pinned runner — confirmed with `genvm-lint`, which fails contract loading with "name 'dataclass' is not defined" without this explicit import. This is very likely the exact cause of a "could not load contract schema" deploy error if omitted.
 import json
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 # --------------------------------------------------------------------------
 # Constants / enumerations
@@ -63,6 +64,42 @@ CHALLENGE_RESOLUTION_SECONDS = u64(48 * 3600)   # 48h to resolve an open challen
 MAX_EVIDENCE_PER_INVESTIGATION = 25
 MAX_FETCH_EXCERPT_CHARS = 4000
 
+# Authoritative recall-database domains. `recall_source_url` is the one
+# evidence field this contract treats as a claim of "an official regulator
+# has spoken on this", so it is validated against an explicit allowlist at
+# submission time — anyone can still submit an investigation without one
+# (the field is optional), but they cannot point it at an arbitrary blog,
+# forum post, or manufacturer marketing page and have the prompt describe
+# it as a "recall database / gov source". marketplace_url and
+# manufacturer_url are deliberately NOT allowlisted — those genuinely vary
+# per listing/brand and the LLM prompt already labels them as user-provided
+# marketplace/manufacturer sources, not authoritative recall confirmations.
+AUTHORITATIVE_RECALL_DOMAINS = frozenset({
+    "cpsc.gov", "www.cpsc.gov",                       # US Consumer Product Safety Commission
+    "nhtsa.gov", "www.nhtsa.gov",                      # US National Highway Traffic Safety Administration
+    "fda.gov", "www.fda.gov",                          # US Food & Drug Administration
+    "fsis.usda.gov",                                   # US Food Safety and Inspection Service
+    "recalls.gov", "www.recalls.gov",                  # US cross-agency recall portal
+    "ec.europa.eu",                                    # EU Safety Gate / RAPEX
+    "product-recalls.campaign.gov.uk",                 # UK OPSS
+    "www.gov.uk",                                      # UK government (recall notices)
+    "healthycanadians.gc.ca",                          # Health Canada recalls
+    "recalls-rappels.canada.ca",                       # Canada cross-agency recall portal
+    "productsafety.gov.au",                            # Australia ACCC product safety
+})
+
+
+def _is_authoritative_recall_domain(url: str) -> bool:
+    if not url:
+        return True  # optional field — absence is not a violation, only a mismatched present value is
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        return False
+    if not host:
+        return False
+    return host in AUTHORITATIVE_RECALL_DOMAINS
+
 # Ordinal ordering used for verdict-agreement tolerance banding, mirroring
 # Veritine's approach of tolerating LLM phrasing variance on borderline
 # calls while still failing hard on a wide disagreement.
@@ -72,7 +109,7 @@ VERDICT_ORDER = {
     int(VERDICT_POTENTIAL_ISSUE): 2,
     int(VERDICT_RECALL_CONFIRMED): 3,
 }
-VERDICT_TOLERANCE_STEPS = 0  # leader and validator must land on the identical ordinal bucket for a verdict; see _verdicts_agree for the confidence-bps tolerance that *is* allowed.
+VERDICT_TOLERANCE_STEPS = 1  # leader and validator may land on adjacent ordinal buckets and still agree (e.g. NEEDS_MORE_EVIDENCE vs POTENTIAL_ISSUE) — but NO_ISSUE and RECALL_CONFIRMED (3 steps apart) can never agree via tolerance alone. A prior value of 0 (exact-bucket-only) caused avoidable MAJORITY_DISAGREE outcomes on genuinely borderline cases across three independently-fetched web sources; this keeps the two opposite conclusions from ever blurring together while tolerating adjacent-bucket disagreement, which is a calibration/wording difference, not a safety-relevant one.
 CONFIDENCE_TOLERANCE_BPS = u32(1500)  # leader/validator confidence scores may differ by up to 15pp and still agree
 
 
@@ -150,6 +187,16 @@ class Challenge:
 @allow_storage
 @dataclass
 class SellerBond:
+    """IMPORTANT — honest scope of this bond: `seller` is whichever wallet
+    called `create_seller_bond`. The contract has no way to verify that
+    wallet actually owns or controls the marketplace listing it gets
+    linked to (no storefront-ownership proof, no signed marketplace
+    challenge) — anyone can post a bond and link it to any investigation
+    while it is still OPEN/EVIDENCE_SUBMITTED. Treat this as a **voluntary
+    third-party safety bond** signaling confidence in a claim, not as
+    verified seller-backed accountability. Building real storefront
+    ownership verification (OAuth to the marketplace, a signed challenge
+    posted to the listing, etc.) is real future work, not yet implemented."""
     id: u32
     seller: Address
     bond_wei: u256            # commercial term — total ever deposited
@@ -277,6 +324,23 @@ class RecallRaid(gl.Contract):
         if bond is None:
             raise gl.vm.UserError("[EXPECTED] seller bond not found")
         return bond
+
+    def _unlink_seller_bond_if_present(self, inv: Investigation) -> None:
+        """Must be called from every terminal investigation transition
+        (cancel, both timeout sweeps, settle) whenever a bond is linked.
+        `link_seller_bond` increments `linked_investigation_count` but
+        nothing previously decremented it on any exit path — a real audit
+        finding: every linked bond became permanently non-withdrawable,
+        contradicting `withdraw_seller_bond`'s own requirement that the
+        count reach zero. This is the missing other half of that count."""
+        if int(inv.seller_bond_id) == 0:
+            return
+        bond = self.seller_bonds.get(inv.seller_bond_id)
+        if bond is None:
+            return
+        if int(bond.linked_investigation_count) > 0:
+            bond.linked_investigation_count = u32(int(bond.linked_investigation_count) - 1)
+            self.seller_bonds[inv.seller_bond_id] = bond
 
     def _evidence_ids_for_investigation(self, investigation_id: int) -> list:
         """Linear filter over the flat `evidence_ids` list — see the field
@@ -596,6 +660,12 @@ class RecallRaid(gl.Contract):
             raise gl.vm.UserError("[EXPECTED] product_name, marketplace, and marketplace_url are required")
         if hazard_class not in (1, 2, 3):
             raise gl.vm.UserError("[EXPECTED] hazard_class must be 1 (critical), 2 (high), or 3 (moderate)")
+        if not _is_authoritative_recall_domain(recall_source_url):
+            raise gl.vm.UserError(
+                "[EXPECTED] recall_source_url must be an official regulator/recall-database domain "
+                "(e.g. cpsc.gov, nhtsa.gov, fda.gov) or left empty — it is presented to the verdict "
+                "process as an authoritative recall confirmation, not a general reference link"
+            )
 
         inv_id = self.next_investigation_id
         now = _now()
@@ -685,6 +755,7 @@ class RecallRaid(gl.Contract):
         inv.bounty_deposited_wei = u256(0)
         inv.status = INV_CANCELLED
         self.investigations[u32(investigation_id)] = inv
+        self._unlink_seller_bond_if_present(inv)
         self._credit_balance(inv.submitter, refund)
 
     # ==================================================================
@@ -753,6 +824,7 @@ class RecallRaid(gl.Contract):
         inv.bounty_deposited_wei = u256(0)
         inv.status = INV_INVALID
         self.investigations[u32(investigation_id)] = inv
+        self._unlink_seller_bond_if_present(inv)
         self._credit_balance(inv.submitter, refund)
 
     @gl.public.write
@@ -773,6 +845,7 @@ class RecallRaid(gl.Contract):
         inv.bounty_deposited_wei = u256(0)
         inv.status = INV_INVALID
         self.investigations[u32(investigation_id)] = inv
+        self._unlink_seller_bond_if_present(inv)
         self._credit_balance(inv.submitter, refund)
 
     # ==================================================================
@@ -857,6 +930,25 @@ class RecallRaid(gl.Contract):
         self.challenges[u32(challenge_id)] = challenge
 
         inv = self._get_investigation(int(challenge.investigation_id))
+
+        # The overturn bonus must be funded from a real, already-escrowed
+        # source — never manufactured — or credited balances can exceed
+        # the contract's actual GEN, leaving later withdrawals insolvent
+        # (a real audit finding against an earlier revision of this
+        # contract: the bonus used to be minted from nothing here). Since
+        # "overturned" means the original submitter's verdict claim was
+        # proven wrong, it is the submitter's own escrowed bounty —
+        # bounty_deposited_wei, which they would otherwise be paid out of
+        # at settlement — that funds the correction. The bonus is capped
+        # at whatever remains in the pool, so it can never exceed what was
+        # actually deposited.
+        bonus = u256(0)
+        if overturned:
+            bounty_pool = inv.bounty_deposited_wei
+            bonus = u256(min(int(bounty_pool), (int(stake) * int(CHALLENGE_OVERTURN_BONUS_BPS)) // 10000))
+            if bonus > u256(0):
+                inv.bounty_deposited_wei = u256(int(bounty_pool) - int(bonus))
+
         inv.status = INV_VERDICT_REACHED
         inv.verdict = new_verdict
         inv.ai_confidence_bps = confidence_bps
@@ -866,7 +958,6 @@ class RecallRaid(gl.Contract):
         self.investigations[u32(challenge.investigation_id)] = inv
 
         if overturned:
-            bonus = u256((int(stake) * int(CHALLENGE_OVERTURN_BONUS_BPS)) // 10000)
             self._credit_balance(challenge.challenger, u256(int(stake) + int(bonus)))
             self._bump_reputation(challenge.challenger, successful_challenge=True, earned_wei=u256(int(stake) + int(bonus)))
         else:
@@ -930,6 +1021,7 @@ class RecallRaid(gl.Contract):
         inv.status = INV_SETTLED
         inv.settled = True
         self.investigations[u32(investigation_id)] = inv
+        self._unlink_seller_bond_if_present(inv)
 
         hunter_share = u256((int(bounty) * int(inv.hunter_payout_bps)) // 10000)
         submitter_refund = u256(int(bounty) - int(hunter_share))
@@ -1033,11 +1125,13 @@ class RecallRaid(gl.Contract):
 
     @gl.public.write
     def link_seller_bond(self, investigation_id: int, bond_id: int) -> None:
-        """A seller can voluntarily attach their own bond to an
-        investigation targeting their own listing, signaling confidence
-        that the claim is unfounded. This can only happen before a verdict
-        exists — a seller cannot retroactively attach a bond after seeing
-        the outcome."""
+        """A bond owner can voluntarily attach their own bond to any
+        investigation, signaling confidence that the claim is unfounded.
+        This can only happen before a verdict exists — nobody can
+        retroactively attach a bond after seeing the outcome. See the
+        honesty note on `SellerBond` — this is a voluntary third-party
+        signal, not verified proof the bond owner controls the listing
+        under investigation."""
         inv = self._get_investigation(investigation_id)
         bond = self._get_bond(bond_id)
         if gl.message.sender_address != bond.seller:

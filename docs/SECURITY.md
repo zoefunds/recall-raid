@@ -102,3 +102,37 @@ was built against):
   redirect a payout, override a verdict, or unilaterally settle an
   investigation. This mirrors the OWWRE precedent that admin powers must
   never be able to touch money once a verdict path is underway.
+- **Seller Clean Inventory Bonds are a voluntary third-party signal, not
+  verified seller-backed accountability.** The contract has no way to
+  confirm the wallet that posts a bond actually owns or controls the
+  marketplace listing it gets linked to — anyone can bond and link to any
+  open investigation. Real storefront-ownership verification (OAuth to the
+  marketplace, a signed challenge posted to the listing itself) is future
+  work, flagged explicitly in the `SellerBond` dataclass docstring and in
+  the seller dashboard UI rather than left implicit.
+- **A bounty with no linked seller bond is economically a refundable
+  assertion stake, not a funded bounty.** `HUNTER_DEFAULT_PAYOUT_BPS` is
+  10000 (100%) — on a confirmed verdict the hunter is paid from their own
+  posted bounty, i.e. they get their own money back plus reputation. The
+  only path to genuine profit beyond a refund is a linked, slashed seller
+  bond. A real "funded counterparty" model (marketplace/insurer/protocol
+  treasury actually paying hunters) is a product-economics decision for a
+  future version, not something this contract manufactures on its own —
+  see the fixed accounting note above on why the challenge-overturn bonus
+  specifically had to be sourced from the bounty pool rather than minted.
+- **Evidence-source trust is allowlist-gated for `recall_source_url` only.**
+  `AUTHORITATIVE_RECALL_DOMAINS` restricts that one field to known
+  regulator domains (CPSC, NHTSA, FDA, EU Safety Gate, etc.) so it can't be
+  pointed at an arbitrary page and described to the verdict prompt as an
+  official recall confirmation. `marketplace_url` and `manufacturer_url`
+  remain unrestricted by design (they genuinely vary per listing/brand).
+  There is no canonical product-ID/UPC cross-matching, no durable
+  evidence snapshot beyond the stored `content_hash` + URL, and no
+  domain-reputation scoring — a since-edited or taken-down page changes
+  what a re-verification (e.g. `resolve_challenge`) will see, since the
+  contract re-fetches live rather than replaying an immutable capture.
+- No circuit-breaker for a compromised/malicious source domain being added
+  to the allowlist in a future version, no monitoring of
+  NEEDS_MORE_EVIDENCE/UNDETERMINED rates over time, and no independent
+  third-party security audit has been performed on this contract —
+  recommended before deploying with meaningful real-value funds.

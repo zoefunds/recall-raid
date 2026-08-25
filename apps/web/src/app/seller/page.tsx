@@ -58,8 +58,12 @@ export default function SellerDashboardPage() {
     <div className="mx-auto max-w-container px-margin-mobile py-8 md:px-margin-desktop">
       <h1 className="mb-2 font-sans text-headline-lg">Seller Dashboard</h1>
       <p className="mb-6 max-w-xl text-body-sm text-muted">
-        Post a Clean Inventory Bond to signal your listings are safe. It is only slashed on a confirmed
+        Post a Clean Inventory Bond to signal confidence in a listing. It is only slashed on a confirmed
         RECALL_CONFIRMED verdict against a linked investigation — never on an unfounded claim.
+      </p>
+      <p className="mb-6 max-w-xl text-body-sm text-secondary">
+        This is a voluntary third-party safety bond, not verified proof of storefront ownership — the
+        contract cannot confirm a bond owner actually controls the marketplace listing they link it to.
       </p>
 
       <Card className="mb-8">

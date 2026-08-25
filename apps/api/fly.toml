@@ -1,0 +1,35 @@
+# RecallRaid API — Fly.io configuration.
+#
+# 24/7 uptime is a hard product requirement (this API mirrors chain state
+# for the Active Hunts feed and notifications — it must not scale to zero
+# or auto-stop between requests). min_machines_running = 1 and
+# auto_stop_machines = "off" together guarantee at least one machine is
+# always serving; do not add scale-to-zero behavior here.
+app = "recallraid-api"
+primary_region = "iad"
+
+[build]
+
+[env]
+  PORT = "8080"
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+    protocol = "http"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

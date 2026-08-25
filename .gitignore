@@ -1,0 +1,16 @@
+node_modules/
+.next/
+dist/
+build/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+.turbo/
+.vercel/
+.fly/
+coverage/
+.claude/

@@ -1,0 +1,152 @@
+"""Static structural tests for recallraid_contract.py.
+
+These do NOT run the contract inside GenVM (that requires the GenLayer
+Studio runtime) — they verify the source is syntactically valid, exposes
+the expected public surface, and does not violate the money-safety
+invariants that matter most (single emission chokepoint, zero-before-
+transfer ordering, gl.vm.UserError used instead of bare exceptions).
+Run with: python3 -m unittest discover -s contracts/tests
+"""
+import ast
+import unittest
+from pathlib import Path
+
+CONTRACT_PATH = Path(__file__).resolve().parents[1] / "recallraid_contract.py"
+
+
+def _load_tree() -> ast.Module:
+    source = CONTRACT_PATH.read_text(encoding="utf-8")
+    return ast.parse(source, filename=str(CONTRACT_PATH))
+
+
+def _find_class(tree: ast.Module, name: str) -> ast.ClassDef:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == name:
+            return node
+    raise AssertionError(f"class {name} not found")
+
+
+def _decorator_names(node) -> list:
+    names = []
+    for dec in node.decorator_list:
+        if isinstance(dec, ast.Attribute):
+            names.append(dec.attr)
+        elif isinstance(dec, ast.Name):
+            names.append(dec.id)
+        elif isinstance(dec, ast.Call):
+            if isinstance(dec.func, ast.Attribute):
+                names.append(dec.func.attr)
+            elif isinstance(dec.func, ast.Name):
+                names.append(dec.func.id)
+    return names
+
+
+class ContractStructureTests(unittest.TestCase):
+    def setUp(self):
+        self.tree = _load_tree()
+        self.contract_cls = _find_class(self.tree, "RecallRaid")
+        self.methods = {
+            n.name: n for n in self.contract_cls.body if isinstance(n, ast.FunctionDef)
+        }
+
+    def test_file_parses(self):
+        self.assertIsInstance(self.tree, ast.Module)
+
+    def test_expected_public_writes_exist(self):
+        expected_payable = {
+            "submit_investigation",
+            "open_challenge",
+            "create_seller_bond",
+            "topup_seller_bond",
+        }
+        expected_write = {
+            "add_evidence",
+            "cancel_investigation",
+            "request_verdict",
+            "claim_evidence_timeout",
+            "claim_verdict_timeout",
+            "resolve_challenge",
+            "claim_challenge_timeout",
+            "settle_investigation",
+            "withdraw",
+            "link_seller_bond",
+            "withdraw_seller_bond",
+            "set_paused",
+            "transfer_administration",
+        }
+        for name in expected_payable | expected_write:
+            self.assertIn(name, self.methods, f"missing method {name}")
+        for name in expected_payable:
+            decorators = _decorator_names(self.methods[name])
+            self.assertIn("payable", decorators, f"{name} should be payable")
+
+    def test_expected_views_exist(self):
+        expected_views = {
+            "get_investigation",
+            "list_investigations",
+            "get_evidence",
+            "get_evidence_ids_for_investigation",
+            "get_challenge",
+            "get_seller_bond",
+            "get_balance",
+            "get_reputation",
+            "get_protocol_info",
+        }
+        for name in expected_views:
+            self.assertIn(name, self.methods, f"missing view {name}")
+            decorators = _decorator_names(self.methods[name])
+            self.assertIn("view", decorators, f"{name} should be a view")
+
+    def test_single_money_emission_chokepoint(self):
+        """`_Recipient(...).emit_transfer(` must appear exactly once in the
+        whole file (inside `_send_gen`) — every payout must route through
+        that one function rather than calling the EVM interface directly."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        occurrences = source.count("_Recipient(")
+        # one definition-site reference inside _send_gen's body
+        self.assertEqual(
+            occurrences, 1,
+            "expected exactly one call site constructing _Recipient (inside _send_gen); "
+            "found %d — every payout must route through the single chokepoint" % occurrences,
+        )
+
+    def test_withdraw_is_only_caller_of_send_gen(self):
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        occurrences = source.count("_send_gen(")
+        # 1 definition + 1 call site inside withdraw()
+        self.assertEqual(
+            occurrences, 2,
+            "_send_gen should be defined once and called exactly once, from withdraw()",
+        )
+
+    def test_no_bare_exceptions_for_validation(self):
+        """Validation failures must raise gl.vm.UserError so GenVM can
+        surface a clean rejection instead of an unrecoverable VMError."""
+        for node in ast.walk(self.contract_cls):
+            if isinstance(node, ast.Raise) and node.exc is not None:
+                if isinstance(node.exc, ast.Call) and isinstance(node.exc.func, ast.Name):
+                    if node.exc.func.id in ("Exception", "RuntimeError", "ValueError"):
+                        self.fail(
+                            "found a bare %s raise inside the contract class — use "
+                            "gl.vm.UserError for all validation rejections" % node.exc.func.id
+                        )
+
+    def test_error_messages_use_taxonomy_prefix_where_expected(self):
+        """Spot-check that validation errors use the [EXPECTED] prefix
+        (per the four-prefix taxonomy: EXPECTED/EXTERNAL/TRANSIENT/LLM_ERROR)
+        so a validator comparing error strings has a stable signal."""
+        import re
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        call_sites = re.findall(r'gl\.vm\.UserError\(\s*"([^"]*)"', source)
+        self.assertGreater(len(call_sites), 0)
+        untagged = [msg for msg in call_sites if not msg.startswith(
+            ("[EXPECTED]", "[EXTERNAL]", "[TRANSIENT]", "[LLM_ERROR]")
+        )]
+        self.assertEqual(
+            untagged, [],
+            "every gl.vm.UserError should carry one of the four taxonomy prefixes",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

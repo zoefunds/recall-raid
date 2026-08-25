@@ -1,0 +1,28 @@
+# Local development Postgres for apps/api ONLY. This has nothing to do with
+# the GenLayer side of the stack — the contract runs against GenLayer
+# Studio's hosted StudioNet simulator, never in Docker (see memory.md).
+#
+# Usage: docker compose up -d
+# Then, from apps/api: npm run migrate && npm run dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: recallraid-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: recallraid
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: recallraid
+    ports:
+      - "5432:5432"
+    volumes:
+      - recallraid_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recallraid -d recallraid"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  recallraid_postgres_data:

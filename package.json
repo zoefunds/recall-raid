@@ -1,0 +1,20 @@
+{
+  "name": "recallraid",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/web",
+    "apps/api",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace apps/web",
+    "dev:api": "npm run dev --workspace apps/api",
+    "build:web": "npm run build --workspace apps/web",
+    "build:api": "npm run build --workspace apps/api",
+    "test:api": "npm run test --workspace apps/api",
+    "migrate": "npm run migrate --workspace apps/api",
+    "lint:contract": "genvm-lint check contracts/recallraid_contract.py --json",
+    "compile:contract": "python3 -m py_compile contracts/recallraid_contract.py"
+  }
+}

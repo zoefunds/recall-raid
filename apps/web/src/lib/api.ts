@@ -17,6 +17,14 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
       cache: 'no-store',
+      // The API and web app are different origins (Fly.io / Vercel), and
+      // the session cookie is issued with `SameSite=None; Secure` for
+      // exactly this reason — but a cross-origin fetch() ignores that
+      // cookie entirely, in both directions, unless the request explicitly
+      // opts in with credentials: 'include'. Without this, /auth/verify's
+      // Set-Cookie response is silently dropped by the browser and every
+      // authenticated endpoint (uploads, sync, notifications) 401s forever.
+      credentials: 'include',
     });
   } catch {
     throw new ApiError('We could not reach RecallRaid servers. Check your connection and try again.');
@@ -92,4 +100,48 @@ export function fetchPlatformStats(): Promise<PlatformStats> {
 
 export function fetchSellerBonds(sellerAddress: string): Promise<SellerBond[]> {
   return apiFetch(`/sellers/${sellerAddress}/bonds`);
+}
+
+// ---------------------------------------------------------------------
+// Wallet session (challenge-nonce-signature auth) — required before any
+// requireAuth-gated endpoint below (uploads, sync, notifications) will
+// accept a request. See src/hooks/useWalletSession.ts for the flow that
+// calls these: request a nonce, have the wallet sign it, verify.
+// ---------------------------------------------------------------------
+
+export function requestAuthNonce(address: string): Promise<{ nonce: string; message: string }> {
+  return apiFetch('/auth/nonce', { method: 'POST', body: JSON.stringify({ address }) });
+}
+
+export function verifyAuthSignature(address: string, signature: string): Promise<{ walletAddress: string }> {
+  return apiFetch('/auth/verify', { method: 'POST', body: JSON.stringify({ address, signature }) });
+}
+
+export function fetchAuthSession(): Promise<{ session: { walletAddress: string } | null }> {
+  return apiFetch('/auth/session');
+}
+
+// ---------------------------------------------------------------------
+// Chain -> cache sync triggers. The Postgres cache is only ever updated
+// by (a) one of these calls, right after the frontend's own client-signed
+// transaction confirms, or (b) the backend's periodic deadline-watcher
+// sweep for investigations that are still in a non-terminal state — see
+// docs/ARCHITECTURE.md. Calling these immediately after a write is what
+// keeps the UI from showing stale state for the person who just acted.
+// ---------------------------------------------------------------------
+
+export function syncInvestigation(id: number | string, txHash?: string): Promise<{ investigation: Investigation }> {
+  return apiFetch(`/investigations/${id}/sync`, { method: 'POST', body: JSON.stringify({ txHash }) });
+}
+
+export function syncEvidenceForInvestigation(investigationId: number | string, txHash?: string): Promise<{ evidence: unknown[] }> {
+  return apiFetch(`/evidence/${investigationId}/sync`, { method: 'POST', body: JSON.stringify({ txHash }) });
+}
+
+export function syncChallenge(id: number | string, txHash?: string): Promise<{ challenge: unknown }> {
+  return apiFetch(`/challenges/${id}/sync`, { method: 'POST', body: JSON.stringify({ txHash }) });
+}
+
+export function syncSellerBond(id: number | string, txHash?: string): Promise<{ sellerBond: unknown }> {
+  return apiFetch(`/seller-bonds/${id}/sync`, { method: 'POST', body: JSON.stringify({ txHash }) });
 }

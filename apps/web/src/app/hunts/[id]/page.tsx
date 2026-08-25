@@ -3,7 +3,8 @@
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchEvidenceForInvestigation, fetchInvestigation } from '@/lib/api';
+import { fetchEvidenceForInvestigation, fetchInvestigation, syncInvestigation } from '@/lib/api';
+import { useWalletSession } from '@/hooks/useWalletSession';
 import { Card, CardBody } from '@/components/ui/Card';
 import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip, VerdictChip } from '@/components/ui/StatusChip';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
@@ -34,6 +35,7 @@ export default function InvestigationDetailPage() {
 
   const write = useContractWrite();
   const { isConnected } = useConnectedAddress();
+  const { ensureSession } = useWalletSession();
   const [challengeReason, setChallengeReason] = useState('');
 
   if (invQuery.isLoading) {
@@ -54,25 +56,33 @@ export default function InvestigationDetailPage() {
 
   const inv = invQuery.data;
 
-  async function refreshAfterTx() {
+  async function refreshAfterTx(txHash?: string) {
+    // Tell the API to re-pull this investigation from chain BEFORE asking
+    // react-query to refetch — otherwise the refetch just re-reads whatever
+    // was already sitting in the Postgres cache, which is exactly the
+    // staleness this is meant to prevent.
+    await syncInvestigation(inv.id, txHash);
     await qc.invalidateQueries({ queryKey: ['investigation', id] });
     await qc.invalidateQueries({ queryKey: ['evidence', id] });
   }
 
   async function handleRequestVerdict() {
+    await ensureSession();
     const res = await write.send('request_verdict', [inv.id]);
-    if (res) await refreshAfterTx();
+    if (res) await refreshAfterTx(res.txHash);
   }
 
   async function handleOpenChallenge() {
+    await ensureSession();
     const stake = computeRequiredChallengeStakeWei(BigInt(inv.bounty_wei));
     const res = await write.send('open_challenge', [inv.id, challengeReason || 'Disputing verdict'], stake);
-    if (res) await refreshAfterTx();
+    if (res) await refreshAfterTx(res.txHash);
   }
 
   async function handleSettle() {
+    await ensureSession();
     const res = await write.send('settle_investigation', [inv.id]);
-    if (res) await refreshAfterTx();
+    if (res) await refreshAfterTx(res.txHash);
   }
 
   const now = Date.now() / 1000;

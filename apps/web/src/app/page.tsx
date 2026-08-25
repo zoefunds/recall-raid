@@ -11,10 +11,11 @@ import { weiToGen } from '@/lib/format';
 import { LogoMark } from '@/components/Logo';
 
 export default function LandingPage() {
-  const statsQuery = useQuery({ queryKey: ['stats'], queryFn: fetchPlatformStats });
+  const statsQuery = useQuery({ queryKey: ['stats'], queryFn: fetchPlatformStats, refetchInterval: 30_000 });
   const targetsQuery = useQuery({
     queryKey: ['investigations', 'preview'],
     queryFn: () => fetchInvestigations({ offset: 0, limit: 4 }),
+    refetchInterval: 20_000,
   });
 
   return (

@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { requestEvidenceUploadUrl } from '@/lib/api';
+import { requestEvidenceUploadUrl, syncInvestigation, syncEvidenceForInvestigation } from '@/lib/api';
 import { sha256Hex } from '@/lib/hash';
 import { genToWei } from '@/lib/format';
 import { useContractWrite } from '@/hooks/useContractWrite';
 import { useConnectedAddress } from '@/components/ConnectWalletButton';
+import { useWalletSession } from '@/hooks/useWalletSession';
 import { TransactionStatusModal } from '@/components/TransactionStatusModal';
 
 const HAZARD_OPTIONS = [
@@ -65,6 +66,7 @@ export default function SubmitEvidencePage() {
 
   const write = useContractWrite();
   const { isConnected } = useConnectedAddress();
+  const { ensureSession } = useWalletSession();
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -116,6 +118,12 @@ export default function SubmitEvidencePage() {
     setUploading(true);
     setUploadError(null);
     try {
+      // Evidence upload requires an authenticated session
+      // (/evidence/upload-url is requireAuth-gated) — establish it up
+      // front so the wallet's signature prompt appears before the user
+      // has already sat through the submit_investigation transaction.
+      await ensureSession();
+
       const stakeWei = genToWei(form.stakeGen);
       const submitRes = await write.send(
         'submit_investigation',
@@ -151,6 +159,12 @@ export default function SubmitEvidencePage() {
       }
 
       if (investigationId != null) {
+        // Seed the cache immediately from the confirmed submit_investigation
+        // tx — otherwise the investigation detail page the user is about to
+        // land on would 404 ("not in the cache yet") until the next
+        // deadline-watcher sweep.
+        await syncInvestigation(investigationId, submitRes.txHash);
+
         const uploads = await Promise.all(
           [
             { file: productPhoto, type: 'product_photo' },
@@ -163,7 +177,17 @@ export default function SubmitEvidencePage() {
 
         for (const u of uploads) {
           // Anchor each evidence item on-chain: content_hash + URL only.
-          await write.send('add_evidence', [investigationId, u.type, u.contentHash, u.url, '']);
+          const evidenceRes = await write.send('add_evidence', [investigationId, u.type, u.contentHash, u.url, '']);
+          if (evidenceRes) {
+            await syncEvidenceForInvestigation(investigationId, evidenceRes.txHash);
+          }
+        }
+        // Evidence submission flips the on-chain status from OPEN to
+        // EVIDENCE_SUBMITTED — re-sync the investigation row itself too,
+        // not just the evidence rows, so the detail page's status chip and
+        // "Request Verdict" button are correct on first paint.
+        if (uploads.length > 0) {
+          await syncInvestigation(investigationId);
         }
         router.push(`/hunts/${investigationId}`);
       } else {

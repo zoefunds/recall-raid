@@ -2,8 +2,14 @@ import type { FastifyBaseLogger } from "fastify";
 import { pool } from "./db.js";
 import { getTransactionStatus, chain } from "./genlayer.js";
 import { canTransition, isTerminal, type TxStatus } from "./tx-status-machine.js";
+import { syncInvestigation, syncSellerBond } from "./sync.js";
 
-const POLL_INTERVAL_MS = Number(process.env.DEADLINE_WATCHER_INTERVAL_MS ?? 60_000);
+// 20s default: tight enough that a third-party viewer's stale window is
+// barely noticeable, still cheap since these are read-only view calls
+// against a small number of non-terminal investigations at this scale.
+// Override via DEADLINE_WATCHER_INTERVAL_MS if the investigation count
+// grows enough that this needs to back off.
+const POLL_INTERVAL_MS = Number(process.env.DEADLINE_WATCHER_INTERVAL_MS ?? 20_000);
 
 // Maps a GenVM transaction receipt status to our own tx_status_log enum.
 // GenVM statuses observed in sibling projects: PENDING, ACCEPTED, FINALIZED,
@@ -117,11 +123,51 @@ export function startDeadlineWatcher(logger: FastifyBaseLogger): void {
     }
   }
 
+  // Defense-in-depth against stale reads: the frontend syncs a row
+  // immediately after ITS OWN transaction confirms (see apps/web's
+  // syncInvestigation/syncSellerBond calls), but that only refreshes the
+  // cache for the browser that acted. Anyone else viewing the same
+  // investigation — a different wallet, a page loaded before the write
+  // happened — would otherwise see a stale row until they happen to
+  // trigger their own sync. This sweep re-pulls every investigation still
+  // in a non-terminal state (and any seller bond linked to one) from chain
+  // on every tick, so the cache self-heals within one poll interval
+  // regardless of who caused the change or whether their sync call
+  // actually landed (closed tab, network blip, etc).
+  async function resyncActiveOnChainState() {
+    const { rows: activeInvestigations } = await pool.query(
+      `select investigation_id from investigations_cache where status not in ('SETTLED', 'CANCELLED', 'INVALID')`,
+    );
+    for (const row of activeInvestigations as { investigation_id: number }[]) {
+      try {
+        await syncInvestigation(row.investigation_id);
+      } catch (err) {
+        logger.warn({ err, investigationId: row.investigation_id }, "deadline-watcher: failed to resync investigation this tick");
+      }
+    }
+
+    const { rows: activeBonds } = await pool.query(
+      `select bond_id from seller_bonds_cache where status = 'ACTIVE' and linked_investigation_count > 0`,
+    );
+    for (const row of activeBonds as { bond_id: number }[]) {
+      try {
+        await syncSellerBond(row.bond_id);
+      } catch (err) {
+        logger.warn({ err, bondId: row.bond_id }, "deadline-watcher: failed to resync seller bond this tick");
+      }
+    }
+  }
+
   async function tick() {
     try {
       await pollPendingTransactions();
     } catch (err) {
       logger.warn({ err }, "deadline-watcher: pollPendingTransactions failed this tick");
+    }
+    try {
+      await resyncActiveOnChainState();
+    } catch (err) {
+      logger.warn({ err }, "deadline-watcher: resyncActiveOnChainState failed this tick");
     }
     try {
       await sweepDeadlineNotifications();

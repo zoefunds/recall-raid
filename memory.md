@@ -10,6 +10,124 @@ Both apps are deployed and verified working end-to-end against the live contract
 
 **Not yet done**: no custom domain beyond the vercel.app/fly.dev defaults. No monitoring/alerting configured beyond Fly's built-in health checks.
 
+## Final audit: frontend↔contract↔backend integration (2026-08-25)
+
+User asked for a full audit that (a) the contract is called correctly by
+the frontend, (b) the backend relays chain state to the frontend as fast
+as possible, (c) nothing is stale. This surfaced several real,
+previously-invisible bugs — cross-checked against the **live deployed
+contract's actual schema** (`node scripts/verify_deployed_contract.mjs`-
+style calls to `getContractSchema`), not just source-reading:
+
+1. **Critical: wallet-auth session cookie was never actually usable.**
+   `apps/web/src/lib/api.ts`'s `apiFetch` never set `credentials: 'include'`
+   on its `fetch()` calls. The API and web app are different origins
+   (Fly.io vs Vercel) and the session cookie is issued with
+   `SameSite=None; Secure` specifically for cross-origin use — but without
+   `credentials: 'include'` on the client, the browser silently drops both
+   the `Set-Cookie` on `/auth/verify`'s response AND every outgoing
+   cookie afterward. **Fixed** by adding it in one place (`apiFetch`).
+
+2. **Critical: the entire challenge-nonce-signature auth flow was never
+   invoked anywhere in the frontend.** The backend fully implements
+   `POST /auth/nonce` → sign → `POST /auth/verify` (see `apps/api/src/routes/auth.ts`),
+   but no frontend code ever called it — every `requireAuth`-gated
+   endpoint (evidence upload-url, all four `/*/sync` triggers,
+   notifications, leaderboard/refresh) would 401 forever. **Fixed** by
+   adding `apps/web/src/hooks/useWalletSession.ts` (module-level dedup so
+   concurrent callers share one in-flight sign request, not one prompt
+   each) and calling `ensureSession()` at the top of every handler that
+   needs it: `submit/page.tsx` (before uploads), `hunts/[id]/page.tsx`
+   (before request_verdict/open_challenge/settle_investigation),
+   `seller/page.tsx` (before create_seller_bond).
+
+3. **Critical: `withdraw` argument type mismatch.** The live contract's
+   schema is `withdraw(amount_wei: int)`, but `apps/web/src/app/wallet/page.tsx`
+   was calling `write.send('withdraw', [wei.toString()])` — a decimal
+   string where the contract expects native int calldata. Confirmed via
+   `getContractSchema` against the live address, not assumed. **Fixed** by
+   passing the bigint directly.
+
+4. **Endpoint shape mismatches across the board** (the root cause of the
+   "Live stats unavailable" error the user screenshotted): the frontend's
+   TypeScript types (`apps/web/src/types/contract.ts`) mirror the
+   contract's own JSON shape exactly (numeric `status`/`verdict`, `id`,
+   `submitter`, etc.), but the Postgres cache uses different column names
+   and text-label enums (`investigation_id`, `submitter_wallet`, `status`
+   as `'OPEN'` not `0`). Specific breaks found and fixed:
+   - `GET /stats` **didn't exist at all** — added `apps/api/src/routes/stats.ts`,
+     a real aggregate query (verified_discoveries, active_threats,
+     gen_distributed_wei all computed from `investigations_cache`, not
+     hardcoded).
+   - `GET /evidence?investigation_id=` **didn't exist at all** — added to
+     `evidence.ts`.
+   - `GET /investigations` and `GET /investigations/:id` returned raw cache
+     rows (wrong field names, `description` missing entirely from the
+     cache table, status/verdict as text) instead of the contract-shaped
+     JSON the frontend expects.
+   - `GET /leaderboard` and `GET /sellers/:address/bonds` returned
+     `{total,items,...}`/`{sellerBonds:[...]}` wrapper objects; the
+     frontend's `fetchLeaderboard`/`fetchSellerBonds` expect a bare array.
+   - Fixed by adding `apps/api/src/lib/serialize.ts` (one translation
+     boundary: cache row → frontend-shaped object, including reverse
+     enum-label-to-code maps added to `chain-enums.ts`) and updating every
+     route to use it. Added migration
+     `20260825010000_add_investigation_description.sql` (confirmed applied
+     in prod via direct `psql` over `fly proxy`) plus updated `sync.ts` to
+     actually persist `description` going forward.
+   - Also fixed: `hazard_class` list-filter — frontend sends a
+     comma-joined string (`"1,2"`), backend's Zod schema was a single
+     `z.coerce.number()` that would silently fail on it; `min_bounty_wei`
+     was accepted as a query param but never actually filtered on.
+
+5. **Staleness — two-layer fix**, since the frontend never called any
+   `/sync` endpoint (`refreshAfterTx` only did `qc.invalidateQueries`,
+   which just re-reads whatever was already in Postgres):
+   - **Eager sync (actor gets instant freshness)**: added
+     `syncInvestigation`/`syncEvidenceForInvestigation`/`syncSellerBond`
+     client functions to `apps/web/src/lib/api.ts`, called with the
+     transaction's own `txHash` immediately after every confirmed write in
+     `submit/page.tsx`, `hunts/[id]/page.tsx`, `seller/page.tsx` — before
+     invalidating the react-query cache, so the refetch actually sees
+     fresh data.
+   - **Background resync (everyone else self-heals)**: added
+     `resyncActiveOnChainState()` to `apps/api/src/lib/deadline-watcher.ts` —
+     every tick, re-pulls every investigation not yet in a terminal status
+     (and every seller bond linked to one) straight from chain, so a
+     viewer who wasn't the one who triggered a change still sees it within
+     one poll interval. Poll interval tightened from 60s → 20s default
+     (`DEADLINE_WATCHER_INTERVAL_MS`) for tighter "as soon as possible"
+     freshness at this investigation-count scale. Added matching
+     `refetchInterval` (20-30s) to the landing page's stats/preview queries
+     and the `/hunts` list query, which previously only refetched on
+     refocus/remount.
+
+6. **Infra reliability finding, unrelated to the code audit but discovered
+   while testing it**: `recallraid-db`'s Postgres machine had been
+   provisioned at `shared-cpu-1x` with only **256MB** memory (not enough
+   for even light concurrent load) and had a `critical` `vm` health check
+   (`cpu: system spent 2.69s of the last 10 seconds waiting on cpu`)
+   essentially since creation — causing intermittent
+   `"Connection terminated unexpectedly"` errors and real 503s on
+   `/health` and other endpoints (confirmed via repeated live polling,
+   ~40-50% failure rate at one point). **Fixed**: upgraded to
+   `shared-cpu-2x` (512MB, 2 cores) via `fly machine update ... --vm-size
+   shared-cpu-2x`. Confirmed after upgrade: all 3 health checks (`pg`,
+   `role`, `vm`) passing, cpu-wait dropped from 2.69s/10s to under
+   1s/60s, and the API held stable 200s across dozens of consecutive
+   polls afterward. This directly serves the "must never die" 24/7
+   requirement — the prior sizing was the actual latent cause of any
+   future flakiness, not the application code.
+
+All of the above verified against the **live production deployment**, not
+just locally: rebuilt both apps (api: 26/26 vitest passing, `tsc` clean;
+web: `tsc --noEmit` clean, `next build` clean, all 8 routes 200), redeployed
+both (`fly deploy --app recallraid-api`, `vercel deploy --prod`), and
+re-confirmed `/stats`, `/investigations`, `/evidence`, `/leaderboard`,
+`/sellers/.../bonds` all return the exact shapes the frontend types expect,
+CORS still correctly scoped, and the live contract's full method schema
+(29 methods) cross-checked field-by-field against every frontend call site.
+
 ## Cross-agent API contract mismatches, found and fixed (2026-08-25)
 
 `apps/web` and `apps/api` were built by two independent background agents

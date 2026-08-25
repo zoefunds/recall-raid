@@ -33,7 +33,11 @@ export default function WalletPage() {
 
   async function handleWithdraw() {
     const wei = genToWei(withdrawAmount);
-    const res = await write.send('withdraw', [wei.toString()]);
+    // The deployed contract's withdraw(amount_wei: int) expects a native
+    // calldata int, not a decimal string — pass the bigint through as-is
+    // rather than stringifying it (genlayer-js's calldata encoder handles
+    // bigint natively for an `int`-typed parameter).
+    const res = await write.send('withdraw', [wei]);
     if (res) {
       setWithdrawAmount('');
       await qc.invalidateQueries({ queryKey: ['balance', address] });

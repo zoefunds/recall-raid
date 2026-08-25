@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchSellerBonds } from '@/lib/api';
+import { fetchSellerBonds, syncSellerBond } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { genToWei, weiToGen } from '@/lib/format';
 import { useConnectedAddress } from '@/components/ConnectWalletButton';
 import { useContractWrite } from '@/hooks/useContractWrite';
+import { useWalletSession } from '@/hooks/useWalletSession';
 import { TransactionStatusModal } from '@/components/TransactionStatusModal';
 
 const BOND_STATUS_LABEL: Record<number, string> = { 0: 'ACTIVE', 1: 'DEPLETED', 2: 'WITHDRAWN' };
@@ -18,6 +19,7 @@ export default function SellerDashboardPage() {
   const qc = useQueryClient();
   const [bondAmount, setBondAmount] = useState('');
   const write = useContractWrite();
+  const { ensureSession } = useWalletSession();
 
   const bondsQuery = useQuery({
     queryKey: ['seller-bonds', address],
@@ -26,10 +28,20 @@ export default function SellerDashboardPage() {
   });
 
   async function handleCreateBond() {
+    await ensureSession();
     const wei = genToWei(bondAmount);
     const res = await write.send('create_seller_bond', [], wei);
     if (res) {
       setBondAmount('');
+      try {
+        const parsed = typeof res.result === 'string' ? JSON.parse(res.result) : res.result;
+        const bondId = (parsed as { bond_id?: number })?.bond_id;
+        if (bondId != null) await syncSellerBond(bondId, res.txHash);
+      } catch {
+        // If the id couldn't be parsed, the periodic deadline-watcher sweep
+        // (or a future page load's own on-demand sync) will still pick up
+        // the new bond — just not instantly.
+      }
       await qc.invalidateQueries({ queryKey: ['seller-bonds', address] });
     }
   }

@@ -38,6 +38,10 @@ export default function HuntsPage() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['investigations', params],
     queryFn: () => fetchInvestigations(params),
+    // Keeps the Active Hunts feed live for someone who leaves the tab open
+    // rather than only refreshing on refocus/remount, matching the backend
+    // deadline-watcher's own resync cadence.
+    refetchInterval: 20_000,
   });
 
   function toggleHazard(v: number) {

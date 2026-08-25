@@ -1,5 +1,55 @@
 # RecallRaid — Build Memory
 
+## External audit round 2 response (2026-08-25) — score 2,380 → 3,000, three more fixes applied
+
+Auditor confirmed the round-1 critical/high fixes (unfunded bonus, bond
+lock) landed correctly in source, and raised new/refined findings against
+the fixed version:
+
+1. **P1, fixed** — the round-1 tolerance relaxation (`VERDICT_TOLERANCE_STEPS = 1`,
+   any adjacent bucket agrees) was itself unsafe: a leader `RECALL_CONFIRMED`
+   could agree with a validator `POTENTIAL_ISSUE` (1 step apart) and still
+   slash a seller bond, without the validator ever confirming a recall.
+   Fixed: `_verdicts_agree` now only allows tolerance to bridge
+   `NEEDS_MORE_EVIDENCE` with its immediate neighbor — any two *different*
+   determinate, fund-moving verdicts require an exact match, full stop.
+   New structural test:
+   `test_verdict_tolerance_never_bridges_two_determinate_verdicts`.
+2. **P1, partially fixed (honestly scoped)** — "product identification is
+   still too weak for a recall verdict" (URL + LLM interpretation alone
+   isn't precise enough to justify slashing a bond). Did NOT implement
+   full UPC/GTIN/regulator-recall-ID cross-matching this round (would need
+   new contract fields + a schema migration + frontend changes — real
+   future work). Did implement a deterministic floor: `_stable_verdict`
+   now refuses to let `RECALL_CONFIRMED` stand for any submission with
+   neither a `model_number` nor a `serial_number` at all, downgrading to
+   `NEEDS_MORE_EVIDENCE` instead. Also strengthened the verdict prompt
+   itself to explicitly require model/serial matching, not just same-brand
+   matching. New structural test:
+   `test_recall_confirmed_requires_a_product_identifier`.
+3. **P2, fixed** — the `CHALLENGE_OVERTURN_BONUS_BPS` constant's comment
+   still claimed the bonus came from "the seller bond if present, else
+   protocol treasury" — stale from before the round-1 fix. Corrected to
+   describe the actual bounty-pool-carve-out mechanism.
+4. **P1, still open, not attempted this round** — verified seller/listing
+   ownership. Auditor confirmed the honest-copy fix from round 1 addressed
+   the *claim* but not the underlying mechanism. This remains the largest
+   gap between "interesting demo" and real marketplace infrastructure;
+   solving it needs real marketplace OAuth/signed-challenge integration,
+   out of scope for a contract-focused round.
+5. **P0, still open** — no live StudioNet run has validated this exact
+   contract revision yet (auditor is correct that this is required before
+   any production-readiness claim). This is the very next step: redeploy
+   and re-run `scripts/full_contract_test_suite.mjs` against the new
+   address, specifically re-checking the tightened agreement rule and the
+   product-identifier guardrail don't cause unwanted NEEDS_MORE_EVIDENCE
+   thrash on legitimate cases with real model numbers.
+
+All fixes compile clean, pass all 11 structural tests (2 new ones added
+this round), lint clean. `docs/SECURITY.md` updated with both the fix
+descriptions and what's still explicitly NOT solved (product-ID
+cross-matching beyond the floor, seller ownership verification).
+
 ## External audit response (2026-08-25) — economic/security hardening, not runtime bugs
 
 User got an external audit scoring the repo 2,380/4,000. Findings and

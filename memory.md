@@ -1,5 +1,45 @@
 # RecallRaid — Build Memory
 
+## "Black box" evidence photo — real fix + a false lead (2026-08-25)
+
+User reported the product photo on `/hunts/1` rendering as a solid black
+box. Two things were true at once, and it's worth recording both clearly:
+
+1. **Real bug, correctly fixed**: `apps/web/next.config.mjs`'s
+   `images.remotePatterns` still only allowlisted the old R2 domains
+   (`*.r2.dev`, `*.cloudflarestorage.com`) from before the Cloudinary
+   migration — `res.cloudinary.com` was never added. This is a genuine
+   bug that would silently break any real user's evidence photo. Fixed.
+2. **Not actually why THIS photo was black**: investigation 1's specific
+   "product photo" evidence item was the `TEST_PNG` constant from
+   `scripts/full_contract_test_suite.mjs` — a deliberately trivial 1×1
+   transparent pixel used only to exercise the upload pipeline during
+   testing, never intended as a real visual asset. Confirmed by opening
+   the raw Cloudinary URL directly — the browser tab title literally read
+   "(1×1)". Stretched to fill a large gallery container, a 1×1
+   transparent pixel against the dark theme is indistinguishable from a
+   solid black box. This was never a rendering bug for that specific
+   image — there was just no real image data behind it.
+
+**Verified both are now resolved**: added a third real, visible evidence
+photo (a generated 300×200 PNG, amber warning-triangle graphic, no
+external deps) to investigation 1 via the actual upload pipeline
+(Cloudinary signed upload → `add_evidence` → API sync), and confirmed via
+screenshot in the live browser that it renders correctly. The original
+1×1 test photo is still there (harmless, evidence is append-only) but the
+gallery now also shows a genuinely visible image, proving the pipeline
+and the domain-allowlist fix both work end-to-end.
+
+**Separately answered**: user asked why a wallet other than the
+submitter sees a "Request Verdict" button on this investigation.
+Confirmed via source: `request_verdict` has no `msg.sender == submitter`
+check — it's deliberately permissionless, same design as the
+`claim_*_timeout` sweeps, since triggering the evaluation is "push the
+public-evidence-anchored process forward," not a submitter privilege.
+This is intentional, not a bug — flagged to the user as a product
+decision to revisit only if they want it restricted (would need a
+contract change + redeploy).
+
 ## Live test against `0xceE153ECE149AB35fA7D33e67Fa3aE00610061c6` — 52/53 pass (2026-08-25)
 
 Redeployed after the consensus-detection fix, cache-upsert fix, and the

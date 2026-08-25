@@ -3,9 +3,11 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: '**.r2.dev' },
-      { protocol: 'https', hostname: '**.cloudflarestorage.com' },
-      { protocol: 'https', hostname: 'pub-*.r2.dev' },
+      // Evidence photos are uploaded directly to Cloudinary (see
+      // memory.md's R2 -> Cloudinary swap) — this was still pointing at
+      // the old R2 domains, which silently blocks next/image from
+      // rendering any evidence photo (shows as a blank box, no error).
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
     ],
   },
   webpack: (config) => {

@@ -140,16 +140,23 @@ was built against):
   is a floor against the worst case (zero identifying information), not
   full UPC/GTIN/regulator-recall-ID cross-matching — that remains real
   future work.
-- **Verdict agreement requires an exact match between leader and
-  validator for every determinate, fund-moving verdict** (`NO_ISSUE`,
-  `POTENTIAL_ISSUE`, `RECALL_CONFIRMED`) — `VERDICT_TOLERANCE_STEPS`
-  only bridges `NEEDS_MORE_EVIDENCE` with its immediate ordinal neighbor,
-  never two different determinate outcomes. An earlier revision allowed
-  any adjacent-bucket pair to agree, which meant a leader
-  `RECALL_CONFIRMED` could agree with a validator `POTENTIAL_ISSUE` and
-  go on to slash a seller bond without the validator ever actually
-  confirming a recall — fixed and covered by
-  `test_verdict_tolerance_never_bridges_two_determinate_verdicts`.
+- **Verdict agreement requires an EXACT bucket match between leader and
+  validator, with no ordinal tolerance of any kind.** This went through
+  two rounds of real audit findings before landing here: an initial
+  version let any adjacent bucket agree (a leader `RECALL_CONFIRMED`
+  could agree with a validator `POTENTIAL_ISSUE` and slash a seller bond
+  the validator never confirmed); a narrower fix let only
+  `NEEDS_MORE_EVIDENCE` bridge with its neighbor, but that still let a
+  leader's determinate, fund-moving verdict (`NO_ISSUE`/`POTENTIAL_ISSUE`)
+  get committed merely because a validator said `NEEDS_MORE_EVIDENCE` —
+  because `gl.vm.run_nondet_unsafe` always commits whatever `leader_fn()`
+  returned; `validator_fn`'s boolean return can never substitute a
+  different stored value. There is no tolerance rule achievable at this
+  layer that is both safe and "smarter than exact match" — a mismatch
+  now simply means the round didn't reach consensus, which triggers
+  GenVM's own leader-rotation/retry mechanics rather than committing an
+  unconfirmed fund-moving outcome. Covered by
+  `test_verdicts_agree_requires_exact_bucket_match`.
 - No circuit-breaker for a compromised/malicious source domain being added
   to the allowlist in a future version, no monitoring of
   NEEDS_MORE_EVIDENCE/UNDETERMINED rates over time, and no independent

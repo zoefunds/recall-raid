@@ -109,7 +109,11 @@ VERDICT_ORDER = {
     int(VERDICT_POTENTIAL_ISSUE): 2,
     int(VERDICT_RECALL_CONFIRMED): 3,
 }
-VERDICT_TOLERANCE_STEPS = 1  # ordinal distance allowed ONLY when bridging NEEDS_MORE_EVIDENCE with its immediate neighbor (see _verdicts_agree) — any two DETERMINATE fund-moving verdicts (NO_ISSUE / POTENTIAL_ISSUE / RECALL_CONFIRMED) must match exactly regardless of this constant's value; a leader RECALL_CONFIRMED can never agree with a validator POTENTIAL_ISSUE or NO_ISSUE via tolerance, which closes a real audit finding where that could have slashed a seller bond without the validator actually confirming a recall.
+# No ordinal verdict-bucket tolerance exists (removed after two rounds of
+# real audit findings — see _verdicts_agree's docstring for the full
+# history). Leader and validator must land on the EXACT SAME verdict
+# bucket to agree; only the confidence score gets a tolerance band, via
+# CONFIDENCE_TOLERANCE_BPS below.
 CONFIDENCE_TOLERANCE_BPS = u32(1500)  # leader/validator confidence scores may differ by up to 15pp and still agree
 
 
@@ -606,34 +610,32 @@ class RecallRaid(gl.Contract):
         return u8(result["verdict"]), u32(result["confidence_bps"])
 
     def _verdicts_agree(self, a: dict, b: dict) -> bool:
-        """Agreement rule, tightened after a real audit finding: allowing
-        any adjacent-bucket pair to agree (the previous version) meant a
-        leader RECALL_CONFIRMED could agree with a validator
-        POTENTIAL_ISSUE — one ordinal step apart — and go on to slash a
-        seller bond even though the validator never actually confirmed a
-        recall. Every determinate, fund-moving verdict
-        (NO_ISSUE / POTENTIAL_ISSUE / RECALL_CONFIRMED) now requires an
-        EXACT match to agree with another determinate verdict — no
-        tolerance, full stop. Tolerance is allowed in exactly one place:
-        bridging NEEDS_MORE_EVIDENCE with its immediate neighbor, since
-        that is a "the model wasn't confident enough" signal, not a
-        fund-moving disagreement — and even that only requires the raw
-        nondet agreement to succeed, not the eventual verdict, since
-        _stable_verdict's guardrail independently re-derives
-        NEEDS_MORE_EVIDENCE from low confidence regardless."""
+        """Requires an EXACT verdict-bucket match, full stop — no ordinal
+        tolerance of any kind, including bridging NEEDS_MORE_EVIDENCE with
+        a neighboring determinate verdict.
+
+        This went through two revisions, both closed by real audit
+        findings: (1) any adjacent-bucket pair agreeing let a leader
+        RECALL_CONFIRMED agree with a validator POTENTIAL_ISSUE and slash a
+        seller bond the validator never actually confirmed; (2) narrowing
+        the bridge to only NEEDS_MORE_EVIDENCE-and-neighbor still let a
+        leader NO_ISSUE or POTENTIAL_ISSUE (both fund-moving) agree with a
+        validator NEEDS_MORE_EVIDENCE and have the LEADER's determinate,
+        fund-moving verdict get committed — because `gl.vm.run_nondet_unsafe`
+        always commits whatever `leader_fn()` returned; `validator_fn`'s
+        return value only decides agree/disagree, it can never substitute
+        a different value to store. There is no way to make this primitive
+        "store NEEDS_MORE_EVIDENCE if either side proposed it" — the only
+        safety-correct rule achievable at this layer is exact agreement.
+
+        A leader/validator mismatch under this rule is not a bug: it means
+        the round didn't reach consensus, and GenVM's own leader-rotation/
+        retry mechanics take over — a fund-moving verdict is never
+        committed on anything less than exact independent agreement."""
         order_a = VERDICT_ORDER.get(int(a["verdict"]))
         order_b = VERDICT_ORDER.get(int(b["verdict"]))
-        if order_a is None or order_b is None:
+        if order_a is None or order_b is None or order_a != order_b:
             return False
-        if order_a != order_b:
-            if abs(order_a - order_b) > VERDICT_TOLERANCE_STEPS:
-                return False
-            needs_more_evidence_order = VERDICT_ORDER[int(VERDICT_NEEDS_MORE_EVIDENCE)]
-            if needs_more_evidence_order not in (order_a, order_b):
-                # Both sides picked a different DETERMINATE, fund-moving
-                # verdict — never bridge that with tolerance, regardless
-                # of ordinal distance.
-                return False
         conf_gap = abs(int(a["confidence_bps"]) - int(b["confidence_bps"]))
         return conf_gap <= int(CONFIDENCE_TOLERANCE_BPS)
 

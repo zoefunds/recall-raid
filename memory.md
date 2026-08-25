@@ -1,5 +1,44 @@
 # RecallRaid — Build Memory
 
+## External audit round 3 response (2026-08-25) — score 2,380 → 3,000 → 3,180, final verdict-agreement fix
+
+Auditor confirmed round-2 fixes sound, found one more real hole in the
+verdict agreement rule: the NEEDS_MORE_EVIDENCE-bridges-its-neighbor logic
+still let a leader's determinate, fund-moving verdict (`NO_ISSUE` or
+`POTENTIAL_ISSUE`) get committed merely because a validator said
+`NEEDS_MORE_EVIDENCE` — since `gl.vm.run_nondet_unsafe` always commits the
+LEADER's returned value regardless of what `validator_fn` computed
+internally; the validator's role is strictly agree/disagree, it cannot
+substitute a different value to store. The auditor's suggested fix ("if
+either side returns NEEDS_MORE_EVIDENCE, store NEEDS_MORE_EVIDENCE") is
+not actually implementable at this layer — there is no way to make the
+stored result something other than the leader's proposal.
+
+**Real fix**: removed ordinal tolerance entirely. `_verdicts_agree` now
+requires `order_a == order_b` unconditionally — leader and validator must
+land on the literal same verdict bucket, full stop. Removed the now-dead
+`VERDICT_TOLERANCE_STEPS` constant (three real audit rounds of stale-
+comment findings made it not worth leaving a misleading always-1 constant
+around). A leader/validator mismatch is not a bug under this rule — it
+means the round didn't reach consensus and GenVM's own leader-rotation
+handles it, which is the correct behavior for a fund-moving decision that
+two independent parties didn't actually agree on.
+
+Trade-off, stated plainly: this reintroduces the original round-1 concern
+(exact-match-only can cause more `MAJORITY_DISAGREE`/retry rounds on
+genuinely borderline confidence cases) — but given the auditor's
+consistent, correct position that exact agreement is required for every
+fund-moving outcome, and that there is no safe way to build "smart"
+tolerance on top of `run_nondet_unsafe`'s commit-the-leader's-value
+semantics, this is the right trade to make. A disagreement/retry costs
+gas and time; a wrongly-committed verdict costs someone's GEN.
+
+All 11 structural tests pass (one rewritten to match the new rule,
+`test_verdicts_agree_requires_exact_bucket_match`), compiles clean, lints
+clean. Still open per the auditor: no live StudioNet run against this
+exact revision yet (next step), and verified seller/listing ownership
+remains unsolved (out of scope, honestly documented).
+
 ## External audit round 2 response (2026-08-25) — score 2,380 → 3,000, three more fixes applied
 
 Auditor confirmed the round-1 critical/high fixes (unfunded bonus, bond

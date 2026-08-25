@@ -217,7 +217,16 @@ class RecallRaid(gl.Contract):
     next_investigation_id: u32
 
     evidence: TreeMap[u32, Evidence]
-    evidence_by_investigation: TreeMap[u32, DynArray[u32]]
+    # A nested TreeMap[u32, DynArray[u32]] value was tried first (grouping
+    # evidence ids by investigation) but `gl.storage.inmem_allocate` for a
+    # DynArray value nested inside another container hits a runtime bug on
+    # the pinned GenVM runner (`_GenericAlias.__init__() missing 1 required
+    # positional argument: 'args'`) — confirmed via an actual failed
+    # transaction, not assumed. A single flat, auto-materialized top-level
+    # DynArray plus a linear filter by `investigation_id` avoids that
+    # runtime path entirely and comfortably handles this contract's actual
+    # scale (this is a hunt-bounty platform, not a high-throughput ledger).
+    evidence_ids: DynArray[u32]
     next_evidence_id: u32
 
     challenges: TreeMap[u32, Challenge]
@@ -268,6 +277,15 @@ class RecallRaid(gl.Contract):
         if bond is None:
             raise gl.vm.UserError("[EXPECTED] seller bond not found")
         return bond
+
+    def _evidence_ids_for_investigation(self, investigation_id: int) -> list:
+        """Linear filter over the flat `evidence_ids` list — see the field
+        comment on `evidence_ids` for why this replaced a nested
+        TreeMap[u32, DynArray[u32]] index. Fine at this contract's scale
+        (bounded further by MAX_EVIDENCE_PER_INVESTIGATION per investigation,
+        and evidence is only ever appended, never removed)."""
+        target = int(investigation_id)
+        return [eid for eid in self.evidence_ids if int(self.evidence[eid].investigation_id) == target]
 
     def _credit_balance(self, addr: Address, amount: u256) -> None:
         if amount <= u256(0):
@@ -549,13 +567,6 @@ class RecallRaid(gl.Contract):
         )
         self.investigations[inv_id] = inv
         self.investigation_ids.append(inv_id)
-        # Manually constructing DynArray[u32]() directly is rejected by
-        # GenVM at runtime ("this class can't be instantiated by user") —
-        # confirmed by an actual failed submit_investigation transaction
-        # against the deployed contract (leader_receipt showed exactly this
-        # TypeError). Generic storage container values must be allocated
-        # via gl.storage.inmem_allocate(...) instead.
-        self.evidence_by_investigation[inv_id] = gl.storage.inmem_allocate(DynArray[u32])
         self.next_investigation_id = u32(int(inv_id) + 1)
         return json.dumps({"investigation_id": int(inv_id)})
 
@@ -589,11 +600,7 @@ class RecallRaid(gl.Contract):
             submitted_at=_now(),
         )
         self.evidence[ev_id] = ev
-        ids = self.evidence_by_investigation.get(u32(investigation_id))
-        if ids is None:
-            ids = gl.storage.inmem_allocate(DynArray[u32])
-        ids.append(ev_id)
-        self.evidence_by_investigation[u32(investigation_id)] = ids
+        self.evidence_ids.append(ev_id)
         self.next_evidence_id = u32(int(ev_id) + 1)
 
         inv.status = INV_EVIDENCE_SUBMITTED
@@ -628,8 +635,7 @@ class RecallRaid(gl.Contract):
         if int(inv.status) != int(INV_EVIDENCE_SUBMITTED):
             raise gl.vm.UserError("[EXPECTED] investigation must have at least one evidence item and no verdict yet")
 
-        ids = self.evidence_by_investigation.get(u32(investigation_id))
-        evidence_items = [self.evidence[eid] for eid in (ids or [])]
+        evidence_items = [self.evidence[eid] for eid in self._evidence_ids_for_investigation(investigation_id)]
 
         inv.status = INV_INVESTIGATING
         self.investigations[u32(investigation_id)] = inv
@@ -764,8 +770,7 @@ class RecallRaid(gl.Contract):
             raise gl.vm.UserError("[EXPECTED] challenge is not open")
 
         inv = self._get_investigation(int(challenge.investigation_id))
-        ids = self.evidence_by_investigation.get(challenge.investigation_id)
-        evidence_items = [self.evidence[eid] for eid in (ids or [])]
+        evidence_items = [self.evidence[eid] for eid in self._evidence_ids_for_investigation(int(challenge.investigation_id))]
 
         # Re-run the same independently-verifiable nondet pass. A challenge
         # is resolved by re-fetching public evidence again, not by voting on
@@ -1099,8 +1104,7 @@ class RecallRaid(gl.Contract):
 
     @gl.public.view
     def get_evidence_ids_for_investigation(self, investigation_id: int) -> str:
-        ids = self.evidence_by_investigation.get(u32(investigation_id))
-        return json.dumps([int(i) for i in (ids or [])])
+        return json.dumps([int(i) for i in self._evidence_ids_for_investigation(investigation_id)])
 
     @gl.public.view
     def get_challenge(self, challenge_id: int) -> str:

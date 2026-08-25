@@ -1,5 +1,68 @@
 # RecallRaid — Build Memory
 
+## CRITICAL round 2: `0xC36e1D9E8F7b88DC632EBB7bf2F1f57eceE84dd3` is ALSO broken — same root cause, deeper layer (found 2026-08-25, during full method test suite)
+
+The redeploy that fixed round 1's `DynArray[u32]()` direct-construction
+error was itself still broken: replacing it with the docs-recommended
+`gl.storage.inmem_allocate(DynArray[u32])` hit a **second, deeper runtime
+bug** on this pinned GenVM runner, confirmed via an actual failed
+`submit_investigation` transaction against `0xC36e...`:
+```
+File "/contract.py", line 558, in submit_investigation
+  self.evidence_by_investigation[inv_id] = gl.storage.inmem_allocate(DynArray[u32])
+File ".../genlayer/py/storage/__init__.py", line 50, in inmem_allocate
+  init(instance, *init_args, **init_kwargs)
+TypeError: _GenericAlias.__init__() missing 1 required positional argument: 'args'
+```
+`inmem_allocate` itself is broken for allocating a bare `DynArray[u32]`
+value with zero constructor args on this pinned runner, at least when the
+allocated value is meant to live as a value inside another TreeMap (the
+docs' own worked example was for a *generic dataclass* with real
+constructor args, e.g. `Gen[bytes]` with `b'Ada', datetime.now()` — not a
+zero-arg built-in container).
+
+**Real fix, not another incantation guess**: removed the nested
+`evidence_by_investigation: TreeMap[u32, DynArray[u32]]` field entirely.
+Replaced with a single flat top-level `evidence_ids: DynArray[u32]` (same
+pattern as the already-proven-safe `investigation_ids`/`seller_bond_ids`
+fields — confirmed safe because `investigation_ids.append(inv_id)`
+executed successfully in both failed test runs, right before the crash),
+plus a `_evidence_ids_for_investigation()` helper that linear-filters by
+reading each `Evidence.investigation_id`. Every call site
+(`add_evidence`, `request_verdict`, `resolve_challenge`,
+`get_evidence_ids_for_investigation`) updated to use it. This avoids the
+nested-generic-value allocation path entirely rather than fighting its
+exact required incantation on this runner version.
+
+**Full-contract sweep performed before asking for a third redeploy**:
+grepped every remaining `TreeMap`/`DynArray` declaration in the file —
+confirmed every one left is either a top-level auto-materialized field or
+has a plain non-generic `@allow_storage @dataclass` value type
+(`Investigation`, `Evidence`, `Challenge`, `SellerBond`, `ReputationScore`,
+or a primitive `u256`) — never another nested generic container value.
+Plain dataclass construction via ordinary `ClassName(...)` call syntax
+(no generic brackets) is confirmed safe at runtime — every write method
+that constructs one succeeded in both failed test runs; only bare
+`DynArray[T]`/`TreeMap[K,V]` construction is the forbidden runtime path,
+whether attempted directly or via `inmem_allocate` in this nested-value
+shape. Attempted to also verify this locally via `genlayer up`/`genlayer
+init` (local Docker-based simulator) before spending a third live
+redeploy, but the CLI hung at 98% CPU for 5+ minutes with zero Docker
+container activity (likely stuck on an interactive prompt `yes` piped
+input couldn't satisfy) and was killed rather than burn more time on it —
+confidence in this fix instead rests on the source-level reasoning above,
+which is strong (reuses an already-empirically-proven-safe pattern from
+the very same contract, in the very same transactions that surfaced both
+prior bugs).
+
+`0xC36e1D9E8F7b88DC632EBB7bf2F1f57eceE84dd3` needs replacing too — same
+"Claude does not deploy" rule applies. Once redeployed, re-run
+`node scripts/full_contract_test_suite.mjs` (edit `CONTRACT_ADDRESS` at
+the top) — it exercises all 29 methods (17 write, 12 view) across three
+funded test roles (hunter/challenger/seller), real Cloudinary uploads,
+real nondet web-fetch+LLM verdict passes, and syncs every state change
+into the live API so it's visible on recall-raid.vercel.app.
+
 ## CRITICAL: deployed contract has a fatal bug in `submit_investigation` — needs redeploy (found 2026-08-25)
 
 A real end-to-end test (`scripts/e2e_submit_flow_test.mjs` — funded a

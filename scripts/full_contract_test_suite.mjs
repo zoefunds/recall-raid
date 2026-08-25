@@ -14,7 +14,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createPublicClient, http } from "viem";
 import { createHash } from "node:crypto";
 
-const CONTRACT_ADDRESS = "0xC36e1D9E8F7b88DC632EBB7bf2F1f57eceE84dd3";
+const CONTRACT_ADDRESS = "0xa7eB55895Fe2C527Cf0882855001f97af7c2e267";
 const RPC_URL = "https://studio.genlayer.com/api";
 const API_BASE = "https://recallraid-api.fly.dev";
 
@@ -58,19 +58,54 @@ async function read(client, functionName, args = []) {
   return parsed;
 }
 
+// The contract's actual return value lives at
+// consensus_data.leader_receipt[0].result.payload.readable — a JSON string
+// that is itself double-encoded, because every write method returns a
+// Python `json.dumps({...})` string, and GenVM's calldata encoder wraps
+// that returned string value in its own JSON "readable" representation.
+// The top-level `receipt.result` field is an unrelated internal numeric
+// status code, NOT the method's return value (confirmed empirically —
+// it was `6` for identical values on both a genuinely successful call and
+// an earlier genuinely failed one).
+function decodeLeaderResult(leaderReceipt) {
+  const payload = leaderReceipt?.result?.payload;
+  if (!payload || typeof payload.readable !== "string") return undefined;
+  try {
+    const once = JSON.parse(payload.readable);
+    if (typeof once === "string") {
+      try { return JSON.parse(once); } catch { return once; }
+    }
+    return once;
+  } catch {
+    return payload.readable;
+  }
+}
+
 async function write(client, functionName, args = [], value = 0n) {
   const txHash = await client.writeContract({ address: CONTRACT_ADDRESS, functionName, args, value });
-  const receipt = await client.waitForTransactionReceipt({ hash: txHash, status: "FINALIZED", retries: 60, interval: 3000 });
-  const leaderReceipts = receipt.consensus_data?.leader_receipt ?? [];
-  const errored = leaderReceipts.find((r) => r.execution_result && r.execution_result !== "SUCCESS" && r.execution_result !== "NONE");
-  const consensusOk = ["MAJORITY_AGREE", "AGREE", "UNANIMOUS_AGREE"].includes(receipt.result_name) ;
-  let parsedResult;
-  if (typeof receipt.result === "string") {
-    try { parsedResult = JSON.parse(receipt.result); } catch { parsedResult = receipt.result; }
-  } else {
-    parsedResult = receipt.result;
-  }
-  return { txHash, receipt, parsedResult, leaderErrored: !!errored, errorDetail: errored?.genvm_result?.stderr, resultName: receipt.result_name, statusName: receipt.status_name };
+  const receipt = await client.waitForTransactionReceipt({ hash: txHash, status: "FINALIZED", retries: 120, interval: 5000 });
+  const nodeReceipts = receipt.consensus_data?.leader_receipt ?? [];
+  // `consensus_data.leader_receipt` actually holds every node's receipt for
+  // the round (leader AND validators), distinguished by `mode`. A validator
+  // legitimately shows execution_result: ERROR with
+  // "Validator execution cancelled after quorum" once enough other
+  // validators have already agreed — that is GenVM short-circuiting
+  // redundant work, not a failure, so only the LEADER's own execution
+  // result indicates whether the call itself actually errored.
+  const leader = nodeReceipts.find((r) => r.mode === "leader") ?? nodeReceipts[0];
+  const leaderErrored = !!(leader?.execution_result && leader.execution_result !== "SUCCESS" && leader.execution_result !== "NONE");
+  // Consensus health: the outcome we actually want is agreement (on
+  // success OR on a clean rejection) — genuine problems are disagreement
+  // or a stalled/timed-out round, never "the validators agreed the
+  // execution failed" for a deterministic write we expect to succeed.
+  const consensusHealthy = !["MAJORITY_DISAGREE", "DISAGREEMENT", "TIMEOUT", "UNDETERMINED"].includes(receipt.result_name);
+  const parsedResult = decodeLeaderResult(leader);
+  return {
+    txHash, receipt, parsedResult,
+    leaderErrored, consensusHealthy,
+    errorDetail: leaderErrored ? leader?.genvm_result?.stderr : undefined,
+    resultName: receipt.result_name, statusName: receipt.status_name,
+  };
 }
 
 async function expectRevert(label, fn) {
@@ -151,7 +186,7 @@ async function main() {
     "Electronics",
     1,
   ], bounty1);
-  record("submit_investigation (inv 1)", "write", !sub1.leaderErrored, `tx=${sub1.txHash} result=${sub1.resultName} parsed=${JSON.stringify(sub1.parsedResult)}`);
+  record("submit_investigation (inv 1)", "write", (!sub1.leaderErrored && sub1.consensusHealthy), `tx=${sub1.txHash} result=${sub1.resultName} parsed=${JSON.stringify(sub1.parsedResult)}`);
   const inv1Id = sub1.parsedResult?.investigation_id;
   if (!inv1Id) throw new Error("could not parse investigation_id for investigation 1");
 
@@ -171,11 +206,11 @@ async function main() {
   record("Cloudinary upload (evidence 1 photo)", "integration", true, cloudJson1.secure_url);
 
   const ev1a = await write(hunter.client, "add_evidence", [inv1Id, "product_photo", sha256(TEST_PNG), cloudJson1.secure_url, "Photo of the deformed charger casing after overnight use (TEST DATA)."]);
-  record("add_evidence (inv1, photo)", "write", !ev1a.leaderErrored, `tx=${ev1a.txHash} result=${ev1a.resultName}`);
+  record("add_evidence (inv1, photo)", "write", (!ev1a.leaderErrored && ev1a.consensusHealthy), `tx=${ev1a.txHash} result=${ev1a.resultName}`);
 
   const recallDocHash = sha256(Buffer.from("https://www.cpsc.gov/Recalls|reference-doc|test-suite"));
   const ev1b = await write(hunter.client, "add_evidence", [inv1Id, "recall_notice", recallDocHash, "https://www.cpsc.gov/Recalls", "Reference to the CPSC public recall database, checked for a matching entry (TEST DATA)."]);
-  record("add_evidence (inv1, recall reference)", "write", !ev1b.leaderErrored, `tx=${ev1b.txHash} result=${ev1b.resultName}`);
+  record("add_evidence (inv1, recall reference)", "write", (!ev1b.leaderErrored && ev1b.consensusHealthy), `tx=${ev1b.txHash} result=${ev1b.resultName}`);
 
   await apiCall("hunter", `/evidence/${inv1Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: ev1b.txHash }) });
   await apiCall("hunter", `/investigations/${inv1Id}/sync`, { method: "POST", body: JSON.stringify({}) });
@@ -190,7 +225,7 @@ async function main() {
 
   section("request_verdict — Investigation 1 (real nondet web-fetch + LLM pass)");
   let verdict1 = await write(hunter.client, "request_verdict", [inv1Id]);
-  record("request_verdict (inv1, pass 1)", "write", !verdict1.leaderErrored, `tx=${verdict1.txHash} result=${verdict1.resultName} parsed=${JSON.stringify(verdict1.parsedResult)}`);
+  record("request_verdict (inv1, pass 1)", "write", (!verdict1.leaderErrored && verdict1.consensusHealthy), `tx=${verdict1.txHash} result=${verdict1.resultName} parsed=${JSON.stringify(verdict1.parsedResult)}`);
   if (verdict1.leaderErrored) console.error("STDERR:", verdict1.errorDetail);
 
   await apiCall("hunter", `/investigations/${inv1Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: verdict1.txHash }) });
@@ -203,9 +238,9 @@ async function main() {
   if (inv1AfterVerdict.status === 1 && inv1AfterVerdict.verdict === 4) {
     section("request_verdict retry — NEEDS_MORE_EVIDENCE reopened the evidence window (expected design path)");
     const ev1c = await write(hunter.client, "add_evidence", [inv1Id, "manufacturer_doc", sha256(Buffer.from("https://www.apple.com|manufacturer-page|test-suite")), "https://www.apple.com", "Additional reference evidence for the retry pass (TEST DATA)."]);
-    record("add_evidence (inv1, retry evidence)", "write", !ev1c.leaderErrored, `tx=${ev1c.txHash}`);
+    record("add_evidence (inv1, retry evidence)", "write", (!ev1c.leaderErrored && ev1c.consensusHealthy), `tx=${ev1c.txHash}`);
     verdict1 = await write(hunter.client, "request_verdict", [inv1Id]);
-    record("request_verdict (inv1, pass 2)", "write", !verdict1.leaderErrored, `tx=${verdict1.txHash} result=${verdict1.resultName} parsed=${JSON.stringify(verdict1.parsedResult)}`);
+    record("request_verdict (inv1, pass 2)", "write", (!verdict1.leaderErrored && verdict1.consensusHealthy), `tx=${verdict1.txHash} result=${verdict1.resultName} parsed=${JSON.stringify(verdict1.parsedResult)}`);
     await apiCall("hunter", `/evidence/${inv1Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: ev1c.txHash }) });
     await apiCall("hunter", `/investigations/${inv1Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: verdict1.txHash }) });
     inv1AfterVerdict = await read(hunter.client, "get_investigation", [inv1Id]);
@@ -236,7 +271,7 @@ async function main() {
       write(challenger.client, "open_challenge", [inv1Id, "Disputing verdict (TEST — wrong stake)"], requiredStake - 1n));
 
     const challengeRes = await write(challenger.client, "open_challenge", [inv1Id, "TEST DATA — disputing the verdict to exercise the challenge/resolution path end-to-end."], requiredStake);
-    record("open_challenge (inv1, correct stake)", "write", !challengeRes.leaderErrored, `tx=${challengeRes.txHash} parsed=${JSON.stringify(challengeRes.parsedResult)}`);
+    record("open_challenge (inv1, correct stake)", "write", (!challengeRes.leaderErrored && challengeRes.consensusHealthy), `tx=${challengeRes.txHash} parsed=${JSON.stringify(challengeRes.parsedResult)}`);
     challengeId = challengeRes.parsedResult?.challenge_id;
 
     if (challengeId) {
@@ -244,7 +279,7 @@ async function main() {
 
       section("resolve_challenge — real second nondet pass");
       const resolveRes = await write(challenger.client, "resolve_challenge", [challengeId]);
-      record("resolve_challenge", "write", !resolveRes.leaderErrored, `tx=${resolveRes.txHash} result=${resolveRes.resultName} parsed=${JSON.stringify(resolveRes.parsedResult)}`);
+      record("resolve_challenge", "write", (!resolveRes.leaderErrored && resolveRes.consensusHealthy), `tx=${resolveRes.txHash} result=${resolveRes.resultName} parsed=${JSON.stringify(resolveRes.parsedResult)}`);
       if (resolveRes.leaderErrored) console.error("STDERR:", resolveRes.errorDetail);
 
       await apiCall("hunter", `/challenges/${challengeId}/sync`, { method: "POST", body: JSON.stringify({ txHash: resolveRes.txHash }) });
@@ -275,19 +310,19 @@ async function main() {
     "Kitchen Appliances",
     3,
   ], bounty2);
-  record("submit_investigation (inv 2)", "write", !sub2.leaderErrored, `tx=${sub2.txHash} parsed=${JSON.stringify(sub2.parsedResult)}`);
+  record("submit_investigation (inv 2)", "write", (!sub2.leaderErrored && sub2.consensusHealthy), `tx=${sub2.txHash} parsed=${JSON.stringify(sub2.parsedResult)}`);
   const inv2Id = sub2.parsedResult?.investigation_id;
 
   section("create_seller_bond + link_seller_bond — then cancel investigation 2");
   const bondRes1 = await write(seller.client, "create_seller_bond", [], 3n * 10n ** 16n);
-  record("create_seller_bond (bond 1)", "write", !bondRes1.leaderErrored, `tx=${bondRes1.txHash} parsed=${JSON.stringify(bondRes1.parsedResult)}`);
+  record("create_seller_bond (bond 1)", "write", (!bondRes1.leaderErrored && bondRes1.consensusHealthy), `tx=${bondRes1.txHash} parsed=${JSON.stringify(bondRes1.parsedResult)}`);
   const bond1Id = bondRes1.parsedResult?.bond_id;
 
   const linkRes = await write(seller.client, "link_seller_bond", [inv2Id, bond1Id]);
-  record("link_seller_bond (bond1 -> inv2)", "write", !linkRes.leaderErrored, `tx=${linkRes.txHash}`);
+  record("link_seller_bond (bond1 -> inv2)", "write", (!linkRes.leaderErrored && linkRes.consensusHealthy), `tx=${linkRes.txHash}`);
 
   const cancelRes = await write(hunter.client, "cancel_investigation", [inv2Id]);
-  record("cancel_investigation (inv2)", "write", !cancelRes.leaderErrored, `tx=${cancelRes.txHash}`);
+  record("cancel_investigation (inv2)", "write", (!cancelRes.leaderErrored && cancelRes.consensusHealthy), `tx=${cancelRes.txHash}`);
   await expectRevert("cancel_investigation twice (already cancelled)", () => write(hunter.client, "cancel_investigation", [inv2Id]));
 
   await apiCall("hunter", `/investigations/${inv2Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: cancelRes.txHash }) });
@@ -299,7 +334,7 @@ async function main() {
   record("get_balance (hunter, pre-withdraw)", "view", BigInt(balHunterBeforeWithdraw) === bounty2, `balance=${balHunterBeforeWithdraw} expected=${bounty2}`);
   const walletBalBefore = await publicClient.getBalance({ address: hunter.address });
   const withdrawRes = await write(hunter.client, "withdraw", [BigInt(balHunterBeforeWithdraw)]);
-  record("withdraw (hunter)", "write", !withdrawRes.leaderErrored, `tx=${withdrawRes.txHash}`);
+  record("withdraw (hunter)", "write", (!withdrawRes.leaderErrored && withdrawRes.consensusHealthy), `tx=${withdrawRes.txHash}`);
   const walletBalAfter = await publicClient.getBalance({ address: hunter.address });
   record("withdraw actually moved GEN to wallet", "integration", walletBalAfter > walletBalBefore, `before=${walletBalBefore} after=${walletBalAfter}`);
   const balHunterAfterWithdraw = await read(hunter.client, "get_balance", [hunter.address]);
@@ -309,11 +344,11 @@ async function main() {
   // ================= Second seller bond: topup + withdraw_seller_bond =================
   section("create_seller_bond (bond 2, unlinked) + topup_seller_bond + withdraw_seller_bond");
   const bondRes2 = await write(seller.client, "create_seller_bond", [], 1n * 10n ** 16n);
-  record("create_seller_bond (bond 2)", "write", !bondRes2.leaderErrored, `tx=${bondRes2.txHash} parsed=${JSON.stringify(bondRes2.parsedResult)}`);
+  record("create_seller_bond (bond 2)", "write", (!bondRes2.leaderErrored && bondRes2.consensusHealthy), `tx=${bondRes2.txHash} parsed=${JSON.stringify(bondRes2.parsedResult)}`);
   const bond2Id = bondRes2.parsedResult?.bond_id;
 
   const topupRes = await write(seller.client, "topup_seller_bond", [bond2Id], 5n * 10n ** 15n);
-  record("topup_seller_bond (bond 2)", "write", !topupRes.leaderErrored, `tx=${topupRes.txHash}`);
+  record("topup_seller_bond (bond 2)", "write", (!topupRes.leaderErrored && topupRes.consensusHealthy), `tx=${topupRes.txHash}`);
 
   await expectRevert("withdraw_seller_bond on linked bond 1 (should be rejected)", () => write(seller.client, "withdraw_seller_bond", [bond1Id]));
 
@@ -321,11 +356,11 @@ async function main() {
   record("get_seller_bond (bond2, pre-withdraw)", "view", true, JSON.stringify(bond2BeforeWithdraw));
 
   const withdrawBondRes = await write(seller.client, "withdraw_seller_bond", [bond2Id]);
-  record("withdraw_seller_bond (bond 2)", "write", !withdrawBondRes.leaderErrored, `tx=${withdrawBondRes.txHash}`);
+  record("withdraw_seller_bond (bond 2)", "write", (!withdrawBondRes.leaderErrored && withdrawBondRes.consensusHealthy), `tx=${withdrawBondRes.txHash}`);
   const sellerBalAfterBondWithdraw = await read(seller.client, "get_balance", [seller.address]);
   record("get_balance (seller, post-bond-withdraw credit)", "view", BigInt(sellerBalAfterBondWithdraw) > 0n, String(sellerBalAfterBondWithdraw));
   const sellerWithdrawRes = await write(seller.client, "withdraw", [BigInt(sellerBalAfterBondWithdraw)]);
-  record("withdraw (seller, from bond withdrawal)", "write", !sellerWithdrawRes.leaderErrored, `tx=${sellerWithdrawRes.txHash}`);
+  record("withdraw (seller, from bond withdrawal)", "write", (!sellerWithdrawRes.leaderErrored && sellerWithdrawRes.consensusHealthy), `tx=${sellerWithdrawRes.txHash}`);
 
   await apiCall("seller", `/seller-bonds/${bond1Id}/sync`, { method: "POST", body: JSON.stringify({}) });
   await apiCall("seller", `/seller-bonds/${bond2Id}/sync`, { method: "POST", body: JSON.stringify({}) });

@@ -327,8 +327,14 @@ class RecallRaid(gl.Contract):
 
     def _render_verdict_prompt(
         self,
-        inv: Investigation,
-        evidence_items: list,
+        product_name: str,
+        brand: str,
+        model_number: str,
+        serial_number: str,
+        category: str,
+        hazard_class_int: int,
+        description: str,
+        evidence_snapshot: list,
         ok_manufacturer: bool,
         manufacturer_text: str,
         ok_recall: bool,
@@ -337,20 +343,27 @@ class RecallRaid(gl.Contract):
         listing_text: str,
     ) -> str:
         """Pure, fully-deterministic string formatting — deliberately
-        contains no `gl.nondet.*` call itself. The web-fetch results are
-        passed in as plain arguments, already fetched by the caller's own
-        nondet closure. Keeping this split matters for two reasons: (1) a
-        genvm-lint pass rejects a contract where a `gl.nondet.*` call is
-        only reachable through an indirect `self.method()` call chain from
-        the function object handed to `gl.vm.run_nondet_unsafe` — it only
+        contains no `gl.nondet.*` call itself, and deliberately takes only
+        plain str/int/dict values, never a storage-backed dataclass
+        instance. Reading a `TreeMap`/dataclass storage object's fields
+        from *inside* a nondet closure (even indirectly, via a helper
+        called from that closure) triggers GenVM's "Reading storage in
+        nondet mode is not supported" warning and was the actual root
+        cause of a live MAJORITY_DISAGREE consensus failure on
+        `request_verdict` — confirmed empirically, not assumed: every value
+        this function touches must already be a plain Python primitive,
+        snapshotted by the caller before the nondet block is entered.
+        Keeping this split matters for a second reason too: a genvm-lint
+        pass rejects a contract where a `gl.nondet.*` call is only
+        reachable through an indirect `self.method()` call chain from the
+        function object handed to `gl.vm.run_nondet_unsafe` — it only
         analyzes the literal closure body — so every actual fetch call must
-        be lexically inside that closure, not delegated out; (2) it keeps
-        prompt formatting reusable/testable independently of network I/O."""
+        be lexically inside that closure, not delegated out."""
         evidence_lines = []
-        for ev in evidence_items:
+        for ev in evidence_snapshot:
             evidence_lines.append(
                 "- type=%s description=%s url=%s hash=%s"
-                % (ev.evidence_type, ev.description, ev.url, ev.content_hash)
+                % (ev["type"], ev["description"], ev["url"], ev["hash"])
             )
 
         return (
@@ -386,8 +399,8 @@ class RecallRaid(gl.Contract):
             '"confidence_bps": integer 0-10000, '
             '"reasoning": short string}'
         ) % (
-            inv.product_name, inv.brand, inv.model_number, inv.serial_number or "unknown",
-            inv.category, str(int(inv.hazard_class)), inv.description,
+            product_name, brand, model_number, serial_number or "unknown",
+            category, str(int(hazard_class_int)), description,
             "\n".join(evidence_lines) if evidence_lines else "(none submitted)",
             ok_manufacturer, manufacturer_text or "(not provided)",
             ok_recall, recall_text or "(not provided)",
@@ -407,12 +420,33 @@ class RecallRaid(gl.Contract):
         return code
 
     def _run_verdict_pass(self, inv: Investigation, evidence_items: list) -> tuple[u8, u32]:
-        # Snapshot the deterministic inputs the leader/validator closures
-        # need — they must not reach back into mutable contract state
-        # (`self.investigations[...]`) once inside the nondet block.
+        # Snapshot every value the leader/validator closures need into
+        # plain str/int/dict primitives — they must never hold a live
+        # reference to a storage-backed dataclass (`inv`, or any `Evidence`
+        # in `evidence_items`) once inside the nondet block. Confirmed via
+        # a live GenVM warning ("Reading storage in nondet mode is not
+        # supported") that coincided with an actual MAJORITY_DISAGREE
+        # consensus failure — this snapshot is the fix, not a defensive
+        # guess.
         manufacturer_url = inv.manufacturer_url
         recall_url = inv.recall_source_url
         listing_url = inv.marketplace_url
+        product_name = inv.product_name
+        brand = inv.brand
+        model_number = inv.model_number
+        serial_number = inv.serial_number
+        category = inv.category
+        hazard_class_int = int(inv.hazard_class)
+        description = inv.description
+        evidence_snapshot = [
+            {
+                "type": ev.evidence_type,
+                "description": ev.description,
+                "url": ev.url,
+                "hash": ev.content_hash,
+            }
+            for ev in evidence_items
+        ]
 
         def leader_fn():
             # Every gl.nondet.* call lives directly inside this closure (or
@@ -442,7 +476,8 @@ class RecallRaid(gl.Contract):
             ok_listing, listing_text = fetch(listing_url)
 
             prompt = self._render_verdict_prompt(
-                inv, evidence_items,
+                product_name, brand, model_number, serial_number,
+                category, hazard_class_int, description, evidence_snapshot,
                 ok_manufacturer, manufacturer_text,
                 ok_recall, recall_text,
                 ok_listing, listing_text,

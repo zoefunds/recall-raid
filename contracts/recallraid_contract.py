@@ -549,7 +549,13 @@ class RecallRaid(gl.Contract):
         )
         self.investigations[inv_id] = inv
         self.investigation_ids.append(inv_id)
-        self.evidence_by_investigation[inv_id] = DynArray[u32]()
+        # Manually constructing DynArray[u32]() directly is rejected by
+        # GenVM at runtime ("this class can't be instantiated by user") —
+        # confirmed by an actual failed submit_investigation transaction
+        # against the deployed contract (leader_receipt showed exactly this
+        # TypeError). Generic storage container values must be allocated
+        # via gl.storage.inmem_allocate(...) instead.
+        self.evidence_by_investigation[inv_id] = gl.storage.inmem_allocate(DynArray[u32])
         self.next_investigation_id = u32(int(inv_id) + 1)
         return json.dumps({"investigation_id": int(inv_id)})
 
@@ -585,7 +591,7 @@ class RecallRaid(gl.Contract):
         self.evidence[ev_id] = ev
         ids = self.evidence_by_investigation.get(u32(investigation_id))
         if ids is None:
-            ids = DynArray[u32]()
+            ids = gl.storage.inmem_allocate(DynArray[u32])
         ids.append(ev_id)
         self.evidence_by_investigation[u32(investigation_id)] = ids
         self.next_evidence_id = u32(int(ev_id) + 1)

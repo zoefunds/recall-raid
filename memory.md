@@ -1,5 +1,64 @@
 # RecallRaid — Build Memory
 
+## CRITICAL: deployed contract has a fatal bug in `submit_investigation` — needs redeploy (found 2026-08-25)
+
+A real end-to-end test (`scripts/e2e_submit_flow_test.mjs` — funded a
+throwaway test wallet via `sim_fundAccount`, ran the actual wallet-auth
+flow, called `submit_investigation` for real) revealed that **every
+`submit_investigation` call on the currently deployed contract
+(`0x34935D3d16a1Db83925117AEf95c045c2c197756`) fails.** The transaction
+finalizes (`MAJORITY_AGREE` — validators agree the execution errors), but
+`execution_result: ERROR` with:
+```
+TypeError: this class can't be instantiated by user
+  File "/contract.py", line 552, in submit_investigation
+    self.evidence_by_investigation[inv_id] = DynArray[u32]()
+```
+
+**Root cause**: `DynArray[u32]()` / `TreeMap[...]()` cannot be manually
+constructed at runtime anywhere in a GenVM contract — not just in
+`__init__` as I'd documented earlier, but anywhere. The correct call is
+`gl.storage.inmem_allocate(DynArray[u32])`, confirmed against
+docs.genlayer.com's storage/memory-management page. This is a genuinely
+different, stricter rule than what genvm-lint and schema validation check
+— both passed cleanly on the broken version, because this is a *runtime*
+error, not a schema/lint-time one. **Static checks cannot catch this
+class of bug — only actually executing the method does.**
+
+**Fixed in source** (both call sites, `submit_investigation` line ~552 and
+the `add_evidence` fallback branch ~594) — `python3 -m py_compile`, all 7
+structural tests, and `genvm-lint` all still pass after the fix (as
+expected, since none of them exercise runtime execution).
+
+**Blast radius check — confirmed safe**: `get_investigation_count()` on
+the live deployed contract still reads `0` after the failed test
+transaction — GenVM correctly reverted all state changes on the errored
+leader/majority-error outcome, so **no corrupted investigation records
+exist**. The only real cost: the test wallet's 0.01 GEN (test tokens, not
+real value) bounty `gl.message.value` was deducted and is now sitting in
+the contract's ghost-contract EVM balance with no way to reclaim it,
+since the investigation record was never created for the deposit to be
+tracked against. This is a general GenVM/ghost-contract behavior worth
+knowing: **a payable call's value transfer can complete even when the
+contract's own Python logic subsequently errors and reverts its state** —
+harmless here since it was 10^16 wei of test GEN into a contract that's
+about to be redeployed anyway, but worth remembering for the next
+contract's design (money in transit during an erroring call isn't
+automatically returned).
+
+**This means: the currently deployed contract cannot actually be used for
+its core feature and must be redeployed with the fixed source before
+RecallRaid is functional for real users.** Per the standing rule in this
+file, Claude does not deploy the contract — the user needs to redeploy
+`contracts/recallraid_contract.py` (now fixed) via GenLayer Studio and
+give the new address, which then needs to flow into: root `.env`,
+`apps/web/.env.local` + Vercel env var, `apps/api/.env` + `fly secrets set
+GENLAYER_CONTRACT_ADDRESS=...`. Once redeployed,
+`node scripts/e2e_submit_flow_test.mjs` should be re-run against the new
+address (edit the `CONTRACT_ADDRESS` const at the top of that script) to
+confirm the full submit → upload → evidence → sync → list-feed pipeline
+actually works before considering this shipped.
+
 ## LIVE DEPLOYMENT (2026-08-25)
 
 Both apps are deployed and verified working end-to-end against the live contract:

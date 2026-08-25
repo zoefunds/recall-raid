@@ -1,5 +1,58 @@
 # RecallRaid — Build Memory
 
+## CRITICAL round 4: `0x0D04E797bC40F62e631159663b5664186462D704` — round 3's snapshot fix was correct but incomplete (found 2026-08-25)
+
+Confirmed round 3's storage-snapshot fix actually deployed correctly
+(`genlayer code <address>` dump showed `evidence_snapshot`, no
+`evidence_by_investigation` — verified the real deployed source, not
+assumed) and `submit_investigation`/`add_evidence` both ran clean. But
+`request_verdict` STILL produced `MAJORITY_DISAGREE`, with the exact same
+"Reading storage in nondet mode" warning. That warning turned out to be a
+red herring — pulled `receipt.consensus_data.votes` and each node's own
+`result` field, which showed the *actual* cause: both the leader and a
+validator independently raised
+`gl.vm.UserError("[LLM_ERROR] model returned an unrecognized verdict label")`
+— **this contract's own guard clause**, raised because the LLM's verdict
+string didn't exactly match one of the four expected labels.
+
+**Why that broke consensus rather than failing cleanly**: this raise
+happens *inside* `leader_fn`/`validator_fn`, the closures handed to
+`gl.vm.run_nondet_unsafe`. A `gl.vm.UserError` raised in normal
+deterministic contract code produces a clean, comparable rejection —
+but raised inside a nondet closure, it does not resolve to an agreed
+"[LLM_ERROR]" outcome the way you'd hope; it manifested as `disagree`
+votes instead. **Lesson: never raise inside a nondet closure, full stop
+— always return a value, even a degraded/fallback one.**
+
+**Fix**: `_verdict_label_to_code` no longer raises — an unrecognized label
+now falls back to `VERDICT_NEEDS_MORE_EVIDENCE` (also now tolerates space/
+hyphen variants like `"POTENTIAL ISSUE"`). The JSON-parsing branch in
+`leader_fn` no longer raises either — invalid JSON, markdown-fenced JSON
+(stripped defensively, same trick as the official WizardOfCoin example),
+or a non-dict payload all degrade to `{"verdict": NEEDS_MORE_EVIDENCE,
+"confidence_bps": 0}` instead of raising. Confirmed via grep: zero `raise`
+statements remain anywhere inside `_run_verdict_pass`. This means even if
+the model misbehaves identically on both leader and validator, they now
+independently compute the *same* fallback dict and agree cleanly — the
+failure mode that broke consensus is now structurally an agreement case
+instead.
+
+**Also fixed an operational issue found in the same test run**: the
+deadline-watcher's 20s background resync (run independently on both Fly
+machines) was hammering StudioNet's shared RPC hard enough to hit its
+`500 requests/hour` cap, crashing the API's own `/investigations/:id/sync`
+call with a real 500. Backed off `DEADLINE_WATCHER_INTERVAL_MS` to 180000
+(3 min) via `fly secrets set` — the eager per-actor sync (unaffected by
+this) still gives instant freshness for whoever performed the action;
+the periodic sweep is only a safety net for other viewers and doesn't need
+20s tightness at the cost of rate-limit exhaustion.
+
+`0x0D04E797bC40F62e631159663b5664186462D704` needs replacing too — fifth
+cycle. Higher confidence than prior rounds because this fix directly
+targets the exact error string observed in the actual failed votes, not a
+hypothesized mechanism. Once redeployed: re-run
+`node scripts/full_contract_test_suite.mjs` (update `CONTRACT_ADDRESS`).
+
 ## CRITICAL round 3: `0xa7eB55895Fe2C527Cf0882855001f97af7c2e267` — DynArray bug is GONE, but found a real consensus-disagreement bug (found 2026-08-25)
 
 Round 2's fix worked: `submit_investigation` and `add_evidence` both

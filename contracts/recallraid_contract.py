@@ -408,16 +408,25 @@ class RecallRaid(gl.Contract):
         )
 
     def _verdict_label_to_code(self, label: str) -> u8:
+        """Never raises — this runs inside the nondet leader/validator
+        closure, and raising there was confirmed live to turn a mere LLM
+        formatting quirk into a real MAJORITY_DISAGREE consensus failure
+        (an uncaught exception inside `leader_fn`/`validator_fn` does not
+        cleanly resolve to a comparable [LLM_ERROR]-tagged agreement the
+        way a normal deterministic `gl.vm.UserError` does elsewhere in this
+        contract — confirmed by an actual failed request_verdict
+        transaction, not assumed). An unparseable label degrades to the
+        same non-forcing NEEDS_MORE_EVIDENCE outcome as genuinely thin
+        evidence, which is exactly the fallback this contract already uses
+        everywhere else for "the model couldn't decide.\""""
         mapping = {
             "NO_ISSUE": VERDICT_NO_ISSUE,
             "POTENTIAL_ISSUE": VERDICT_POTENTIAL_ISSUE,
             "RECALL_CONFIRMED": VERDICT_RECALL_CONFIRMED,
             "NEEDS_MORE_EVIDENCE": VERDICT_NEEDS_MORE_EVIDENCE,
         }
-        code = mapping.get(str(label).strip().upper())
-        if code is None:
-            raise gl.vm.UserError("[LLM_ERROR] model returned an unrecognized verdict label")
-        return code
+        normalized = str(label).strip().upper().replace(" ", "_").replace("-", "_")
+        return mapping.get(normalized, VERDICT_NEEDS_MORE_EVIDENCE)
 
     def _run_verdict_pass(self, inv: Investigation, evidence_items: list) -> tuple[u8, u32]:
         # Snapshot every value the leader/validator closures need into
@@ -485,13 +494,32 @@ class RecallRaid(gl.Contract):
             raw = gl.nondet.exec_prompt(prompt, response_format="json")
             if isinstance(raw, (bytes, bytearray)):
                 raw = raw.decode("utf-8", errors="replace")
+            parsed = None
             if isinstance(raw, str):
+                # Some models still wrap JSON in a markdown code fence even
+                # with response_format="json" — strip it defensively (same
+                # approach the official WizardOfCoin example uses) before
+                # attempting to parse.
+                cleaned = raw.strip()
+                backticks = "``" + "`"
+                if cleaned.startswith(backticks):
+                    cleaned = cleaned.replace(backticks + "json", "").replace(backticks, "").strip()
                 try:
-                    parsed = json.loads(raw)
+                    parsed = json.loads(cleaned)
                 except Exception:
-                    raise gl.vm.UserError("[LLM_ERROR] model did not return valid JSON")
+                    parsed = None
             else:
                 parsed = raw  # response_format="json" already returns a parsed dict on some runner versions
+            # Any failure to get a usable verdict out of the model —
+            # invalid JSON, a non-dict payload, a missing/unrecognized
+            # verdict key — degrades to NEEDS_MORE_EVIDENCE with zero
+            # confidence rather than raising. Raising here was confirmed
+            # live to break nondet consensus (an uncaught exception inside
+            # this closure produced MAJORITY_DISAGREE, not a clean
+            # [LLM_ERROR]-tagged agreement) — a model formatting hiccup
+            # must never itself become a failed transaction.
+            if not isinstance(parsed, dict):
+                return {"verdict": int(VERDICT_NEEDS_MORE_EVIDENCE), "confidence_bps": 0}
             verdict_code = self._verdict_label_to_code(parsed.get("verdict", ""))
             confidence = parsed.get("confidence_bps", 0)
             try:

@@ -1,5 +1,42 @@
 # RecallRaid — Build Memory
 
+## Live test against `0xceE153ECE149AB35fA7D33e67Fa3aE00610061c6` — 52/53 pass (2026-08-25)
+
+Redeployed after the consensus-detection fix, cache-upsert fix, and the
+5-step verdict prompt, and re-ran the full suite. Result: **52 of 53
+checks passed** — every negative test that was previously a false-negative
+(due to the now-fixed `expectRevert` helper) now correctly passes, the
+evidence-cache staleness bug is confirmed fixed live (`GET /evidence`
+correctly returned both items under the right investigation id), and the
+round-2 seller-bond-unlock fix was re-confirmed working end-to-end
+(`linked_investigation_count` correctly hit 0 after cancellation, and
+`withdraw_seller_bond` succeeded immediately after).
+
+**The one remaining failure**: `request_verdict` pass 1 again hit
+`MAJORITY_DISAGREE` (leader proposed `POTENTIAL_ISSUE` at 7000bps this
+time — a different proposal than the previous round's `NEEDS_MORE_EVIDENCE`
+at 9200bps, confirming this is genuine LLM output variance across
+independent calls, not a deterministic code bug). The 5-step prompt
+rewrite did not eliminate this — it can't, fully, without a temperature
+control `exec_prompt` doesn't expose. **This is expected and safe**:
+confirmed (again) that disagreement leaves contract state completely
+unchanged, so this is a "call it again" situation, not a fund-safety or
+correctness issue. Given the exact-match consensus rule is a deliberate,
+audit-driven safety requirement, some residual disagreement rate on
+genuinely ambiguous evidence (this test's fictional product against a
+generic, non-matching CPSC homepage is about as ambiguous as it gets) is
+the accepted cost of that safety property, not a defect to keep chasing
+with more redeploys. Real submissions with real matching evidence should
+see this far less often.
+
+**Current status: this is very close to as good as this contract gets on
+the specific finding chain from the external audit.** All critical/high
+fixes (unfunded bonus, bond lock, evidence allowlist, product-ID floor,
+exact-match consensus) are live-verified. The two structural blockers the
+auditor named (verified seller ownership, full UPC/GTIN cross-matching)
+remain honestly unsolved and out of scope for further contract patching —
+they need real external integration work, not another bug fix.
+
 ## Live test against audited revision + a real "Undetermined" report (2026-08-25)
 
 Redeployed to `0xDEf26cD6fb90F8C881E6436b6c8785f038C42112` and ran the full

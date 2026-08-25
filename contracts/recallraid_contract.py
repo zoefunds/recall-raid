@@ -54,7 +54,7 @@ BOND_WITHDRAWN = u8(2)  # seller pulled remaining funds out (no open links)
 
 # Fixed protocol economics (basis points, 10000 = 100%)
 CHALLENGE_STAKE_BPS = u32(2000)          # challenger must stake 20% of the bounty
-CHALLENGE_OVERTURN_BONUS_BPS = u32(1500) # bonus paid to a successful challenger, from the seller bond if present, else from protocol treasury share
+CHALLENGE_OVERTURN_BONUS_BPS = u32(1500) # bonus paid to a successful challenger, funded by carving this share out of the investigation's own bounty_deposited_wei at resolution time (see resolve_challenge) — never from a seller bond or a nonexistent protocol treasury
 HUNTER_DEFAULT_PAYOUT_BPS = u32(10000)   # hunter gets 100% of bounty on RECALL_CONFIRMED / POTENTIAL_ISSUE
 NO_ISSUE_REFUND_BPS = u32(10000)         # bounty fully refunds to submitter on NO_ISSUE
 EVIDENCE_WINDOW_SECONDS = u64(72 * 3600)        # 72h to submit first evidence
@@ -109,7 +109,7 @@ VERDICT_ORDER = {
     int(VERDICT_POTENTIAL_ISSUE): 2,
     int(VERDICT_RECALL_CONFIRMED): 3,
 }
-VERDICT_TOLERANCE_STEPS = 1  # leader and validator may land on adjacent ordinal buckets and still agree (e.g. NEEDS_MORE_EVIDENCE vs POTENTIAL_ISSUE) — but NO_ISSUE and RECALL_CONFIRMED (3 steps apart) can never agree via tolerance alone. A prior value of 0 (exact-bucket-only) caused avoidable MAJORITY_DISAGREE outcomes on genuinely borderline cases across three independently-fetched web sources; this keeps the two opposite conclusions from ever blurring together while tolerating adjacent-bucket disagreement, which is a calibration/wording difference, not a safety-relevant one.
+VERDICT_TOLERANCE_STEPS = 1  # ordinal distance allowed ONLY when bridging NEEDS_MORE_EVIDENCE with its immediate neighbor (see _verdicts_agree) — any two DETERMINATE fund-moving verdicts (NO_ISSUE / POTENTIAL_ISSUE / RECALL_CONFIRMED) must match exactly regardless of this constant's value; a leader RECALL_CONFIRMED can never agree with a validator POTENTIAL_ISSUE or NO_ISSUE via tolerance, which closes a real audit finding where that could have slashed a seller bond without the validator actually confirming a recall.
 CONFIDENCE_TOLERANCE_BPS = u32(1500)  # leader/validator confidence scores may differ by up to 15pp and still agree
 
 
@@ -458,6 +458,12 @@ class RecallRaid(gl.Contract):
             "issue (an active manufacturer recall, a government safety agency "
             "notice, or a well-documented defect pattern) versus no real issue, "
             "or whether the evidence is too thin to decide either way.\n\n"
+            "RECALL_CONFIRMED requires the fetched recall source to identify "
+            "this exact product — match on model number and/or serial number "
+            "if provided above, not merely the same brand or product category. "
+            "A recall notice for a different model number from the same brand "
+            "is NOT a match — respond NEEDS_MORE_EVIDENCE in that case, not "
+            "RECALL_CONFIRMED, and say so explicitly in your reasoning.\n\n"
             "Respond with ONLY a JSON object with these exact keys:\n"
             '{"verdict": one of ["NO_ISSUE","POTENTIAL_ISSUE","RECALL_CONFIRMED","NEEDS_MORE_EVIDENCE"], '
             '"confidence_bps": integer 0-10000, '
@@ -600,18 +606,34 @@ class RecallRaid(gl.Contract):
         return u8(result["verdict"]), u32(result["confidence_bps"])
 
     def _verdicts_agree(self, a: dict, b: dict) -> bool:
-        """Ordinal + confidence-tolerance agreement, mirroring Veritine's
-        banding approach: require the identical verdict bucket (no cross-
-        bucket tolerance — a safety verdict is exactly the kind of decision
-        that must not blur across NO_ISSUE vs RECALL_CONFIRMED), but allow
-        the confidence score to vary by up to CONFIDENCE_TOLERANCE_BPS so
-        validators don't disagree purely on LLM phrasing/calibration noise."""
+        """Agreement rule, tightened after a real audit finding: allowing
+        any adjacent-bucket pair to agree (the previous version) meant a
+        leader RECALL_CONFIRMED could agree with a validator
+        POTENTIAL_ISSUE — one ordinal step apart — and go on to slash a
+        seller bond even though the validator never actually confirmed a
+        recall. Every determinate, fund-moving verdict
+        (NO_ISSUE / POTENTIAL_ISSUE / RECALL_CONFIRMED) now requires an
+        EXACT match to agree with another determinate verdict — no
+        tolerance, full stop. Tolerance is allowed in exactly one place:
+        bridging NEEDS_MORE_EVIDENCE with its immediate neighbor, since
+        that is a "the model wasn't confident enough" signal, not a
+        fund-moving disagreement — and even that only requires the raw
+        nondet agreement to succeed, not the eventual verdict, since
+        _stable_verdict's guardrail independently re-derives
+        NEEDS_MORE_EVIDENCE from low confidence regardless."""
         order_a = VERDICT_ORDER.get(int(a["verdict"]))
         order_b = VERDICT_ORDER.get(int(b["verdict"]))
         if order_a is None or order_b is None:
             return False
-        if abs(order_a - order_b) > VERDICT_TOLERANCE_STEPS:
-            return False
+        if order_a != order_b:
+            if abs(order_a - order_b) > VERDICT_TOLERANCE_STEPS:
+                return False
+            needs_more_evidence_order = VERDICT_ORDER[int(VERDICT_NEEDS_MORE_EVIDENCE)]
+            if needs_more_evidence_order not in (order_a, order_b):
+                # Both sides picked a different DETERMINATE, fund-moving
+                # verdict — never bridge that with tolerance, regardless
+                # of ordinal distance.
+                return False
         conf_gap = abs(int(a["confidence_bps"]) - int(b["confidence_bps"]))
         return conf_gap <= int(CONFIDENCE_TOLERANCE_BPS)
 
@@ -626,6 +648,18 @@ class RecallRaid(gl.Contract):
         if int(confidence_bps) < 3000:
             return VERDICT_NEEDS_MORE_EVIDENCE
         if int(inv.hazard_class) == int(HAZARD_CRITICAL) and int(raw_verdict) == int(VERDICT_NO_ISSUE) and int(confidence_bps) < 6000:
+            return VERDICT_NEEDS_MORE_EVIDENCE
+        if int(raw_verdict) == int(VERDICT_RECALL_CONFIRMED) and not inv.model_number and not inv.serial_number:
+            # Partial, honestly-scoped fix for a real audit finding: "URL
+            # plus LLM interpretation is not sufficiently precise to slash
+            # a bond" without at least a model number or serial number to
+            # anchor the match against. This does not implement full
+            # UPC/GTIN or regulator-recall-ID cross-matching (that would
+            # need contract-side field/schema changes and is real future
+            # work, not attempted here) — it is a floor, not a complete
+            # solution: a RECALL_CONFIRMED verdict can never fire, and can
+            # therefore never trigger a bond slash, against a submission
+            # that supplied zero product-identifying information at all.
             return VERDICT_NEEDS_MORE_EVIDENCE
         return raw_verdict
 

@@ -182,5 +182,35 @@ class ContractStructureTests(unittest.TestCase):
         )
 
 
+    def test_verdict_tolerance_never_bridges_two_determinate_verdicts(self):
+        """A real audit finding: the previous adjacent-bucket tolerance let
+        a leader RECALL_CONFIRMED agree with a validator POTENTIAL_ISSUE
+        (one ordinal step apart), which could trigger a seller-bond slash
+        without the validator actually confirming a recall. _verdicts_agree
+        must explicitly guard that any two DIFFERENT determinate verdicts
+        require an exact match, with tolerance reserved for bridging
+        NEEDS_MORE_EVIDENCE with its neighbor only."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        start = source.index("def _verdicts_agree")
+        end = source.index("def _stable_verdict")
+        body = source[start:end]
+        self.assertIn(
+            "needs_more_evidence_order not in (order_a, order_b)", body,
+            "_verdicts_agree must reject tolerance-bridged agreement between two "
+            "different determinate verdicts (only NEEDS_MORE_EVIDENCE may bridge)",
+        )
+
+    def test_recall_confirmed_requires_a_product_identifier(self):
+        """Partial fix for a real audit finding ('URL plus LLM
+        interpretation is not sufficiently precise to slash a bond'): a
+        RECALL_CONFIRMED verdict must never be reachable for a submission
+        with no model_number and no serial_number at all."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        start = source.index("def _stable_verdict")
+        end = source.index("def _payout_bps_for_verdict")
+        body = source[start:end]
+        self.assertIn("not inv.model_number and not inv.serial_number", body)
+
+
 if __name__ == "__main__":
     unittest.main()

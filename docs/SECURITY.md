@@ -126,11 +126,30 @@ was built against):
   pointed at an arbitrary page and described to the verdict prompt as an
   official recall confirmation. `marketplace_url` and `manufacturer_url`
   remain unrestricted by design (they genuinely vary per listing/brand).
-  There is no canonical product-ID/UPC cross-matching, no durable
-  evidence snapshot beyond the stored `content_hash` + URL, and no
-  domain-reputation scoring — a since-edited or taken-down page changes
-  what a re-verification (e.g. `resolve_challenge`) will see, since the
-  contract re-fetches live rather than replaying an immutable capture.
+  There is no canonical product-ID/UPC/GTIN cross-matching against a
+  regulator database, no durable evidence snapshot beyond the stored
+  `content_hash` + URL, and no domain-reputation scoring — a
+  since-edited or taken-down page changes what a re-verification (e.g.
+  `resolve_challenge`) will see, since the contract re-fetches live
+  rather than replaying an immutable capture. A partial, deterministic
+  floor is in place: `_stable_verdict` refuses to let a `RECALL_CONFIRMED`
+  verdict stand (downgrading it to `NEEDS_MORE_EVIDENCE`) for any
+  submission with neither a `model_number` nor a `serial_number` at all,
+  and the verdict prompt explicitly instructs the model that a recall
+  notice for a different model from the same brand is not a match. This
+  is a floor against the worst case (zero identifying information), not
+  full UPC/GTIN/regulator-recall-ID cross-matching — that remains real
+  future work.
+- **Verdict agreement requires an exact match between leader and
+  validator for every determinate, fund-moving verdict** (`NO_ISSUE`,
+  `POTENTIAL_ISSUE`, `RECALL_CONFIRMED`) — `VERDICT_TOLERANCE_STEPS`
+  only bridges `NEEDS_MORE_EVIDENCE` with its immediate ordinal neighbor,
+  never two different determinate outcomes. An earlier revision allowed
+  any adjacent-bucket pair to agree, which meant a leader
+  `RECALL_CONFIRMED` could agree with a validator `POTENTIAL_ISSUE` and
+  go on to slash a seller bond without the validator ever actually
+  confirming a recall — fixed and covered by
+  `test_verdict_tolerance_never_bridges_two_determinate_verdicts`.
 - No circuit-breaker for a compromised/malicious source domain being added
   to the allowlist in a future version, no monitoring of
   NEEDS_MORE_EVIDENCE/UNDETERMINED rates over time, and no independent

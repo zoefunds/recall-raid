@@ -1,5 +1,81 @@
 # RecallRaid — Build Memory
 
+## External audit response (2026-08-25) — economic/security hardening, not runtime bugs
+
+User got an external audit scoring the repo 2,380/4,000. Findings and
+what was actually done about each:
+
+1. **Critical, fixed** — the challenge-overturn bonus (15% of stake) was
+   manufactured from nothing: credited to the challenger with no matching
+   debit anywhere, which could make total credited balances exceed the
+   contract's real GEN (an insolvency risk). Fixed: the bonus is now
+   carved directly out of `inv.bounty_deposited_wei` (capped at whatever
+   remains in that pool) before being credited — a real debit backs every
+   credit. Since "overturned" means the original submitter's claim was
+   proven wrong, it is fair that their own escrowed bounty funds the
+   correction rather than the protocol minting new value.
+2. **High, fixed** — `linked_investigation_count` was incremented by
+   `link_seller_bond` but never decremented anywhere, so any linked bond
+   became permanently non-withdrawable forever (contradicting
+   `withdraw_seller_bond`'s own zero-count requirement). Fixed: added
+   `_unlink_seller_bond_if_present()`, called from all four terminal
+   investigation transitions (`cancel_investigation`,
+   `claim_evidence_timeout`, `claim_verdict_timeout`,
+   `settle_investigation`) — confirmed via a structural test
+   (`test_seller_bond_unlinked_on_every_terminal_path`) that all four
+   actually call it.
+3. **High, addressed via honest disclosure, not a false claim of fixing
+   it** — the contract cannot verify a bond owner actually controls the
+   marketplace listing it gets linked to. Building real storefront-
+   ownership verification (OAuth to the marketplace, a signed challenge)
+   is real future work and was not attempted this round. Instead: the
+   `SellerBond` dataclass, `link_seller_bond`, and the seller dashboard UI
+   copy were all updated to explicitly say "voluntary third-party safety
+   bond, not verified seller-backed accountability" rather than implying
+   verified ownership.
+4. **High, partially fixed** — evidence-source trust. Added
+   `AUTHORITATIVE_RECALL_DOMAINS` (CPSC, NHTSA, FDA, FSIS, EU Safety Gate,
+   UK OPSS, Health Canada, Australia ACCC) and a `submit_investigation`-
+   time validation that `recall_source_url`, if provided, must match one
+   of them — it's the one field the prompt describes to the LLM as an
+   authoritative recall confirmation, so it's the one field worth gating.
+   `marketplace_url`/`manufacturer_url` remain unrestricted by design
+   (genuinely arbitrary per listing/brand). NOT done this round: canonical
+   product-ID/UPC matching, durable evidence snapshots beyond
+   hash+URL, source-reputation scoring — documented as open gaps in
+   `docs/SECURITY.md`, not silently ignored.
+5. **Medium, fixed** — verdict agreement required an exact ordinal-bucket
+   match between leader and validator (`VERDICT_TOLERANCE_STEPS = 0`),
+   which the auditor correctly flagged as brittle for genuinely borderline
+   cases. Raised to `1` — adjacent buckets (e.g. NEEDS_MORE_EVIDENCE vs
+   POTENTIAL_ISSUE) can now agree, while the two opposite conclusions
+   (NO_ISSUE vs RECALL_CONFIRMED, 3 ordinal steps apart) still can never
+   blur together via tolerance alone.
+6. **Medium, in progress** — "no tested live proof for the current source
+   revision" was accurate at audit time. This round's fixes still need a
+   fresh deploy + full live `full_contract_test_suite.mjs` pass before
+   that claim can be retired — see the deploy-cycle log above/below this
+   entry for the ongoing live-testing history.
+7. **Medium, documented, not solved** — "the bounty is self-funded" is
+   accurate: `HUNTER_DEFAULT_PAYOUT_BPS = 10000` means a hunter with no
+   linked seller bond just gets their own bounty back on a confirmed
+   verdict, no real profit beyond reputation. A genuinely funded
+   counterparty (marketplace/insurer/treasury) is a product-economics
+   redesign, not attempted this round — documented honestly in
+   `docs/SECURITY.md` rather than left implicit.
+8. **Medium, partially documented** — no circuit-breaker for a
+   compromised allowlisted domain, no monitoring of
+   NEEDS_MORE_EVIDENCE/UNDETERMINED rates, no independent third-party
+   audit performed. Documented as open items in `docs/SECURITY.md`.
+
+All five code-level fixes (1, 2, 4, 5, plus the honesty-copy change for 3)
+compile clean, pass all 9 structural tests (2 new ones added specifically
+for findings 1 and 2), and lint clean. **Still needs**: a fresh contract
+redeploy (this changes contract behavior, so it's a new address, same as
+every prior round) and a full live `full_contract_test_suite.mjs` pass —
+per finding #6, structural tests proves the code shape, not GenVM runtime
+behavior or economic invariants under real execution.
+
 ## CRITICAL round 4: `0x0D04E797bC40F62e631159663b5664186462D704` — round 3's snapshot fix was correct but incomplete (found 2026-08-25)
 
 Confirmed round 3's storage-snapshot fix actually deployed correctly

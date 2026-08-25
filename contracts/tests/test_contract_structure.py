@@ -148,5 +148,39 @@ class ContractStructureTests(unittest.TestCase):
         )
 
 
+    def test_seller_bond_unlinked_on_every_terminal_path(self):
+        """A real audit finding: linked_investigation_count was incremented
+        by link_seller_bond but never decremented anywhere, permanently
+        locking any linked bond out of withdraw_seller_bond. Every terminal
+        investigation transition must call the unlink helper."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        occurrences = source.count("self._unlink_seller_bond_if_present(inv)")
+        self.assertEqual(
+            occurrences, 4,
+            "expected _unlink_seller_bond_if_present to be called from all four terminal "
+            "paths (cancel_investigation, claim_evidence_timeout, claim_verdict_timeout, "
+            "settle_investigation); found %d" % occurrences,
+        )
+
+    def test_challenge_overturn_bonus_is_funded_from_escrow_not_manufactured(self):
+        """A real audit finding: resolve_challenge used to credit a 15%
+        bonus to a successful challenger with no matching debit anywhere,
+        which can make credited balances exceed the contract's actual GEN.
+        The bonus must now be carved out of bounty_deposited_wei (a real,
+        already-escrowed balance) before being credited."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        resolve_start = source.index("def resolve_challenge")
+        resolve_end = source.index("def claim_challenge_timeout")
+        resolve_body = source[resolve_start:resolve_end]
+        self.assertIn(
+            "bounty_pool = inv.bounty_deposited_wei", resolve_body,
+            "resolve_challenge should read the bounty pool before computing any overturn bonus",
+        )
+        self.assertIn(
+            "inv.bounty_deposited_wei = u256(int(bounty_pool) - int(bonus))", resolve_body,
+            "the bonus must be debited from bounty_deposited_wei, not manufactured",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

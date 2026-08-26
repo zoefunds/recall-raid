@@ -1636,3 +1636,47 @@ for this outcome.
 - API unit tests: 26/26 pass
 - Live end-to-end suite (`scripts/full_contract_test_suite.mjs`): 67/67 pass
 - `apps/api` and `apps/web` production builds: both pass
+
+## Round-6 reaudit (3,700/4,000) — copy fix + repeated-success reliability data (2026-08-26)
+
+Two concrete, addressable items from this reaudit:
+
+1. **Stale platform-blame copy**: `apps/web/src/lib/genlayer-client.ts` and
+   the seller dashboard (`apps/web/src/app/seller/page.tsx`) still told
+   users a `verify_seller_bond_listing` disagreement was a "known GenVM
+   web-fetch timing issue" — language written before the real root cause
+   (this app's own `leader_result` unwrap bug) was found and fixed.
+   Removed that framing from both; the failure message is now generic
+   ("validators couldn't reach consensus... safe to retry") since a
+   disagreement is no longer expected/"known" behavior for any write.
+2. **Repeated success-rate data, not just one positive verification**:
+   ran 5 sequential `create_seller_bond` + `verify_seller_bond_listing`
+   cycles against the live deployment
+   (`0xa8bE73AAac3422c646131738A073Ac22d5eA2Ffe`), each a fresh bond
+   verified against the self-hosted demo-listing page:
+
+   ```
+   attempt 0: bond=10 result_name=MAJORITY_AGREE
+   attempt 1: bond=11 result_name=MAJORITY_AGREE
+   attempt 2: bond=12 result_name=MAJORITY_AGREE
+   attempt 3: bond=13 result_name=MAJORITY_AGREE
+   attempt 4: bond=14 result_name=MAJORITY_AGREE
+
+   5/5 succeeded
+   ```
+
+   **5/5, 100% observed success rate** post-fix — a meaningful contrast
+   with the pre-fix 0/6+ observed across this same method before the
+   `leader_result.calldata` unwrap fix. (One earlier attempt at this same
+   run crashed with a transient StudioNet RPC error — `Unexpected token
+   '<'`, an HTML error page instead of JSON — external infra flakiness
+   unrelated to this contract, not counted as a consensus disagreement.)
+   This is still against RecallRaid's own self-hosted demo-listing page,
+   not a real third-party marketplace listing — the audit's ask for
+   "real target marketplaces" specifically remains open, since that needs
+   an actual live listing on a real marketplace to test against, which
+   isn't something this session can create.
+- Web build this round: confirmed to complete fully (`✓ Generating
+  static pages (10/10)` and the full route table), addressing the
+  reaudit's note that its own local build check hadn't reached the final
+  line before its window elapsed.

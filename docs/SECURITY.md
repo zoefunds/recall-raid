@@ -102,14 +102,63 @@ was built against):
   redirect a payout, override a verdict, or unilaterally settle an
   investigation. This mirrors the OWWRE precedent that admin powers must
   never be able to touch money once a verdict path is underway.
-- **Seller Clean Inventory Bonds are a voluntary third-party signal, not
-  verified seller-backed accountability.** The contract has no way to
-  confirm the wallet that posts a bond actually owns or controls the
-  marketplace listing it gets linked to — anyone can bond and link to any
-  open investigation. Real storefront-ownership verification (OAuth to the
-  marketplace, a signed challenge posted to the listing itself) is future
-  work, flagged explicitly in the `SellerBond` dataclass docstring and in
-  the seller dashboard UI rather than left implicit.
+- **Seller Clean Inventory Bonds now require a real listing-ownership
+  proof before they can be linked to an investigation at all.**
+  `verify_seller_bond_listing` generates a per-bond `verification_code` at
+  bond creation and lets the seller prove they control a specific
+  listing's page content — the same trust model as a DNS TXT record or
+  domain-verification meta tag: the seller publishes the code somewhere in
+  the listing's own visible text, and every GenVM validator independently
+  fetches the URL live and checks for it via consensus
+  (`gl.vm.run_nondet_unsafe`), not a single centralized check. A verified
+  bond's `listing_verified`/`listing_url` fields are surfaced through
+  `get_seller_bond` and shown as a "Verified Listing" badge in the seller
+  dashboard.
+  **What this does and does not prove**: it proves the bond owner controls
+  the *content* of that specific listing page at verification time. It
+  does **not** prove the underlying marketplace account's real-world
+  identity (no KYC, no business registration check) — that would need an
+  actual marketplace OAuth integration, which is out of scope here.
+  **A real audit finding, now fixed**: an earlier revision let
+  `link_seller_bond` attach ANY bond — verified or not, for ANY listing —
+  to ANY investigation with no ownership check at all, meaning a "Verified
+  Listing" badge only ever proved "this wallet controls *some* page," not
+  "this wallet controls the listing actually under investigation."
+  `link_seller_bond` now requires BOTH `bond.listing_verified == True` AND
+  a canonicalized exact match (`_canonicalize_url` — host + path, scheme/
+  query/fragment/trailing-slash-insensitive) between `bond.listing_url`
+  and the target investigation's own `marketplace_url`. There is no more
+  "voluntary, unverified" linked-bond state — only unlinked bonds can be
+  unverified; a *linked* bond is always a real, matching, verified stake.
+  The self-hosted `GET /demo-listing/:id` convenience page (`apps/web`,
+  for sellers without a live marketplace listing to test against on
+  StudioNet) is self-limiting under this rule: a bond verified against the
+  demo page can only ever link to an investigation whose own
+  `marketplace_url` is *also* that literal demo-page URL — which a real
+  recall investigation targeting an actual product listing would not
+  naturally have. It is explicitly labeled TESTNET/DEMO-ONLY on the page
+  itself and in the seller dashboard UI: verifying against it proves
+  control of RecallRaid's own demo route, NOT ownership of any real
+  third-party marketplace listing, and it must never be treated as
+  equivalent to a genuine verified marketplace listing in a production
+  deployment.
+  **Resolved**: an earlier round of live testing showed
+  `verify_seller_bond_listing` (and, separately, `request_verdict`)
+  landing on `MAJORITY_DISAGREE` with a 0% observed success rate across
+  every test run, initially suspected to be a StudioNet/GenVM platform-
+  level nondet-consensus problem. Root-caused via a minimal, RecallRaid-
+  independent diagnostic contract
+  (`contracts/diagnostics/nondet_consensus_diagnostic.py`): the real
+  cause was that `validator_fn`'s `leader_result` parameter is a wrapped
+  `gl.vm.Result` object, not a plain value — it must be unwrapped via
+  `isinstance(leader_result, gl.vm.Return)` + `.calldata` per GenLayer's
+  own docs, and every access pattern previously used in this contract
+  (`.get(...)`, bare subscript, `int(...)`) was wrong for that reason.
+  Fixed everywhere via a single `_unwrap_leader_result` helper. Both
+  nondet-consensus methods, the full challenge/resolution lifecycle, and
+  every seller-bond ownership guard are now confirmed passing on a real
+  StudioNet deployment (67/67 live checks, 0 known open bugs — see
+  `memory.md` for the full root-cause writeup).
 - **A bounty with no linked seller bond is economically a refundable
   assertion stake, not a funded bounty.** `HUNTER_DEFAULT_PAYOUT_BPS` is
   10000 (100%) — on a confirmed verdict the hunter is paid from their own

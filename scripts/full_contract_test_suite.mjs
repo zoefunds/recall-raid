@@ -14,9 +14,10 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createPublicClient, http } from "viem";
 import { createHash } from "node:crypto";
 
-const CONTRACT_ADDRESS = "0xceE153ECE149AB35fA7D33e67Fa3aE00610061c6";
+const CONTRACT_ADDRESS = "0xa8bE73AAac3422c646131738A073Ac22d5eA2Ffe";
 const RPC_URL = "https://studio.genlayer.com/api";
 const API_BASE = "https://recallraid-api.fly.dev";
+const WEB_BASE = "https://recall-raid.vercel.app";
 
 const WALLETS = {
   hunter: "0x63028d88026d5bd4fafbacc46546bb1d85ac4d9fff21596c147430534035a314",
@@ -100,10 +101,24 @@ async function write(client, functionName, args = [], value = 0n) {
   // execution failed" for a deterministic write we expect to succeed.
   const consensusHealthy = !["MAJORITY_DISAGREE", "DISAGREEMENT", "TIMEOUT", "UNDETERMINED"].includes(receipt.result_name);
   const parsedResult = decodeLeaderResult(leader);
+  // A clean deterministic `gl.vm.UserError` rejection (e.g. an
+  // `[EXPECTED] ...` guard-clause raise) carries its message in
+  // `leader.result.payload` directly (`status: "rollback"`), NOT in
+  // stderr — confirmed live: stderr is empty for these, and only carries
+  // text for things like the storage-pickling UserWarning or an actual
+  // Python traceback. Checking stderr alone for rejection *content* (as
+  // opposed to just detecting that a rejection happened via
+  // `leaderErrored`) silently produces an empty string for the common
+  // case and was a real bug in this script's own negative-test
+  // assertions, not a sign of a contract problem.
+  const rollbackMessage =
+    leaderErrored && leader?.result?.status === "rollback" && typeof leader.result.payload === "string"
+      ? leader.result.payload
+      : undefined;
   return {
     txHash, receipt, parsedResult,
     leaderErrored, consensusHealthy,
-    errorDetail: leaderErrored ? leader?.genvm_result?.stderr : undefined,
+    errorDetail: leaderErrored ? (rollbackMessage || leader?.genvm_result?.stderr) : undefined,
     resultName: receipt.result_name, statusName: receipt.status_name,
   };
 }
@@ -272,6 +287,17 @@ async function main() {
   await expectRevert("transfer_administration by non-admin (challenger)", () => write(challenger.client, "transfer_administration", [challenger.address]));
 
   let challengeId = null;
+  // A failed challenge (resolve_challenge overturned:false — the original
+  // verdict is upheld) forfeits the challenger's stake to the hunter as
+  // compensation for having a correct claim disputed. Tracked here so the
+  // later withdraw-balance assertion can account for it instead of
+  // assuming the hunter's only withdrawable balance is investigation 2's
+  // cancel refund — previously an unconditional hardcoded expectation
+  // that only held because request_verdict/resolve_challenge had a 0%
+  // observed consensus-agreement rate and this whole challenge branch
+  // never actually ran; now that the leader_result unwrap fix makes it
+  // run for real, the assertion has to reflect that.
+  let hunterCreditFromFailedChallenge = 0n;
   if (inv1ReachedVerdict) {
     section("open_challenge — negative (self-challenge) then real challenge");
     await expectRevert("open_challenge by original submitter (should be rejected)", () => {
@@ -301,6 +327,10 @@ async function main() {
       const challengeAfter = await read(hunter.client, "get_challenge", [challengeId]);
       record("get_challenge (post-resolution)", "view", true, JSON.stringify(challengeAfter));
 
+      if (resolveRes.parsedResult?.overturned === false) {
+        hunterCreditFromFailedChallenge = requiredStake;
+      }
+
       await expectRevert("resolve_challenge twice (already resolved)", () => write(challenger.client, "resolve_challenge", [challengeId]));
     }
   } else {
@@ -308,6 +338,48 @@ async function main() {
   }
 
   // ================= Investigation 2: cancel + withdraw path =================
+  // Bond creation + listing verification now happen BEFORE
+  // submit_investigation: link_seller_bond requires the bond's verified
+  // listing_url to canonically match the investigation's own
+  // marketplace_url (see the round-4 audit fix below), so investigation
+  // 2's marketplace_url is deliberately set to the SAME demo-listing URL
+  // the bond gets verified against, to exercise the real positive path.
+  section("create_seller_bond + verify_seller_bond_listing — real web-fetch ownership proof");
+  const bondRes1 = await write(seller.client, "create_seller_bond", [], 3n * 10n ** 16n);
+  record("create_seller_bond (bond 1)", "write", (!bondRes1.leaderErrored && bondRes1.consensusHealthy), `tx=${bondRes1.txHash} parsed=${JSON.stringify(bondRes1.parsedResult)}`);
+  const bond1Id = bondRes1.parsedResult?.bond_id;
+  const bond1Code = bondRes1.parsedResult?.verification_code;
+
+  // Hosted on apps/web (Vercel's globally-distributed edge network), not
+  // apps/api (Fly, single region `iad`) or Cloudinary. Cloudinary forces
+  // `Content-Disposition: attachment` on every raw HTML upload
+  // (non-configurable anti-XSS policy), which makes GenVM's browser-based
+  // gl.nondet.web.render treat it as a file download rather than a page
+  // to render. The Fly-hosted version had a different, subtler problem:
+  // confirmed live that GenVM's geographically-distributed validator set
+  // couldn't all reach a single-region Fly app reliably — some validators
+  // fetched it successfully while others silently couldn't, producing
+  // MAJORITY_DISAGREE even when the leader and one validator both agreed
+  // on a genuine match. Vercel's edge network serves from a point of
+  // presence near wherever the request actually originates.
+  const demoListingUrl = `${WEB_BASE}/demo-listing/${bond1Id}?code=${encodeURIComponent(bond1Code)}`;
+  const demoListingCheck = await fetch(demoListingUrl);
+  const demoListingText = await demoListingCheck.text();
+  record("GET demo-listing page contains the bond's verification code", "integration", demoListingCheck.ok && demoListingText.includes(bond1Code), demoListingUrl);
+
+  const noCodeResult = await write(seller.client, "verify_seller_bond_listing", [bond1Id, "https://www.cpsc.gov/Recalls"]);
+  record(
+    "verify_seller_bond_listing against a page WITHOUT the code (should be rejected)",
+    "negative-write",
+    noCodeResult.leaderErrored && (noCodeResult.errorDetail || "").includes("verification code"),
+    `result=${noCodeResult.resultName} detail=${(noCodeResult.errorDetail || "").slice(0, 160)}`,
+  );
+
+  const verifyRes = await write(seller.client, "verify_seller_bond_listing", [bond1Id, demoListingUrl]);
+  record("verify_seller_bond_listing (bond1, real code match)", "write", (!verifyRes.leaderErrored && verifyRes.consensusHealthy), `tx=${verifyRes.txHash} result=${verifyRes.resultName} detail=${(verifyRes.errorDetail || "").slice(0, 160)}`);
+  const bond1AfterVerify = await read(seller.client, "get_seller_bond", [bond1Id]);
+  record("get_seller_bond (bond1, post-verify)", "view", bond1AfterVerify.listing_verified === true && bond1AfterVerify.listing_url === demoListingUrl, JSON.stringify(bond1AfterVerify));
+
   section("submit_investigation — Investigation 2 (cancel-path test)");
   const bounty2 = 2n * 10n ** 16n; // 0.02 GEN
   const sub2 = await write(hunter.client, "submit_investigation", [
@@ -316,7 +388,7 @@ async function main() {
     "TB-K1700",
     "",
     "TestMarket",
-    "https://example.org/listing/test-kettle",
+    demoListingUrl,
     "",
     "",
     "TEST DATA — this investigation exists only to exercise cancel_investigation and withdraw() and is expected to be cancelled immediately.",
@@ -326,13 +398,38 @@ async function main() {
   record("submit_investigation (inv 2)", "write", (!sub2.leaderErrored && sub2.consensusHealthy), `tx=${sub2.txHash} parsed=${JSON.stringify(sub2.parsedResult)}`);
   const inv2Id = sub2.parsedResult?.investigation_id;
 
-  section("create_seller_bond + link_seller_bond — then cancel investigation 2");
-  const bondRes1 = await write(seller.client, "create_seller_bond", [], 3n * 10n ** 16n);
-  record("create_seller_bond (bond 1)", "write", (!bondRes1.leaderErrored && bondRes1.consensusHealthy), `tx=${bondRes1.txHash} parsed=${JSON.stringify(bondRes1.parsedResult)}`);
-  const bond1Id = bondRes1.parsedResult?.bond_id;
+  section("link_seller_bond — now requires verified + matching listing (round-4 audit fix)");
+  const bondRes2ForMismatch = await write(seller.client, "create_seller_bond", [], 1n * 10n ** 16n);
+  const unverifiedBondId = bondRes2ForMismatch.parsedResult?.bond_id;
+  const linkUnverifiedResult = await write(seller.client, "link_seller_bond", [inv2Id, unverifiedBondId]);
+  record(
+    "link_seller_bond with an UNVERIFIED bond (should be rejected)",
+    "negative-write",
+    linkUnverifiedResult.leaderErrored && (linkUnverifiedResult.errorDetail || "").includes("verify_seller_bond_listing"),
+    `result=${linkUnverifiedResult.resultName} detail=${(linkUnverifiedResult.errorDetail || "").slice(0, 160)}`,
+  );
+  await write(seller.client, "verify_seller_bond_listing", [unverifiedBondId, "https://www.cpsc.gov/Recalls"]).catch(() => {});
+  // (left unverified on purpose above — cpsc.gov never contains this
+  // bond's code, so this call is expected to itself fail/reject and the
+  // bond stays unverified; the negative test above already exercised the
+  // "no verification at all" path directly)
+
+  const bondRes3ForMismatch = await write(seller.client, "create_seller_bond", [], 1n * 10n ** 16n);
+  const mismatchBondId = bondRes3ForMismatch.parsedResult?.bond_id;
+  const mismatchCode = bondRes3ForMismatch.parsedResult?.verification_code;
+  const mismatchListingUrl = `${WEB_BASE}/demo-listing/${mismatchBondId}?code=${encodeURIComponent(mismatchCode)}`;
+  const mismatchVerifyRes = await write(seller.client, "verify_seller_bond_listing", [mismatchBondId, mismatchListingUrl]);
+  record("verify_seller_bond_listing (mismatch bond, verified against its OWN page)", "write", (!mismatchVerifyRes.leaderErrored && mismatchVerifyRes.consensusHealthy), `tx=${mismatchVerifyRes.txHash} result=${mismatchVerifyRes.resultName}`);
+  const linkMismatchResult = await write(seller.client, "link_seller_bond", [inv2Id, mismatchBondId]);
+  record(
+    "link_seller_bond with a VERIFIED bond for a DIFFERENT listing (should be rejected)",
+    "negative-write",
+    linkMismatchResult.leaderErrored && (linkMismatchResult.errorDetail || "").includes("does not match"),
+    `result=${linkMismatchResult.resultName} detail=${(linkMismatchResult.errorDetail || "").slice(0, 160)}`,
+  );
 
   const linkRes = await write(seller.client, "link_seller_bond", [inv2Id, bond1Id]);
-  record("link_seller_bond (bond1 -> inv2)", "write", (!linkRes.leaderErrored && linkRes.consensusHealthy), `tx=${linkRes.txHash}`);
+  record("link_seller_bond (bond1, verified + matching listing -> inv2)", "write", (!linkRes.leaderErrored && linkRes.consensusHealthy), `tx=${linkRes.txHash} detail=${(linkRes.errorDetail || "").slice(0, 160)}`);
 
   // While genuinely linked, withdraw_seller_bond must be rejected.
   await expectRevert("withdraw_seller_bond while still linked (should be rejected)", () => write(seller.client, "withdraw_seller_bond", [bond1Id]));
@@ -355,7 +452,13 @@ async function main() {
 
   section("withdraw — hunter's refunded bounty from cancelled investigation 2");
   const balHunterBeforeWithdraw = await read(hunter.client, "get_balance", [hunter.address]);
-  record("get_balance (hunter, pre-withdraw)", "view", BigInt(balHunterBeforeWithdraw) === bounty2, `balance=${balHunterBeforeWithdraw} expected=${bounty2}`);
+  const expectedHunterBalance = bounty2 + hunterCreditFromFailedChallenge;
+  record(
+    "get_balance (hunter, pre-withdraw)",
+    "view",
+    BigInt(balHunterBeforeWithdraw) === expectedHunterBalance,
+    `balance=${balHunterBeforeWithdraw} expected=${expectedHunterBalance} (inv2 refund=${bounty2} + failed-challenge-stake credit=${hunterCreditFromFailedChallenge})`,
+  );
   const walletBalBefore = await publicClient.getBalance({ address: hunter.address });
   const withdrawRes = await write(hunter.client, "withdraw", [BigInt(balHunterBeforeWithdraw)]);
   record("withdraw (hunter)", "write", (!withdrawRes.leaderErrored && withdrawRes.consensusHealthy), `tx=${withdrawRes.txHash}`);

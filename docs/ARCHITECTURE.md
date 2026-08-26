@@ -74,3 +74,22 @@ The contract is deployed by the user via the GenLayer Studio CLI (never by
 Claude). The resulting address is placed in `GENLAYER_CONTRACT_ADDRESS`
 (server) and `NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS` (client) — never
 hardcoded in source. See `docs/DEPLOYMENT.md` for the exact procedure.
+
+## Nondet consensus (GenVM Equivalence Principle)
+
+Two contract methods use `gl.vm.run_nondet_unsafe` directly (the
+lower-level leader/validator primitive, not the higher-level
+`gl.eq_principle.*` helpers): `request_verdict`/`resolve_challenge`'s LLM
+verdict pass, and `verify_seller_bond_listing`'s web-fetch ownership
+proof. Both follow the same pattern — a `leader_fn` that does the real
+`gl.nondet.*` call, and a `validator_fn` that independently re-runs
+`leader_fn` and compares against the leader's proposed value via
+`_unwrap_leader_result` (unwrapping GenVM's `gl.vm.Return` wrapper via
+`.calldata`, per GenLayer's own docs — see `memory.md` for why this
+exact unwrap step matters and what happens without it).
+
+`contracts/diagnostics/nondet_consensus_diagnostic.py` is a minimal,
+separate contract kept in the repo for isolating any future nondet-
+consensus regression from application-code bugs before touching
+RecallRaid itself — see the README's "Debugging nondet consensus"
+section.

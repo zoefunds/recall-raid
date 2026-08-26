@@ -170,8 +170,9 @@ export async function syncSellerBond(bondId: number): Promise<void> {
   await pool.query(
     `insert into seller_bonds_cache (
        bond_id, seller_wallet, bond_wei, bond_deposited_wei, status, created_at_chain,
-       linked_investigation_count, slashed_total_wei, synced_at
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8, now())
+       linked_investigation_count, slashed_total_wei, verification_code, listing_url,
+       listing_verified, synced_at
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
      on conflict (bond_id) do update set
        seller_wallet = excluded.seller_wallet,
        bond_wei = excluded.bond_wei,
@@ -180,6 +181,9 @@ export async function syncSellerBond(bondId: number): Promise<void> {
        created_at_chain = excluded.created_at_chain,
        linked_investigation_count = excluded.linked_investigation_count,
        slashed_total_wei = excluded.slashed_total_wei,
+       verification_code = excluded.verification_code,
+       listing_url = excluded.listing_url,
+       listing_verified = excluded.listing_verified,
        synced_at = now()
     `,
     [
@@ -191,6 +195,9 @@ export async function syncSellerBond(bondId: number): Promise<void> {
       bond.created_at,
       bond.linked_investigation_count,
       bond.slashed_total_wei,
+      bond.verification_code,
+      bond.listing_url,
+      bond.listing_verified,
     ],
   );
 }

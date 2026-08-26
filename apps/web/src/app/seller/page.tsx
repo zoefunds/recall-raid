@@ -18,8 +18,23 @@ export default function SellerDashboardPage() {
   const { address, isConnected } = useConnectedAddress();
   const qc = useQueryClient();
   const [bondAmount, setBondAmount] = useState('');
+  const [listingUrlByBond, setListingUrlByBond] = useState<Record<number, string>>({});
+  const [verifyingBondId, setVerifyingBondId] = useState<number | null>(null);
   const write = useContractWrite();
+  const verifyWrite = useContractWrite();
   const { ensureSession } = useWalletSession();
+
+  async function handleVerifyListing(bondId: number) {
+    const listingUrl = (listingUrlByBond[bondId] || '').trim();
+    if (!listingUrl) return;
+    await ensureSession();
+    setVerifyingBondId(bondId);
+    const res = await verifyWrite.send('verify_seller_bond_listing', [bondId, listingUrl]);
+    if (res) {
+      await syncSellerBond(bondId, res.txHash);
+      await qc.invalidateQueries({ queryKey: ['seller-bonds', address] });
+    }
+  }
 
   const bondsQuery = useQuery({
     queryKey: ['seller-bonds', address],
@@ -108,6 +123,67 @@ export default function SellerDashboardPage() {
                 {Number(bond.slashed_total_wei) > 0 && (
                   <div className="mt-1 text-body-sm text-danger">Slashed to date: {weiToGen(bond.slashed_total_wei)} GEN</div>
                 )}
+
+                <div className="mt-4 border-t border-border-subtle pt-3">
+                  {bond.listing_verified ? (
+                    <div>
+                      <span className="rounded bg-primary/10 px-2 py-1 font-mono text-label-caps uppercase text-primary">
+                        Verified Listing
+                      </span>
+                      <div className="mt-1 truncate text-body-sm text-muted" title={bond.listing_url}>
+                        {bond.listing_url}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="mb-1 font-mono text-label-caps uppercase text-muted">Prove you control a listing</div>
+                      <p className="mb-2 text-body-sm text-secondary">
+                        Add this code anywhere in your listing&apos;s visible text, then paste the listing URL below.
+                        GenLayer validators fetch the page live and check for it — real proof of control, not just a
+                        claim.
+                      </p>
+                      <code className="mb-2 block break-all rounded bg-bg-deep px-2 py-1 font-mono text-body-sm text-on-surface">
+                        {bond.verification_code}
+                      </code>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <input
+                          value={listingUrlByBond[bond.id] ?? ''}
+                          onChange={(e) => setListingUrlByBond((prev) => ({ ...prev, [bond.id]: e.target.value }))}
+                          placeholder="https://your-marketplace-listing-url"
+                          className="flex-1 rounded border border-border-subtle bg-bg-deep px-3 py-2 font-mono text-body-sm text-on-surface focus:border-primary focus:outline-none"
+                        />
+                        <Button
+                          onClick={() => handleVerifyListing(bond.id)}
+                          disabled={!listingUrlByBond[bond.id]?.trim()}
+                          loading={verifyingBondId === bond.id && verifyWrite.status !== 'idle' && verifyWrite.status !== 'confirmed' && verifyWrite.status !== 'failed'}
+                        >
+                          Verify Listing
+                        </Button>
+                      </div>
+                      <p className="mt-2 text-body-sm text-muted">
+                        Testing on StudioNet without a live listing yet? Use{' '}
+                        <button
+                          type="button"
+                          className="underline hover:text-on-surface"
+                          onClick={() =>
+                            setListingUrlByBond((prev) => ({
+                              ...prev,
+                              [bond.id]: `${window.location.origin}/demo-listing/${bond.id}?code=${encodeURIComponent(bond.verification_code)}`,
+                            }))
+                          }
+                        >
+                          this demo page
+                        </button>
+                        . <strong>Testnet-only</strong> — it proves you control this RecallRaid test route, not a real
+                        marketplace listing. Don&apos;t use it for a bond you intend to link to a genuine investigation.
+                      </p>
+                      <p className="mt-2 text-body-sm text-muted">
+                        If verification fails with a consensus/timing message, that&apos;s a known occasional
+                        GenLayer web-fetch timing issue, not a problem with your code — just try again.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </CardBody>
             </Card>
           ))}
@@ -116,6 +192,17 @@ export default function SellerDashboardPage() {
 
       {write.status !== 'idle' && (
         <TransactionStatusModal status={write.status} message={write.message} txHash={write.txHash} onClose={write.reset} />
+      )}
+      {verifyWrite.status !== 'idle' && (
+        <TransactionStatusModal
+          status={verifyWrite.status}
+          message={verifyWrite.message}
+          txHash={verifyWrite.txHash}
+          onClose={() => {
+            verifyWrite.reset();
+            setVerifyingBondId(null);
+          }}
+        />
       )}
     </div>
   );

@@ -21,7 +21,7 @@ deploy):
 ✓ Lint passed (3 checks)
 ✓ Validation passed
   Contract: RecallRaid
-  Methods: 29 (12 view, 17 write)
+  Methods: 30 (12 view, 18 write)
 ```
 
 Fix every lint/validation failure before deploying — do not deploy a
@@ -68,25 +68,48 @@ integration work never requires a new address.
 
 ### ✅ Current deployment (StudioNet)
 
-`GENLAYER_CONTRACT_ADDRESS = 0x34935D3d16a1Db83925117AEf95c045c2c197756`
+`GENLAYER_CONTRACT_ADDRESS = 0xa8bE73AAac3422c646131738A073Ac22d5eA2Ffe`
 
 Wired into root `.env`, `apps/web/.env.local`, `apps/api/.env` (all
-gitignored, local-only — see `docs/DEPLOYMENT.md`'s note on Fly secrets for
-the production equivalent). Live-verified with:
+gitignored, local-only), Fly.io secrets for `recallraid-api`, and Vercel
+production environment variables for `apps/web`. Live-verified with:
 
 ```bash
-node scripts/verify_deployed_contract.mjs
+node scripts/full_contract_test_suite.mjs
 ```
 
-which confirmed `getContractSchema` loads (29 methods) and
-`get_protocol_info()` returns this repo's exact fixed economics constants
-— i.e. the deployed bytecode really is this contract. Re-run this script
-after any future redeploy before wiring in a new address.
+which runs every read and write method against the deployed contract
+using three funded StudioNet test wallets — as of the last run: **67/67
+checks passing**, including both nondet-consensus paths
+(`request_verdict`/`resolve_challenge` and `verify_seller_bond_listing`)
+and the full seller-bond ownership-verification flow. Re-run this script
+after any future redeploy before considering a new address production-
+ready — a passing `genvm-lint`/structural-test pass only validates schema
+and static safety rules, not real GenVM consensus behavior.
 
-**Still needed before this address is live in production**: `fly secrets
-set GENLAYER_CONTRACT_ADDRESS=0x34935D3d16a1Db83925117AEf95c045c2c197756`
-against the deployed `recallraid-api` Fly app, and the same value as a
-Vercel environment variable for `apps/web`.
+There is also a separate, minimal diagnostic contract
+(`contracts/diagnostics/nondet_consensus_diagnostic.py`) kept in the repo
+for isolating any *future* nondet-consensus regression from application-
+code bugs before spending time patching RecallRaid itself — see the
+README's "Debugging nondet consensus" section and `memory.md` for why
+this exists and what it already caught once.
+
+**Redeploy workflow** (every time the contract's Python source changes):
+1. The project owner deploys the updated `recallraid_contract.py` via
+   GenLayer Studio and gives Claude the new address.
+2. Claude updates `GENLAYER_CONTRACT_ADDRESS` /
+   `NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS` everywhere (root `.env`,
+   `apps/api/.env`, `apps/web/.env.local`, `scripts/
+   full_contract_test_suite.mjs`'s hardcoded `CONTRACT_ADDRESS` constant,
+   Fly secrets, Vercel env), then redeploys `apps/api` (if its own code
+   also changed) and `apps/web`.
+3. Claude truncates the Postgres cache tables (`evidence_cache`,
+   `challenges_cache`, `seller_bonds_cache`, `notifications`,
+   `tx_status_log`, `leaderboard_cache`, `evidence_uploads_pending`,
+   `investigations_cache`) so stale rows from the old contract address
+   never get served under the new one's IDs.
+4. Claude re-runs `scripts/full_contract_test_suite.mjs` against the new
+   address and reports the result before considering the redeploy done.
 
 ## 2. Database — PostgreSQL on Fly.io (Docker)
 
@@ -109,7 +132,28 @@ auto-stop — this is a hard requirement (the backend must never sleep/die).
 ```bash
 cd apps/api
 fly deploy
-fly secrets set GENLAYER_CONTRACT_ADDRESS=<address> GENLAYER_RPC_URL=... CLOUDINARY_CLOUD_NAME=... CLOUDINARY_API_KEY=... CLOUDINARY_API_SECRET=... JWT_SIGNING_SECRET=...
+fly secrets set \
+  DATABASE_URL=... \
+  CORS_ALLOWED_ORIGIN=https://recall-raid.vercel.app \
+  GENLAYER_CONTRACT_ADDRESS=<address> \
+  GENLAYER_RPC_URL=https://studio.genlayer.com/api \
+  JWT_SIGNING_SECRET=... \
+  CLOUDINARY_CLOUD_NAME=... CLOUDINARY_API_KEY=... CLOUDINARY_API_SECRET=... CLOUDINARY_UPLOAD_FOLDER=recallraid-evidence \
+  DEADLINE_WATCHER_INTERVAL_MS=180000
+```
+
+`DEADLINE_WATCHER_INTERVAL_MS` controls how often the background sweep
+(`apps/api/src/lib/deadline-watcher.ts`) polls chain state for upcoming
+deadlines and pending-tx receipts. 180000 (3 minutes) was chosen after an
+initial 20000ms (20s) exhausted StudioNet's RPC rate limit (500 req/hour)
+— do not set this lower without checking that limit first.
+
+Any migration to the database schema must be applied against the
+production Postgres instance after deploy — the compiled migration
+runner lives at `dist/db/migrate.js` inside the deployed image:
+
+```bash
+fly ssh console -a recallraid-api -C 'node /app/dist/db/migrate.js'
 ```
 
 Verify uptime after deploy:
@@ -136,6 +180,27 @@ vercel --prod
 - [ ] `curl https://recallraid-api.fly.dev/health` returns 200
 - [ ] `fly status` shows the API machine in `started` state with no auto-stop configured
 - [ ] Landing page loads on the Vercel URL and shows live stats (not zeros/errors)
-- [ ] Wallet connect works for at least MetaMask
-- [ ] `submit_investigation` completes a real transaction against the deployed contract and appears in `/hunts`
+- [ ] Wallet connect works for at least MetaMask and WalletConnect
+- [ ] `node scripts/full_contract_test_suite.mjs` passes against the current address — this is the real
+      verification step; everything above is a smoke test
 - [ ] `get_protocol_info` view call succeeds from both the frontend and the backend independently
+
+## 6. Diagnostic contract (only needed if nondet consensus misbehaves)
+
+`contracts/diagnostics/nondet_consensus_diagnostic.py` is a separate,
+minimal contract for isolating whether a `gl.vm.run_nondet_unsafe`
+disagreement is a platform issue or an application bug — deploy it the
+same way as RecallRaid itself, to whichever network needs testing
+(StudioNet, local `gltest` Studio mode, Testnet Asimov), then:
+
+```bash
+CONTRACT_ADDRESS=0xYourDiagnosticDeploy node scripts/diagnostic_test.mjs
+```
+
+`check_constant` reaching `MAJORITY_AGREE` (a hardcoded-int comparison,
+zero I/O) is the single cleanest sanity check available — if it ever
+disagrees, that points at the platform/environment; if it agrees but
+`check_web_fetch`/`check_llm_classification` don't, that narrows the
+issue to I/O-dependent nondeterminism specifically. See `memory.md` for
+the full story of the one bug this already caught (a `leader_result`
+API-unwrap mistake, not a platform issue).

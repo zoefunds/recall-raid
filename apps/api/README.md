@@ -101,12 +101,18 @@ fly secrets set \
 fly deploy
 ```
 
-After the first deploy, run migrations against the production database
-once (from a machine with `DATABASE_URL` pointed at production, e.g.
-`fly ssh console -C "node dist/db/migrate.js"` won't work since migrate.ts
-isn't compiled into a standalone entry by default — easiest is
-`fly ssh console` then `node -e "..."`, or run `npm run migrate` locally
-against the Fly Postgres via `fly proxy 5432 -a <postgres-app-name>`).
+After every deploy that adds a new migration file, apply it against the
+production database. The build compiles `src/db/migrate.ts` to
+`dist/db/migrate.js`, so the simplest way is directly on the running
+machine:
+
+```bash
+fly ssh console -a recallraid-api -C 'node /app/dist/db/migrate.js'
+```
+
+This prints `applied: <filename>` for each newly-applied migration and
+`migrations up to date` when there's nothing left to run — safe to
+re-run any time.
 
 ## Endpoints
 
@@ -138,7 +144,9 @@ Fastify's built-in pino logger.
 ## Background jobs
 
 `src/lib/deadline-watcher.ts` runs two read-only loops on an interval
-(`DEADLINE_WATCHER_INTERVAL_MS`, default 60s):
+(`DEADLINE_WATCHER_INTERVAL_MS`, currently set to 180000ms/3min in
+production — an earlier 20000ms/20s setting exhausted StudioNet's RPC
+rate limit of 500 req/hour):
 
 1. Polls every non-terminal `tx_status_log` row's transaction receipt from
    chain and mirrors the outcome.

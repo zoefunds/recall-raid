@@ -104,6 +104,9 @@ export interface SellerBondRow {
   created_at_chain: string | number | null;
   linked_investigation_count: number;
   slashed_total_wei: string | null;
+  verification_code: string | null;
+  listing_url: string | null;
+  listing_verified: boolean | null;
 }
 
 export function serializeSellerBond(row: SellerBondRow) {
@@ -116,6 +119,9 @@ export function serializeSellerBond(row: SellerBondRow) {
     created_at: Number(row.created_at_chain ?? 0),
     linked_investigation_count: row.linked_investigation_count,
     slashed_total_wei: String(row.slashed_total_wei ?? "0"),
+    verification_code: row.verification_code ?? "",
+    listing_url: row.listing_url ?? "",
+    listing_verified: Boolean(row.listing_verified),
   };
 }
 

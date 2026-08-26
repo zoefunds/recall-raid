@@ -71,6 +71,7 @@ class ContractStructureTests(unittest.TestCase):
             "withdraw",
             "link_seller_bond",
             "withdraw_seller_bond",
+            "verify_seller_bond_listing",
             "set_paused",
             "transfer_administration",
         }
@@ -214,6 +215,218 @@ class ContractStructureTests(unittest.TestCase):
         end = source.index("def _payout_bps_for_verdict")
         body = source[start:end]
         self.assertIn("not inv.model_number and not inv.serial_number", body)
+
+    def test_recall_confirmed_deterministic_backstop_present(self):
+        """A real live transaction (rotation count 3, still Undetermined)
+        showed the model confidently returning RECALL_CONFIRMED at 9000bps
+        against a generic recall-listing page that never named the
+        product. The fix is a deterministic, non-LLM downgrade inside
+        `_run_verdict_pass`'s `leader_fn`, independent of whether the model
+        obeys the prompt instruction — this test pins that the downgrade
+        code itself (not just the prompt wording) is present."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        start = source.index("def _run_verdict_pass")
+        next_def = source.index("\n    def ", start + len("def _run_verdict_pass"))
+        body = source[start:next_def]
+        self.assertIn("product_id_match", body)
+        self.assertIn("VERDICT_RECALL_CONFIRMED", body)
+        self.assertIn(
+            "int(verdict_code) == int(VERDICT_RECALL_CONFIRMED) and not product_id_match",
+            body,
+            "RECALL_CONFIRMED must be deterministically downgraded when the "
+            "product identifier was not found in the recall source text",
+        )
+
+    def test_no_issue_deterministic_backstop_present(self):
+        """Mirror finding: NO_ISSUE asserts 'we checked everything and
+        found nothing' — that claim is only honest when all three sources
+        (manufacturer, recall, listing) were actually reachable. This test
+        pins that an incomplete check (sources_checked_count < 3) cannot
+        commit NO_ISSUE even if the model claims it."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        start = source.index("def _run_verdict_pass")
+        next_def = source.index("\n    def ", start + len("def _run_verdict_pass"))
+        body = source[start:next_def]
+        self.assertIn("sources_checked_count", body)
+        self.assertIn(
+            "int(verdict_code) == int(VERDICT_NO_ISSUE) and sources_checked_count < 3",
+            body,
+            "NO_ISSUE must be deterministically downgraded when fewer than "
+            "all three sources were reachable",
+        )
+
+    def test_product_identifier_match_uses_token_boundaries(self):
+        """A raw substring check ('a1' in 'a10 charger') would false-
+        positive on a shorter identifier that is a strict prefix of an
+        unrelated longer one. `_identifier_present` must reject that by
+        requiring non-alphanumeric boundaries around the match, and
+        `_run_verdict_pass` must call it rather than a bare `in` check."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        start = source.index("def _identifier_present")
+        end = source.index("def _run_verdict_pass")
+        helper_body = source[start:end]
+        self.assertIn("(?<![a-z0-9])", helper_body)
+        self.assertIn("(?![a-z0-9])", helper_body)
+
+        run_pass_start = end
+        run_pass_next_def = source.index("\n    def ", run_pass_start + len("def _run_verdict_pass"))
+        run_pass_body = source[run_pass_start:run_pass_next_def]
+        self.assertIn("self._identifier_present(recall_text, model_number)", run_pass_body)
+        self.assertIn("self._identifier_present(recall_text, serial_number)", run_pass_body)
+        self.assertNotIn(
+            "model_number.strip().lower() in", run_pass_body,
+            "must not fall back to a raw substring containment check",
+        )
+
+
+    def test_verify_seller_bond_listing_uses_real_consensus_web_fetch(self):
+        """The listing-ownership proof must actually be backed by
+        validator consensus over a live fetch, not a leader-asserted or
+        purely deterministic claim — otherwise it would be no stronger
+        than trusting the seller's own word. Pins that the nondet fetch +
+        `run_nondet_unsafe` pattern (same as `_run_verdict_pass`) is used,
+        that only the bond owner can call it, and that a bond only becomes
+        `listing_verified` after a successful call."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        start = source.index("def verify_seller_bond_listing")
+        end = source.index("\n    def ", start + len("def verify_seller_bond_listing"))
+        body = source[start:end]
+        self.assertIn("gl.nondet.web.render", body)
+        self.assertIn("gl.vm.run_nondet_unsafe(leader_fn, validator_fn)", body)
+        self.assertIn("gl.message.sender_address != bond.seller", body)
+        self.assertIn("bond.listing_verified = True", body)
+        self.assertIn("self._identifier_present(body, code)", body)
+
+    def test_create_seller_bond_generates_verification_code(self):
+        """Every bond must get a verification code at creation time so a
+        seller can prove listing ownership later without a separate
+        code-generation step (and so `verify_seller_bond_listing` always
+        has something deterministic to check for)."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        start = source.index("def create_seller_bond")
+        end = source.index("\n    def ", start + len("def create_seller_bond"))
+        body = source[start:end]
+        self.assertIn("verification_code=code", body)
+        self.assertIn("hashlib.sha256", body)
+
+    def test_link_seller_bond_requires_verified_and_matching_listing(self):
+        """Real audit finding: `link_seller_bond` originally let ANY
+        bond — verified or not, for any listing — attach to ANY
+        investigation with no ownership check at all, so a "Verified
+        Listing" badge only ever proved "controls some page," never
+        "controls the listing actually under investigation." Pins that
+        both the verification-required check and the canonicalized
+        listing-URL match against the investigation's own
+        marketplace_url are present."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        start = source.index("def link_seller_bond")
+        end = source.index("\n    def ", start + len("def link_seller_bond"))
+        body = source[start:end]
+        self.assertIn("not bool(bond.listing_verified)", body)
+        self.assertIn("_canonicalize_url(bond.listing_url) != _canonicalize_url(inv.marketplace_url)", body)
+
+    def test_canonicalize_url_ignores_scheme_and_trailing_slash(self):
+        """The match check in `link_seller_bond` must not fail on harmless
+        real-world URL variance (http vs https, a trailing slash, query
+        string) — that would incorrectly block a legitimate bond link,
+        not just catch fraud. Pins that `_canonicalize_url` drops scheme/
+        query/fragment and normalizes host case and trailing slash."""
+        source = CONTRACT_PATH.read_text(encoding="utf-8")
+        start = source.index("def _canonicalize_url")
+        end = source.index("\n\n", start)
+        body = source[start:end]
+        self.assertIn("parsed.hostname", body)
+        self.assertIn("path.rstrip", body)
+
+
+class IdentifierBoundaryMatchingTests(unittest.TestCase):
+    """Executes the actual `_identifier_present` regex logic (copied here
+    verbatim, not imported, since importing the contract module requires
+    the GenVM `genlayer` package) against the exact false-positive case the
+    reaudit flagged: a short identifier that is a strict prefix of a
+    longer, unrelated one."""
+
+    @staticmethod
+    def _identifier_present(haystack: str, identifier: str) -> bool:
+        import re
+
+        needle = (identifier or "").strip().lower()
+        if not needle:
+            return False
+        hay = (haystack or "").lower()
+        pattern = re.compile(r"(?<![a-z0-9])" + re.escape(needle) + r"(?![a-z0-9])")
+        return pattern.search(hay) is not None
+
+    def test_short_identifier_does_not_match_longer_prefixed_id(self):
+        self.assertFalse(self._identifier_present("recall notice for model A10 chargers", "A1"))
+
+    def test_identifier_matches_with_punctuation_boundary(self):
+        self.assertTrue(self._identifier_present("recall for VE-SC65-2024 units sold nationwide", "VE-SC65-2024"))
+
+    def test_identifier_does_not_match_when_suffixed_by_alnum(self):
+        self.assertFalse(self._identifier_present("recall notice for VE-SC65X chargers", "VE-SC65"))
+
+    def test_source_logic_matches_reference_implementation(self):
+        """Guards against the reference copy above drifting from the real
+        contract implementation."""
+        contract_source = CONTRACT_PATH.read_text(encoding="utf-8")
+        start = contract_source.index("def _identifier_present")
+        end = contract_source.index("def _run_verdict_pass")
+        body = contract_source[start:end]
+        self.assertIn('re.compile(r"(?<![a-z0-9])" + re.escape(needle) + r"(?![a-z0-9])")', body)
+
+
+class UrlCanonicalizationTests(unittest.TestCase):
+    """Executes a verbatim copy of `_canonicalize_url` (can't import the
+    real contract module outside GenVM) against the exact scenarios
+    `link_seller_bond`'s match check depends on."""
+
+    @staticmethod
+    def _canonicalize_url(url: str) -> str:
+        from urllib.parse import urlparse
+
+        if not url:
+            return ""
+        try:
+            parsed = urlparse(url.strip())
+        except Exception:
+            return url.strip().lower()
+        host = (parsed.hostname or "").lower()
+        path = parsed.path.rstrip("/")
+        return host + path
+
+    def test_scheme_difference_is_ignored(self):
+        self.assertEqual(
+            self._canonicalize_url("http://Example.com/listing/1"),
+            self._canonicalize_url("https://example.com/listing/1"),
+        )
+
+    def test_trailing_slash_is_ignored(self):
+        self.assertEqual(
+            self._canonicalize_url("https://example.com/listing/1/"),
+            self._canonicalize_url("https://example.com/listing/1"),
+        )
+
+    def test_different_path_does_not_match(self):
+        self.assertNotEqual(
+            self._canonicalize_url("https://example.com/listing/1"),
+            self._canonicalize_url("https://example.com/listing/2"),
+        )
+
+    def test_different_host_does_not_match(self):
+        self.assertNotEqual(
+            self._canonicalize_url("https://example.com/listing/1"),
+            self._canonicalize_url("https://not-example.com/listing/1"),
+        )
+
+    def test_source_logic_matches_reference_implementation(self):
+        contract_source = CONTRACT_PATH.read_text(encoding="utf-8")
+        start = contract_source.index("def _canonicalize_url")
+        end = contract_source.index("\n\n", start)
+        body = contract_source[start:end]
+        self.assertIn("host = (parsed.hostname or \"\").lower()", body)
+        self.assertIn('path = parsed.path.rstrip("/")', body)
+        self.assertIn("return host + path", body)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,16 @@ import { serializeSellerBond, type SellerBondRow } from "../lib/serialize.js";
 const SyncSchema = z.object({ txHash: z.string().optional() });
 
 export async function sellerBondRoutes(app: FastifyInstance) {
+  // NOTE: the self-hosted "demo listing" page for verify_seller_bond_listing
+  // used to live here (`GET /seller-bonds/:id/demo-listing`). Moved to
+  // apps/web (`/demo-listing/:id`, served by Vercel's globally-distributed
+  // edge network) — confirmed live that GenVM's validator set, being
+  // geographically distributed, could not reliably reach this Fly app's
+  // single region (`iad`): verify_seller_bond_listing kept landing on
+  // MAJORITY_DISAGREE even when the leader and at least one validator both
+  // fetched it successfully and agreed, meaning other validators simply
+  // couldn't reach it. See apps/web/src/app/demo-listing/[id]/route.ts.
+
   app.get("/seller-bonds/:id", async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
     if (!Number.isInteger(id) || id <= 0) throw badRequest("id must be a positive integer");

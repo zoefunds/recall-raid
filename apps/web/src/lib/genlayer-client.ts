@@ -172,13 +172,26 @@ export async function callContractWrite({
     const resultName = String((receipt as { result_name?: unknown; resultName?: unknown })?.result_name ?? (receipt as { resultName?: unknown })?.resultName ?? '').toUpperCase();
     const isAgreedResult = resultName === '' || resultName === 'AGREE' || resultName === 'MAJORITY_AGREE';
     if (!isAgreedResult) {
+      // verify_seller_bond_listing specifically: confirmed via repeated
+      // live testing that its leader has never once failed to fetch the
+      // listing page and find the code correctly — every observed
+      // disagreement traces to some OTHER validator, a real but
+      // structural per-validator web-fetch timing/reachability variance
+      // in GenVM itself, not a code or hosting bug (see memory.md). It
+      // moves no funds, so a plain retry is the right, low-stakes next
+      // step — worth telling the seller that explicitly rather than
+      // leaving them to guess whether something is actually broken.
+      const isListingVerification = method === 'verify_seller_bond_listing';
       emit({
         status: 'failed',
         txHash,
-        message:
-          "The network's validators could not reach consensus on this action (result: " +
-          resultName +
-          "). No changes were made — this is safe to retry.",
+        message: isListingVerification
+          ? "The network's validators couldn't all reach the listing page in time (result: " +
+            resultName +
+            "). This is a known, occasional timing issue with GenLayer's own web-fetch step, not a problem with your listing or code — please just try again."
+          : "The network's validators could not reach consensus on this action (result: " +
+            resultName +
+            "). No changes were made — this is safe to retry.",
       });
       throw new Error(`Transaction did not reach agreement (result: ${resultName})`);
     }

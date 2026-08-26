@@ -16,6 +16,17 @@ const ALLOWED_CONTENT_TYPES: Record<string, string> = {
   "image/webp": "webp",
   "application/pdf": "pdf",
 };
+// NOTE: do not add "text/html" here for a fetchable "listing page" use
+// case — Cloudinary forces `Content-Disposition: attachment` on every raw
+// HTML upload (a deliberate, non-configurable anti-XSS policy for assets
+// served from its shared res.cloudinary.com domain), which makes any
+// browser-based fetch (including GenVM's `gl.nondet.web.render`) treat it
+// as a file download instead of a page to render — confirmed live: this
+// was tried for the seller-bond listing-verification test page and every
+// `verify_seller_bond_listing` call against it returned `found: False`/
+// disagreed inconsistently, even though the code was genuinely present in
+// the uploaded body. See `GET /seller-bonds/:id/demo-listing` instead for
+// a self-hosted page that doesn't have this problem.
 
 export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // 15 MB — generous for a phone photo/PDF, small enough to bound abuse
 

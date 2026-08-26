@@ -129,6 +129,9 @@ export interface ChainSellerBond {
   created_at: number;
   linked_investigation_count: number;
   slashed_total_wei: string;
+  verification_code: string;
+  listing_url: string;
+  listing_verified: boolean;
 }
 
 export interface ChainReputation {

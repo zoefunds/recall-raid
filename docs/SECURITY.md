@@ -158,7 +158,15 @@ was built against):
   nondet-consensus methods, the full challenge/resolution lifecycle, and
   every seller-bond ownership guard are now confirmed passing on a real
   StudioNet deployment (67/67 live checks, 0 known open bugs — see
-  `memory.md` for the full root-cause writeup).
+  `memory.md` for the full root-cause writeup). A dedicated 5-attempt
+  repeated-reliability run post-fix (fresh bond + verification each time,
+  against the self-hosted demo-listing page) came back **5/5
+  `MAJORITY_AGREE`** — a clean reversal from the pre-fix 0/6+ observed on
+  this same method. This is still evidence against RecallRaid's own
+  demo page, not a real third-party marketplace listing; a real-
+  marketplace reliability track record remains open follow-up work, since
+  it requires an actual live listing on a real marketplace to test
+  against.
 - **A bounty with no linked seller bond is economically a refundable
   assertion stake, not a funded bounty.** `HUNTER_DEFAULT_PAYOUT_BPS` is
   10000 (100%) — on a confirmed verdict the hunter is paid from their own

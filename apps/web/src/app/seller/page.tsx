@@ -178,8 +178,8 @@ export default function SellerDashboardPage() {
                         marketplace listing. Don&apos;t use it for a bond you intend to link to a genuine investigation.
                       </p>
                       <p className="mt-2 text-body-sm text-muted">
-                        If verification fails with a consensus/timing message, that&apos;s a known occasional
-                        GenLayer web-fetch timing issue, not a problem with your code — just try again.
+                        If verification fails with a consensus message, no changes were made — it&apos;s safe to
+                        double-check the code is visible on the page and try again.
                       </p>
                     </div>
                   )}

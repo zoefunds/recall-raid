@@ -172,23 +172,25 @@ export async function callContractWrite({
     const resultName = String((receipt as { result_name?: unknown; resultName?: unknown })?.result_name ?? (receipt as { resultName?: unknown })?.resultName ?? '').toUpperCase();
     const isAgreedResult = resultName === '' || resultName === 'AGREE' || resultName === 'MAJORITY_AGREE';
     if (!isAgreedResult) {
-      // verify_seller_bond_listing specifically: confirmed via repeated
-      // live testing that its leader has never once failed to fetch the
-      // listing page and find the code correctly — every observed
-      // disagreement traces to some OTHER validator, a real but
-      // structural per-validator web-fetch timing/reachability variance
-      // in GenVM itself, not a code or hosting bug (see memory.md). It
-      // moves no funds, so a plain retry is the right, low-stakes next
-      // step — worth telling the seller that explicitly rather than
-      // leaving them to guess whether something is actually broken.
+      // NOTE: an earlier version of this message blamed a "known GenVM
+      // web-fetch timing issue" for verify_seller_bond_listing
+      // disagreements specifically. That diagnosis was wrong and has
+      // since been corrected (see memory.md): the actual cause was this
+      // app's own contract code not unwrapping GenVM's leader_result via
+      // isinstance(..., gl.vm.Return) + .calldata, which has been fixed
+      // (contracts/recallraid_contract.py's _unwrap_leader_result) and
+      // confirmed live — the full suite now passes 67/67 including this
+      // exact method. A disagreement here is no longer expected/"known"
+      // behavior for any write, so the copy below stays generic and
+      // doesn't pin blame on the platform.
       const isListingVerification = method === 'verify_seller_bond_listing';
       emit({
         status: 'failed',
         txHash,
         message: isListingVerification
-          ? "The network's validators couldn't all reach the listing page in time (result: " +
+          ? "The network's validators couldn't reach consensus on this listing verification (result: " +
             resultName +
-            "). This is a known, occasional timing issue with GenLayer's own web-fetch step, not a problem with your listing or code — please just try again."
+            "). No changes were made — this is safe to retry."
           : "The network's validators could not reach consensus on this action (result: " +
             resultName +
             "). No changes were made — this is safe to retry.",

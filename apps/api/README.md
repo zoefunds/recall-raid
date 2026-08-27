@@ -128,14 +128,29 @@ re-run any time.
 | POST | `/investigations/:id/sync` | session | re-reads chain state after a confirmed tx |
 | POST | `/evidence/upload-url` | session | Cloudinary signed upload params for an evidence file |
 | POST | `/evidence/:investigationId/sync` | session | re-reads evidence after `add_evidence` confirms |
-| GET/POST | `/challenges/...` | mixed | mirror pattern of investigations |
-| GET/POST | `/seller-bonds/...` | mixed | mirror pattern of investigations |
+| GET | `/investigations/:investigationId/challenges` | none | challenges attached to one investigation |
+| GET | `/challenges/:id` | none | one challenge (cache) |
+| POST | `/challenges/:id/sync` | session | re-reads chain state after `open_challenge`/`resolve_challenge` confirms |
+| GET | `/seller-bonds/:id` | none | one seller bond (cache) |
+| GET | `/sellers/:address/bonds` | none | all bonds owned by one wallet |
+| POST | `/seller-bonds/:id/sync` | session | re-reads chain state after a bond-related tx confirms |
 | GET | `/reputation/:address` | none | live `get_reputation` read-through |
 | GET | `/leaderboard` | none | cached, periodically-refreshed ranking |
+| POST | `/leaderboard/refresh` | session | forces a leaderboard-cache refresh |
+| GET | `/stats` | none | live aggregate stats for the landing page (verified discoveries, GEN distributed, active threats) |
 | GET | `/notifications` | session | this wallet's notifications |
 | POST | `/notifications/:id/read` | session | mark one read |
+| POST | `/notifications/read-all` | session | mark all read |
 | POST | `/tx-status` | session | client reports a tx hash + lifecycle status |
+| GET | `/tx-status` | session | this wallet's recent tx-status log |
 | GET | `/tx-status/:hash` | none | poll a specific transaction's mirrored status |
+
+Note: the seller-bond listing-verification demo page
+(`GET /demo-listing/:id`) is served by `apps/web`, not this API — it
+needs to be reachable from a globally-distributed set of GenVM
+validators, and Vercel's edge network proved far more consistently
+reachable for that than this API's single-region Fly deployment (see
+`memory.md`).
 
 All error responses use the shape `{"error": {"code": "...", "message": "..."}}`;
 stack traces are never sent to the client, only logged server-side via

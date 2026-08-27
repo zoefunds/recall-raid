@@ -88,11 +88,12 @@ ready — a passing `genvm-lint`/structural-test pass only validates schema
 and static safety rules, not real GenVM consensus behavior.
 
 There is also a separate, minimal diagnostic contract
-(`contracts/diagnostics/nondet_consensus_diagnostic.py`) kept in the repo
-for isolating any *future* nondet-consensus regression from application-
-code bugs before spending time patching RecallRaid itself — see the
-README's "Debugging nondet consensus" section and `memory.md` for why
-this exists and what it already caught once.
+(`contracts/diagnostics/nondet_consensus_diagnostic.py`, last deployed to
+`0xDD5ab7df97DB9CeCadA8bB2692e5c115B7AE8E6d`) kept in the repo for
+isolating any *future* nondet-consensus regression from application-code
+bugs before spending time patching RecallRaid itself — see the README's
+"Debugging nondet consensus" section and `memory.md` for why this exists
+and what it already caught once.
 
 **Redeploy workflow** (every time the contract's Python source changes):
 1. The project owner deploys the updated `recallraid_contract.py` via
@@ -174,6 +175,15 @@ vercel env add NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS
 vercel env add NEXT_PUBLIC_GENLAYER_RPC_URL
 vercel --prod
 ```
+
+`NEXT_PUBLIC_REOWN_PROJECT_ID` is a [Reown Cloud](https://cloud.reown.com)
+(formerly WalletConnect Cloud) project ID — it gates the wallet-connect
+modal (MetaMask, WalletConnect, Coinbase Wallet, and "All Wallets"). If
+wallet connect ever breaks with no other symptom, verify this ID is
+still valid in Reown Cloud before suspecting the contract or RPC layer —
+this has happened once already (see `memory.md`), and the fix was
+regenerating the project ID and updating it here plus root `.env` /
+`apps/web/.env.local`, with no code changes needed.
 
 ## 5. Post-deploy verification checklist
 

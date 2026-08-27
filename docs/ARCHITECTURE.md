@@ -93,3 +93,82 @@ separate contract kept in the repo for isolating any future nondet-
 consensus regression from application-code bugs before touching
 RecallRaid itself — see the README's "Debugging nondet consensus"
 section.
+
+## Contract data model
+
+Four `@allow_storage @dataclass` types, each with a corresponding
+`TreeMap[u32, T]` + `DynArray[u32]` id-list pair on `RecallRaid` (a flat
+`DynArray` was chosen over a nested `TreeMap[u32, DynArray[u32]]` index
+after the latter hit a real `gl.storage.inmem_allocate` runtime bug on
+the pinned GenVM runner — see `memory.md`):
+
+- **`Investigation`** — product identity (name/brand/model/serial),
+  category + hazard class, the three evidence-source URLs (manufacturer/
+  recall/marketplace), bounty ledger fields, verdict + confidence,
+  status enum (`OPEN` → `EVIDENCE_SUBMITTED` → `VERDICT_REACHED` →
+  `CHALLENGED`/`SETTLED`/`CANCELLED`), deadlines, and an optional linked
+  `seller_bond_id`.
+- **`Evidence`** — `investigation_id`, submitter, type, `content_hash`
+  (sha256 of the off-chain file, computed client-side), `url`,
+  description. Never stores the file itself.
+- **`Challenge`** — `investigation_id`, challenger, reason, stake
+  ledger, status, resolution deadline, `prior_verdict`/`new_verdict`
+  snapshots.
+- **`SellerBond`** — seller, bond ledger fields, status
+  (`ACTIVE`/`DEPLETED`/`WITHDRAWN`), `linked_investigation_count`,
+  `slashed_total_wei`, and the listing-verification triple
+  (`verification_code`, `listing_url`, `listing_verified`).
+
+A single `balances: TreeMap[Address, u256]` pull-payment ledger backs
+every payout — `withdraw()` is the ONLY function that ever calls
+`_send_gen` (the single money-emission chokepoint), so no settlement
+path does an unbounded number of external transfers in one call even
+though a single verdict can owe money to the submitter, a hunter, and a
+challenger simultaneously.
+
+## Investigation lifecycle (state machine)
+
+```
+OPEN ──add_evidence──▶ EVIDENCE_SUBMITTED ──request_verdict──▶ VERDICT_REACHED ──challenge window elapses──▶ SETTLED
+  │                          │                                       │
+  cancel_investigation   claim_evidence_timeout                  open_challenge
+  (refund)                (refund)                                   │
+                                                                       ▼
+                                                                  CHALLENGED ──resolve_challenge──▶ VERDICT_REACHED (new verdict)
+```
+
+`request_verdict` returning `NEEDS_MORE_EVIDENCE` sends the investigation
+back to `EVIDENCE_SUBMITTED` rather than advancing it, so a hunter can
+add more evidence and retry — this is the normal, expected outcome for
+genuinely thin evidence, not an error. `claim_verdict_timeout` and
+`claim_challenge_timeout` are permissionless sweeps for a stalled round.
+`settle_investigation` is the terminal step that actually moves money
+into the pull-payment ledger based on the final verdict.
+
+## Seller-bond ownership-verification flow
+
+```
+create_seller_bond()                    seller publishes verification_code
+  → generates verification_code           somewhere in their listing's
+    (sha256 of bond_id/seller/            visible text (or uses the
+    created_at)                           testnet-only demo-listing page)
+         │                                          │
+         └──────────────► verify_seller_bond_listing(bond_id, listing_url) ◄──────┘
+                                    │
+                    leader_fn + every validator independently
+                    fetch listing_url live and check for the code
+                    (gl.vm.run_nondet_unsafe consensus)
+                                    │
+                    on MAJORITY_AGREE: bond.listing_verified = True,
+                    bond.listing_url = listing_url
+                                    │
+                                    ▼
+              link_seller_bond(investigation_id, bond_id)
+              requires BOTH listing_verified == True AND
+              canonicalize(bond.listing_url) == canonicalize(inv.marketplace_url)
+```
+
+This proves the bond owner controls the *content* of that specific
+listing page at verification time — it does not prove the underlying
+marketplace account's real-world identity. See `docs/SECURITY.md` for
+the full scope statement.

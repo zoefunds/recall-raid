@@ -1846,3 +1846,17 @@ the black 1x1-pixel photo — as established, this can't be fixed
 retroactively (evidence is append-only and `add_evidence` is blocked
 once a verdict is reached). Investigations 5 and 6 are the ones to point
 to for a fully clean, real-photo demonstration of this contract.
+
+## Verdict explainability extended to the Active Hunts list (2026-08-29)
+
+The plain-language verdict explanation was previously only on the
+investigation detail page. Extended to `apps/web/src/app/hunts/page.tsx`
+(the Active Hunts grid): each card now shows a `VerdictChip` alongside
+the existing hazard/status chips, and once a verdict is reached, the
+card's description line is replaced with the same `VERDICT_DESCRIPTION`
+plain-language sentence used on the detail page (falls back to the
+original submitted description when no verdict exists yet). Verified
+live: every settled card in the grid now reads e.g. "The independent
+re-check confirmed this exact product against an official recall
+notice..." instead of the raw submitted description or a bare verdict
+number.

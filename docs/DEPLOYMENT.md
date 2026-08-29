@@ -68,7 +68,7 @@ integration work never requires a new address.
 
 ### ✅ Current deployment (StudioNet)
 
-`GENLAYER_CONTRACT_ADDRESS = 0xa8bE73AAac3422c646131738A073Ac22d5eA2Ffe`
+`GENLAYER_CONTRACT_ADDRESS = 0xb2CB610EBbB773e2a6B9895CD49E3032C0722a70`
 
 Wired into root `.env`, `apps/web/.env.local`, `apps/api/.env` (all
 gitignored, local-only), Fly.io secrets for `recallraid-api`, and Vercel
@@ -86,6 +86,18 @@ and the full seller-bond ownership-verification flow. Re-run this script
 after any future redeploy before considering a new address production-
 ready — a passing `genvm-lint`/structural-test pass only validates schema
 and static safety rules, not real GenVM consensus behavior.
+
+Also seeded with 6 real-world showcase investigations via
+`scripts/four_product_showcase.mjs` and `scripts/two_more_products.mjs`
+(Fisher-Price Rock 'n Play Sleeper, Peloton Tread+, IKEA MALM chest,
+Instant Pot Duo Plus, Boppy Original Newborn Lounger, Jetson Rogue
+42-Volt Hoverboard) — every transaction reached clean consensus, with
+zero unresolved errors left on the explorer. See the root README's
+Status section and `memory.md` for the full record, including the one
+`NO_MAJORITY` result that was retried to a clean outcome and the
+1x1-test-pixel evidence-photo mistake that was fixed for investigations
+5 and 6 but can't be retroactively fixed for 1-4 (evidence is
+append-only once a verdict is reached).
 
 There is also a separate, minimal diagnostic contract
 (`contracts/diagnostics/nondet_consensus_diagnostic.py`, last deployed to

@@ -1814,3 +1814,35 @@ language explanation is now on the page by default, not hidden behind
 interaction. Verified live on `/hunts/3`: shows "RECALL_CONFIRMED (95%
 confidence)" and the correct plain-language sentence instead of a raw
 enum number.
+
+## Two replacement investigations with real visible photos (2026-08-29)
+
+User asked for 2 fresh, entirely different investigations specifically
+to demonstrate the black-photo fix. Built `scripts/two_more_products.mjs`
+— same happy-path-only discipline as the four-product showcase, using
+`makeProductImage()` for real visible photos this time, plus an
+allowlist-based `consensusHealthy` check (the excludelist bug from the
+first showcase run — missing `NO_MAJORITY` — is fixed at the source
+here) and an automatic clean-retry loop around `request_verdict` so a
+non-agreement never gets left as the final on-chain state.
+
+Two more real, verified-via-live-search products, both different
+categories from the original four:
+- **Boppy Original Newborn Lounger** (investigation 5) — real, CPSC-
+  recalled September 2021 (3M+ units, 8 infant suffocation deaths).
+  `RECALL_CONFIRMED` @ 9500bps, `MAJORITY_AGREE` on the first attempt.
+- **Jetson Rogue 42-Volt Hoverboard** (investigation 6) — real, CPSC-
+  recalled 2023 (fire hazard, killed two children in Hellertown, PA).
+  `NO_ISSUE` @ 6500bps, `MAJORITY_AGREE` on the first attempt.
+
+17/17 checks passed, zero retries needed, zero errors. Verified live in
+the browser on both `/hunts/5` and `/hunts/6`: real visible photos (sage
+green and amber/gold generated placeholders, not black boxes), correct
+verdict badges, and the "What this means" plain-language explanation all
+render correctly.
+
+Investigations 1-4 (Rock 'n Play, Tread+, MALM, Instant Pot) still carry
+the black 1x1-pixel photo — as established, this can't be fixed
+retroactively (evidence is append-only and `add_evidence` is blocked
+once a verdict is reached). Investigations 5 and 6 are the ones to point
+to for a fully clean, real-photo demonstration of this contract.

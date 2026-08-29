@@ -20,7 +20,9 @@ rather than a vote.
 
 ## Status
 
-**Fully verified, zero known open bugs, as of 2026-08-26.**
+**Fully verified, zero known open bugs, as of 2026-08-29.**
+
+**Current contract**: `0xb2CB610EBbB773e2a6B9895CD49E3032C0722a70` (StudioNet)
 
 | Check | Result |
 | --- | --- |
@@ -31,6 +33,7 @@ rather than a vote.
 | `apps/web` production build | ✓ pass |
 | Live end-to-end suite against deployed contract | ✓ **67/67** pass |
 | `verify_seller_bond_listing` repeated-reliability run | ✓ 5/5 `MAJORITY_AGREE` |
+| Real-product showcase on current deployment (6 investigations) | ✓ all `MAJORITY_AGREE`, 0 unresolved errors |
 
 The live suite (`scripts/full_contract_test_suite.mjs`) exercises every
 one of the contract's 30 methods against a real deployed StudioNet
@@ -40,6 +43,28 @@ uploads, and the complete seller-bond ownership-verification flow. This
 is the authoritative signal for "does it actually work"; static
 lint/structural tests only catch schema and safety-rule violations, not
 real GenVM consensus behavior.
+
+**Live showcase data on the current deployment**: 6 real-world
+investigations, each checked against an actual live recall page before
+being submitted (not placeholder text) —
+[Fisher-Price Rock 'n Play Sleeper](https://recall-raid.vercel.app/hunts/1),
+[Peloton Tread+](https://recall-raid.vercel.app/hunts/2) (with a linked,
+verified seller bond),
+[IKEA MALM chest/dresser](https://recall-raid.vercel.app/hunts/3),
+[Instant Pot Duo Plus](https://recall-raid.vercel.app/hunts/4) (no
+recall — submitted then cancelled, exercising the refund path),
+[Boppy Original Newborn Lounger](https://recall-raid.vercel.app/hunts/5),
+and the
+[Jetson Rogue 42-Volt Hoverboard](https://recall-raid.vercel.app/hunts/6).
+Every transaction across all six reached clean consensus
+(`MAJORITY_AGREE`) with zero unresolved errors on the explorer — the one
+`NO_MAJORITY` result hit during the run was a genuine non-agreement
+(state left untouched), and the retry that followed came back clean.
+Investigations 1-4's evidence photos are a real 1x1 test-pixel artifact
+from an earlier script mistake (evidence is append-only once a verdict
+is reached, so it can't be swapped after the fact); 5 and 6 use a real
+generated visible photo and are the ones to look at for a fully clean
+demo. Full story, including every root cause, is in `memory.md`.
 
 This project went through six external-audit rounds (scores climbing
 2,380 → 3,760 out of 4,000) that surfaced and closed real issues: an
@@ -140,6 +165,14 @@ Every deadline (`claim_evidence_timeout`, `claim_verdict_timeout`,
 `claim_challenge_timeout`) is a permissionless sweep, so funds can never
 be locked forever if a counterparty goes silent.
 
+**Verdicts are explained in plain language, not shown as raw numbers.**
+Both the Active Hunts list and the investigation detail page show a
+`VERDICT_DESCRIPTION` sentence (`apps/web/src/types/contract.ts`) instead
+of a bare enum value — e.g. "The independent re-check confirmed this
+exact product against an official recall notice. The hunter is paid from
+the bounty, and any linked seller bond is slashed proportionally." — plus
+the model's confidence percentage, wherever a verdict is shown.
+
 ## Repository layout
 
 ```
@@ -169,6 +202,9 @@ recallraid/
   scripts/
     full_contract_test_suite.mjs     comprehensive live end-to-end test against a deployed contract
     diagnostic_test.mjs              runs the 3 diagnostic checks against a deployed diagnostic contract
+    four_product_showcase.mjs        4 real-world product investigations, zero negative/expect-revert calls
+    two_more_products.mjs            2 more real-world investigations with real visible evidence photos
+    lib/make_product_image.mjs       dependency-free PNG generator for real (non-1x1-pixel) evidence photos
   docs/
     ARCHITECTURE.md               system design, on-chain/off-chain split, deployment topology
     SECURITY.md                   escrow safety, anti-abuse, known limitations
@@ -259,12 +295,17 @@ and the full seller-bond listing-verification flow:
 node scripts/full_contract_test_suite.mjs
 ```
 
-As of the last run against `0xa8bE73AAac3422c646131738A073Ac22d5eA2Ffe`:
+As of the last run against `0xb2CB610EBbB773e2a6B9895CD49E3032C0722a70`:
 **67/67 checks passing**, including `MAJORITY_AGREE` on both nondet
 methods, the full challenge/resolution lifecycle, and every seller-bond
 ownership guard (unverified-bond rejection, mismatched-listing
 rejection, and a legitimate verified+matching link all behaving
-correctly).
+correctly). Two smaller scripts round out the live evidence:
+`scripts/four_product_showcase.mjs` and `scripts/two_more_products.mjs`
+submitted 6 real-world product investigations end to end (see the
+Status section above) with deliberately zero negative/expect-revert
+calls, since a guard-clause rejection shows up as an execution error on
+the GenLayer explorer even though it's contract-correct.
 
 ## Debugging nondet consensus
 

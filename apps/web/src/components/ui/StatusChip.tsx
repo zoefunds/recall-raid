@@ -1,4 +1,4 @@
-import { HAZARD_LABEL, INVESTIGATION_STATUS_LABEL, VERDICT_LABEL } from '@/types/contract';
+import { HAZARD_DESCRIPTION, HAZARD_LABEL, INVESTIGATION_STATUS_LABEL, VERDICT_DESCRIPTION, VERDICT_LABEL } from '@/types/contract';
 
 type Tone = 'cyan' | 'orange' | 'red' | 'slate' | 'green';
 
@@ -17,10 +17,11 @@ function chipClasses(tone: Tone) {
   }
 }
 
-export function Chip({ label, tone = 'slate' }: { label: string; tone?: Tone }) {
+export function Chip({ label, tone = 'slate', title }: { label: string; tone?: Tone; title?: string }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-label-caps uppercase ${chipClasses(tone)}`}
+      title={title}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-label-caps uppercase ${chipClasses(tone)} ${title ? 'cursor-help' : ''}`}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
       {label}
@@ -53,7 +54,7 @@ const VERDICT_TONE: Record<number, Tone> = {
 
 export function VerdictChip({ verdict }: { verdict: number }) {
   if (!verdict) return null;
-  return <Chip label={VERDICT_LABEL[verdict] ?? 'UNKNOWN'} tone={VERDICT_TONE[verdict] ?? 'slate'} />;
+  return <Chip label={VERDICT_LABEL[verdict] ?? 'UNKNOWN'} tone={VERDICT_TONE[verdict] ?? 'slate'} title={VERDICT_DESCRIPTION[verdict]} />;
 }
 
 const HAZARD_TONE: Record<number, Tone> = { 1: 'red', 2: 'orange', 3: 'slate' };
@@ -64,5 +65,5 @@ export const HAZARD_BAR_CLASS: Record<number, string> = {
 };
 
 export function HazardChip({ hazardClass }: { hazardClass: number }) {
-  return <Chip label={HAZARD_LABEL[hazardClass] ?? 'UNKNOWN'} tone={HAZARD_TONE[hazardClass] ?? 'slate'} />;
+  return <Chip label={HAZARD_LABEL[hazardClass] ?? 'UNKNOWN'} tone={HAZARD_TONE[hazardClass] ?? 'slate'} title={HAZARD_DESCRIPTION[hazardClass]} />;
 }

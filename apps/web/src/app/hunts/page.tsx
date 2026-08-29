@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { fetchInvestigations } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
-import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip } from '@/components/ui/StatusChip';
+import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip, VerdictChip } from '@/components/ui/StatusChip';
+import { VERDICT_DESCRIPTION } from '@/types/contract';
 import { CardSkeleton, EmptyState, ErrorState } from '@/components/ui/States';
 import { weiToGen, genToWei } from '@/lib/format';
 import { Sidebar, SidebarSection } from '@/components/nav/Sidebar';
@@ -120,15 +121,20 @@ export default function HuntsPage() {
                 <Link key={inv.id} href={`/hunts/${inv.id}`}>
                   <Card topBarClassName={HAZARD_BAR_CLASS[inv.hazard_class]} className="h-full transition-colors hover:border-primary">
                     <CardBody>
-                      <div className="mb-2 flex items-center justify-between">
+                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
                         <HazardChip hazardClass={inv.hazard_class} />
                         <InvestigationStatusChip status={inv.status} />
+                        <VerdictChip verdict={inv.verdict} />
                       </div>
                       <h3 className="mb-1 truncate font-sans text-body-md font-semibold">{inv.product_name}</h3>
                       <p className="mb-1 truncate text-body-sm text-muted">
                         {inv.brand} · {inv.marketplace}
                       </p>
-                      <p className="mb-3 line-clamp-2 text-body-sm text-muted">{inv.description}</p>
+                      {inv.verdict !== 0 ? (
+                        <p className="mb-3 line-clamp-2 text-body-sm text-secondary">{VERDICT_DESCRIPTION[inv.verdict]}</p>
+                      ) : (
+                        <p className="mb-3 line-clamp-2 text-body-sm text-muted">{inv.description}</p>
+                      )}
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-data-mono text-primary">{weiToGen(inv.bounty_wei)} GEN</span>
                         <span className="font-mono text-body-sm text-muted">{inv.evidence_count} evidence</span>

@@ -44,6 +44,18 @@ export const VERDICT_LABEL: Record<number, string> = {
   4: 'NEEDS_MORE_EVIDENCE',
 };
 
+// Plain-language explanation of what each verdict actually means — shown
+// wherever a verdict is displayed so a first-time visitor doesn't have to
+// know the underlying enum. Written from the reader's perspective (what
+// does this mean for the bounty / the seller), not the contract's.
+export const VERDICT_DESCRIPTION: Record<number, string> = {
+  0: 'No verdict has been reached yet.',
+  1: 'The independent re-check found no evidence supporting the claim. The hunter’s bounty is refunded; no seller bond is slashed.',
+  2: 'The independent re-check found a plausible defect pattern, but no official recall confirms it yet. Treated like a confirmed issue for payout purposes, but flagged as less certain.',
+  3: 'The independent re-check confirmed this exact product against an official recall notice. The hunter is paid from the bounty, and any linked seller bond is slashed proportionally.',
+  4: 'The evidence on file wasn’t enough to reach a verdict either way — the hunter can add more evidence and request a verdict again.',
+};
+
 export const HazardClass = {
   CRITICAL: 1,
   HIGH: 2,
@@ -54,6 +66,12 @@ export const HAZARD_LABEL: Record<number, string> = {
   1: 'CRITICAL',
   2: 'HIGH',
   3: 'MODERATE',
+};
+
+export const HAZARD_DESCRIPTION: Record<number, string> = {
+  1: 'Critical — fire, electrical, choking, or structural failure risk.',
+  2: 'High — an active recall has been reported, but the risk isn’t imminent.',
+  3: 'Moderate — a quality or labeling discrepancy, not a safety-critical defect.',
 };
 
 export interface Investigation {

@@ -10,7 +10,7 @@ import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip, VerdictChip } fr
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { Button } from '@/components/ui/Button';
 import { formatCountdown, formatDate, truncateAddress, weiToGen } from '@/lib/format';
-import { InvestigationStatus } from '@/types/contract';
+import { InvestigationStatus, VERDICT_DESCRIPTION, VERDICT_LABEL } from '@/types/contract';
 import { useContractWrite } from '@/hooks/useContractWrite';
 import { TransactionStatusModal } from '@/components/TransactionStatusModal';
 import { computeRequiredChallengeStakeWei } from '@/lib/genlayer-client';
@@ -133,6 +133,13 @@ function Header({ inv }: { inv: Awaited<ReturnType<typeof fetchInvestigation>> }
           <p className="mt-1 text-body-sm text-muted">
             {inv.brand} {inv.model_number && `· ${inv.model_number}`} · listed on {inv.marketplace}
           </p>
+          {inv.verdict !== 0 && (
+            <p className="mt-2 max-w-2xl text-body-sm text-secondary">
+              <span className="font-mono uppercase text-on-surface">What this means: </span>
+              {VERDICT_DESCRIPTION[inv.verdict]}
+              {inv.ai_confidence_bps ? ` (${(inv.ai_confidence_bps / 100).toFixed(0)}% model confidence)` : ''}
+            </p>
+          )}
         </div>
         <a
           href={inv.marketplace_url}
@@ -210,7 +217,9 @@ function Timeline({ inv }: { inv: Awaited<ReturnType<typeof fetchInvestigation>>
     {
       label: 'INVESTIGATING → VERDICT_REACHED',
       done: inv.verdict !== 0 && inv.status !== InvestigationStatus.EVIDENCE_SUBMITTED,
-      note: inv.verdict ? `Verdict: ${inv.verdict}` : undefined,
+      note: inv.verdict
+        ? `Verdict: ${VERDICT_LABEL[inv.verdict] ?? 'UNKNOWN'}${inv.ai_confidence_bps ? ` (${(inv.ai_confidence_bps / 100).toFixed(0)}% confidence)` : ''}`
+        : undefined,
       timestamp: inv.verdict_deadline || undefined,
     },
     {

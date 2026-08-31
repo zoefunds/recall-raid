@@ -4,6 +4,7 @@ import { pool } from "../lib/db.js";
 import { syncChallenge } from "../lib/sync.js";
 import { requireAuth } from "../plugins/auth-plugin.js";
 import { badRequest, notFound } from "../lib/http-errors.js";
+import { serializeChallenge, type ChallengeRow } from "../lib/serialize.js";
 
 const SyncSchema = z.object({ txHash: z.string().optional() });
 
@@ -14,7 +15,7 @@ export async function challengeRoutes(app: FastifyInstance) {
 
     const { rows } = await pool.query("select * from challenges_cache where challenge_id = $1", [id]);
     if (rows.length === 0) throw notFound(`challenge ${id} is not in the cache yet — try POST /challenges/${id}/sync`);
-    return reply.send({ challenge: rows[0] });
+    return reply.send({ challenge: serializeChallenge(rows[0] as ChallengeRow) });
   });
 
   app.get("/investigations/:investigationId/challenges", async (req, reply) => {
@@ -24,7 +25,7 @@ export async function challengeRoutes(app: FastifyInstance) {
       "select * from challenges_cache where investigation_id = $1 order by created_at_chain desc",
       [investigationId],
     );
-    return reply.send({ challenges: rows });
+    return reply.send({ challenges: (rows as ChallengeRow[]).map(serializeChallenge) });
   });
 
   // Re-reads a challenge (and its parent investigation) from chain after a

@@ -106,6 +106,7 @@ export interface ChainEvidence {
   submitted_at: number;
   url_checked: boolean;
   url_reachable: boolean;
+  content_hash_verified: boolean;
   fetch_excerpt: string;
   verified_at: number;
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchSellerBonds, syncSellerBond } from '@/lib/api';
+import { fetchInvestigation, fetchSellerBonds, syncInvestigation, syncSellerBond } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
@@ -14,15 +14,70 @@ import { TransactionStatusModal } from '@/components/TransactionStatusModal';
 
 const BOND_STATUS_LABEL: Record<number, string> = { 0: 'ACTIVE', 1: 'DEPLETED', 2: 'WITHDRAWN' };
 
+// Best-effort mirror of the contract's own `_canonicalize_url` (trailing
+// slash / scheme-case insensitivity) so a mismatch surfaces here as a
+// clear message instead of only as an on-chain revert. The contract's
+// check is authoritative — this is just a pre-flight UX hint.
+function normalizeUrlForCompare(url: string): string {
+  try {
+    const u = new URL(url);
+    // Mirrors the contract's own drop of scheme, query string, and
+    // fragment — a tracking parameter or http-vs-https shouldn't block an
+    // otherwise-genuine match.
+    return `${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    return url.trim().toLowerCase();
+  }
+}
+
 export default function SellerDashboardPage() {
   const { address, isConnected } = useConnectedAddress();
   const qc = useQueryClient();
   const [bondAmount, setBondAmount] = useState('');
   const [listingUrlByBond, setListingUrlByBond] = useState<Record<number, string>>({});
   const [verifyingBondId, setVerifyingBondId] = useState<number | null>(null);
+  const [linkInvestigationIdByBond, setLinkInvestigationIdByBond] = useState<Record<number, string>>({});
+  const [linkingBondId, setLinkingBondId] = useState<number | null>(null);
+  const [linkErrorByBond, setLinkErrorByBond] = useState<Record<number, string>>({});
   const write = useContractWrite();
   const verifyWrite = useContractWrite();
+  const linkWrite = useContractWrite();
   const { ensureSession } = useWalletSession();
+
+  async function handleLinkBond(bondId: number, listingUrl: string) {
+    const investigationIdRaw = (linkInvestigationIdByBond[bondId] || '').trim();
+    const investigationId = Number(investigationIdRaw);
+    if (!investigationIdRaw || !Number.isInteger(investigationId) || investigationId <= 0) return;
+    setLinkErrorByBond((prev) => ({ ...prev, [bondId]: '' }));
+
+    // link_seller_bond requires the bond's verified listing_url to
+    // canonically match the target investigation's own marketplace_url —
+    // check that up front so a mismatched investigation ID surfaces a
+    // clear message here instead of only as an on-chain revert.
+    try {
+      const inv = await fetchInvestigation(investigationId);
+      if (normalizeUrlForCompare(inv.marketplace_url) !== normalizeUrlForCompare(listingUrl)) {
+        setLinkErrorByBond((prev) => ({
+          ...prev,
+          [bondId]: `Investigation #${investigationId}'s listing URL doesn't match this bond's verified listing.`,
+        }));
+        return;
+      }
+    } catch {
+      setLinkErrorByBond((prev) => ({ ...prev, [bondId]: `Could not find investigation #${investigationId}.` }));
+      return;
+    }
+
+    await ensureSession();
+    setLinkingBondId(bondId);
+    const res = await linkWrite.send('link_seller_bond', [investigationId, bondId]);
+    if (res) {
+      await syncSellerBond(bondId, res.txHash);
+      await syncInvestigation(investigationId, res.txHash);
+      await qc.invalidateQueries({ queryKey: ['seller-bonds', address] });
+      setLinkInvestigationIdByBond((prev) => ({ ...prev, [bondId]: '' }));
+    }
+  }
 
   async function handleVerifyListing(bondId: number) {
     const listingUrl = (listingUrlByBond[bondId] || '').trim();
@@ -133,6 +188,47 @@ export default function SellerDashboardPage() {
                       <div className="mt-1 truncate text-body-sm text-muted" title={bond.listing_url}>
                         {bond.listing_url}
                       </div>
+
+                      {bond.status === 0 && (
+                        <div className="mt-3 border-t border-border-subtle pt-3">
+                          <div className="mb-1 font-mono text-label-caps uppercase text-muted">
+                            Link to an investigation
+                          </div>
+                          <p className="mb-2 text-body-sm text-secondary">
+                            Only accepted if that investigation&apos;s marketplace listing URL matches this bond&apos;s
+                            verified listing above — this ties the bond to the exact listing under investigation, not
+                            just any listing you happen to control.
+                          </p>
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <input
+                              value={linkInvestigationIdByBond[bond.id] ?? ''}
+                              onChange={(e) =>
+                                setLinkInvestigationIdByBond((prev) => ({
+                                  ...prev,
+                                  [bond.id]: e.target.value.replace(/[^0-9]/g, ''),
+                                }))
+                              }
+                              placeholder="Investigation ID, e.g. 4"
+                              className="flex-1 rounded border border-border-subtle bg-bg-deep px-3 py-2 font-mono text-body-sm text-on-surface focus:border-primary focus:outline-none"
+                            />
+                            <Button
+                              onClick={() => handleLinkBond(bond.id, bond.listing_url)}
+                              disabled={!linkInvestigationIdByBond[bond.id]?.trim()}
+                              loading={
+                                linkingBondId === bond.id &&
+                                linkWrite.status !== 'idle' &&
+                                linkWrite.status !== 'confirmed' &&
+                                linkWrite.status !== 'failed'
+                              }
+                            >
+                              Link Bond
+                            </Button>
+                          </div>
+                          {linkErrorByBond[bond.id] && (
+                            <p className="mt-2 text-body-sm text-danger">{linkErrorByBond[bond.id]}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div>
@@ -201,6 +297,17 @@ export default function SellerDashboardPage() {
           onClose={() => {
             verifyWrite.reset();
             setVerifyingBondId(null);
+          }}
+        />
+      )}
+      {linkWrite.status !== 'idle' && (
+        <TransactionStatusModal
+          status={linkWrite.status}
+          message={linkWrite.message}
+          txHash={linkWrite.txHash}
+          onClose={() => {
+            linkWrite.reset();
+            setLinkingBondId(null);
           }}
         />
       )}

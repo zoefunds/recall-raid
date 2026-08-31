@@ -179,6 +179,24 @@ export default function SubmitEvidencePage() {
           // Anchor each evidence item on-chain: content_hash + URL only.
           const evidenceRes = await write.send('add_evidence', [investigationId, u.type, u.contentHash, u.url, '']);
           if (evidenceRes) {
+            let evidenceId: number | null = null;
+            try {
+              const parsed = typeof evidenceRes.result === 'string' ? JSON.parse(evidenceRes.result) : evidenceRes.result;
+              evidenceId = (parsed as { evidence_id?: number })?.evidence_id ?? null;
+            } catch {
+              evidenceId = null;
+            }
+            // The contract requires every evidence item to have gone
+            // through verify_evidence (a real GenVM fetch + consensus
+            // check that the claimed content_hash matches the bytes
+            // actually at the URL) before request_verdict will accept the
+            // investigation — request_verdict reverts otherwise. Calling
+            // it here means the "Request Verdict" step on the detail page
+            // never hits that guard for evidence submitted through this
+            // flow.
+            if (evidenceId != null) {
+              await write.send('verify_evidence', [evidenceId]);
+            }
             await syncEvidenceForInvestigation(investigationId, evidenceRes.txHash);
           }
         }

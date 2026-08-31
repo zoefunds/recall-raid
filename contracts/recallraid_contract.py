@@ -228,10 +228,11 @@ class Evidence:
     url: str             # pointer to off-chain storage (R2) or a public source URL
     description: str
     submitted_at: u64
-    url_checked: bool      # False until verify_evidence has run at least once
-    url_reachable: bool    # real, validator-consensus result of an actual live GenVM fetch of `url` — not a client claim
-    fetch_excerpt: str     # leader-fetched text excerpt (best-effort, not consensus-checked byte-for-byte — see verify_evidence)
-    verified_at: u64       # 0 until verify_evidence has run at least once
+    url_checked: bool           # False until verify_evidence has run at least once
+    url_reachable: bool         # real, validator-consensus result of an actual live GenVM fetch of `url` — not a client claim
+    content_hash_verified: bool # real, validator-consensus result of sha256(fetched raw bytes) == content_hash — not a client claim
+    fetch_excerpt: str          # leader-fetched text excerpt (best-effort, not consensus-checked byte-for-byte — see verify_evidence)
+    verified_at: u64            # 0 until verify_evidence has run at least once
 
 
 @allow_storage
@@ -515,9 +516,18 @@ class RecallRaid(gl.Contract):
         for ev in evidence_snapshot:
             if not ev.get("checked"):
                 verification_note = "NOT independently checked yet — treat as an unverified claim only"
-            elif ev.get("reachable"):
+            elif ev.get("reachable") and ev.get("hash_verified"):
                 excerpt = (ev.get("excerpt") or "")[:400]
-                verification_note = "URL independently fetched and confirmed reachable; excerpt=\"%s\"" % excerpt
+                verification_note = (
+                    "URL independently fetched, reachable, AND the claimed content_hash was "
+                    "cryptographically confirmed to match the fetched bytes; excerpt=\"%s\"" % excerpt
+                )
+            elif ev.get("reachable") and not ev.get("hash_verified"):
+                verification_note = (
+                    "URL independently fetched and reachable, but the claimed content_hash did NOT "
+                    "match the fetched bytes — treat the submitter's description of this item with "
+                    "suspicion, it may not describe what is actually at this URL"
+                )
             else:
                 verification_note = "URL independently fetched but was unreachable/empty — treat as unsupported"
             evidence_lines.append(
@@ -686,6 +696,7 @@ class RecallRaid(gl.Contract):
                 # reachable.
                 "checked": bool(ev.url_checked),
                 "reachable": bool(ev.url_reachable),
+                "hash_verified": bool(ev.content_hash_verified),
                 "excerpt": ev.fetch_excerpt,
             }
             for ev in evidence_items
@@ -975,6 +986,7 @@ class RecallRaid(gl.Contract):
             submitted_at=_now(),
             url_checked=False,
             url_reachable=False,
+            content_hash_verified=False,
             fetch_excerpt="",
             verified_at=u64(0),
         )
@@ -989,51 +1001,87 @@ class RecallRaid(gl.Contract):
 
     @gl.public.write
     def verify_evidence(self, evidence_id: int) -> str:
-        """Real, GenLayer-native check of whether submitted evidence is
-        anything more than an unchecked claim: every validator
-        independently fetches `url` live via GenVM and the network reaches
-        consensus on whether it is actually reachable — the same
-        trust-minimized pattern as `verify_seller_bond_listing`. Only the
-        boolean `reachable` result is required to agree byte-for-byte
-        across validators (robust to a dynamic page's exact text
-        changing between independent fetches); the fetched excerpt itself
-        is stored as a leader-attested, best-effort snapshot for the
-        adjudication prompt and for human review — same trust level as
-        the manufacturer/recall/listing excerpts already fetched inside
-        `_run_verdict_pass`, which are likewise never required to match
-        byte-for-byte across validators. This turns evidence from "an
-        unchecked URL plus a client-supplied hash" into something the
-        contract has itself actually gone and looked at."""
+        """Real, GenLayer-native check that ties the submitted evidence to
+        actual fetched bytes, not just a client-supplied claim: every
+        validator independently fetches `url`'s raw response body live via
+        `gl.nondet.web.get(url)` (not a rendered/browser-processed page — the
+        literal bytes the URL serves), computes sha256 over those exact
+        bytes, and the network reaches consensus on two booleans:
+        `reachable` (a 2xx response came back) and `hash_matches`
+        (sha256(fetched bytes) == the `content_hash` the submitter
+        claimed at `add_evidence` time). Only those two booleans are
+        required to agree byte-for-byte across validators — same
+        trust-minimized pattern as `verify_seller_bond_listing`'s
+        identifier-presence check, and robust to a dynamic page's exact
+        bytes drifting between independent fetches in ways that wouldn't
+        change the hash-match verdict (e.g. HTTP header timing). This is
+        what actually closes the "unchecked URL plus a client-supplied
+        hash" gap: an evidence item can now only be trusted as
+        content-hash-verified if GenVM itself fetched the bytes and the
+        hash really matches, not because the submitter said so.
+
+        A short human/LLM-readable excerpt is separately captured as a
+        leader-attested, best-effort snapshot for the adjudication prompt
+        (decoded as UTF-8 text where possible, empty for binary content
+        like photos) — same trust level as the manufacturer/recall/listing
+        excerpts already fetched inside `_run_verdict_pass`, which are
+        likewise never required to match byte-for-byte across validators.
+        It is informational only; `content_hash_verified` is the actual
+        cryptographic guarantee."""
         self._require_not_paused()
         ev = self.evidence.get(u32(evidence_id))
         if ev is None:
             raise gl.vm.UserError("[EXPECTED] evidence not found")
         url = ev.url
+        claimed_hash = ev.content_hash
 
         def leader_fn():
             try:
-                resp = gl.nondet.web.render(url, mode="text")
-                body = resp
-                if isinstance(body, (bytes, bytearray)):
-                    body = body.decode("utf-8", errors="replace")
-                body = str(body)[:MAX_FETCH_EXCERPT_CHARS]
-                return True, body
-            except Exception:  # noqa: BLE001 — an unreachable/non-text source just fails verification, never aborts the call
-                return False, ""
+                # The response object from gl.nondet.web.get/request on
+                # this pinned runner exposes `.status` (an int), NOT
+                # `.status_code` as GenLayer's own docs examples show —
+                # `int(resp.status_code)` silently threw AttributeError
+                # here on every call, indistinguishable from a genuinely
+                # unreachable URL until a dedicated diagnostic contract
+                # (contracts/diagnostics/nondet_consensus_diagnostic.py)
+                # printed the object's real attributes (`body`, `headers`,
+                # `status`) and confirmed `.status` + `.body` round-trip
+                # correctly with a matching sha256 against a plain local
+                # fetch of the same URL. See memory.md for the full story.
+                resp = gl.nondet.web.get(url)
+                status_ok = 200 <= int(resp.status) < 300
+                body = resp.body
+                if not isinstance(body, (bytes, bytearray)):
+                    body = str(body).encode("utf-8")
+                body = bytes(body)
+                computed_hash = hashlib.sha256(body).hexdigest()
+                hash_matches = status_ok and computed_hash.lower() == (claimed_hash or "").strip().lower()
+                try:
+                    excerpt = body.decode("utf-8", errors="strict")[:MAX_FETCH_EXCERPT_CHARS]
+                except Exception:  # noqa: BLE001 — binary content (e.g. a photo) has no meaningful text excerpt
+                    excerpt = ""
+                return bool(status_ok), bool(hash_matches), excerpt
+            except Exception:  # noqa: BLE001 — an unreachable source just fails verification, never aborts the call
+                return False, False, ""
 
         def validator_fn(leader_result):
-            reachable, _excerpt = _unwrap_leader_result(leader_result)
-            candidate_reachable, _candidate_excerpt = leader_fn()
-            return bool(candidate_reachable) == bool(reachable)
+            reachable, hash_matches, _excerpt = _unwrap_leader_result(leader_result)
+            cand_reachable, cand_hash_matches, _cand_excerpt = leader_fn()
+            return bool(cand_reachable) == bool(reachable) and bool(cand_hash_matches) == bool(hash_matches)
 
-        reachable, excerpt = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        reachable, hash_matches, excerpt = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
 
         ev.url_checked = True
         ev.url_reachable = bool(reachable)
+        ev.content_hash_verified = bool(hash_matches)
         ev.fetch_excerpt = excerpt if reachable else ""
         ev.verified_at = _now()
         self.evidence[u32(evidence_id)] = ev
-        return json.dumps({"evidence_id": int(evidence_id), "url_reachable": bool(reachable)})
+        return json.dumps({
+            "evidence_id": int(evidence_id),
+            "url_reachable": bool(reachable),
+            "content_hash_verified": bool(hash_matches),
+        })
 
     @gl.public.write
     def cancel_investigation(self, investigation_id: int) -> None:
@@ -1064,6 +1112,14 @@ class RecallRaid(gl.Contract):
             raise gl.vm.UserError("[EXPECTED] investigation must have at least one evidence item and no verdict yet")
 
         evidence_items = [self.evidence[eid] for eid in self._evidence_ids_for_investigation(investigation_id)]
+        if any(
+            not (bool(ev.url_checked) and bool(ev.url_reachable) and bool(ev.content_hash_verified))
+            for ev in evidence_items
+        ):
+            raise gl.vm.UserError(
+                "[EXPECTED] every evidence item must be verified with verify_evidence, reachable, and "
+                "content-hash-matched before a verdict can be requested"
+            )
 
         inv.status = INV_INVESTIGATING
         self.investigations[u32(investigation_id)] = inv
@@ -1632,6 +1688,7 @@ class RecallRaid(gl.Contract):
             "submitted_at": int(ev.submitted_at),
             "url_checked": bool(ev.url_checked),
             "url_reachable": bool(ev.url_reachable),
+            "content_hash_verified": bool(ev.content_hash_verified),
             "fetch_excerpt": ev.fetch_excerpt,
             "verified_at": int(ev.verified_at),
         })

@@ -7,6 +7,7 @@ import {
   investigationStatusCode,
   verdictCode,
   bondStatusCode,
+  challengeStatusCode,
 } from "./chain-enums.js";
 
 export interface InvestigationRow {
@@ -80,6 +81,11 @@ export interface EvidenceRow {
   url: string | null;
   description: string | null;
   submitted_at_chain: string | number | null;
+  url_checked: boolean | null;
+  url_reachable: boolean | null;
+  content_hash_verified: boolean | null;
+  fetch_excerpt: string | null;
+  verified_at_chain: string | number | null;
 }
 
 export function serializeEvidence(row: EvidenceRow) {
@@ -92,6 +98,41 @@ export function serializeEvidence(row: EvidenceRow) {
     url: row.url ?? "",
     description: row.description ?? "",
     submitted_at: Number(row.submitted_at_chain ?? 0),
+    url_checked: Boolean(row.url_checked),
+    url_reachable: Boolean(row.url_reachable),
+    content_hash_verified: Boolean(row.content_hash_verified),
+    fetch_excerpt: row.fetch_excerpt ?? "",
+    verified_at: Number(row.verified_at_chain ?? 0),
+  };
+}
+
+export interface ChallengeRow {
+  challenge_id: number;
+  investigation_id: number;
+  challenger_wallet: string | null;
+  reason: string | null;
+  stake_wei: string | null;
+  stake_deposited_wei: string | null;
+  status: string;
+  created_at_chain: string | number | null;
+  resolution_deadline: string | number | null;
+  prior_verdict: string | null;
+  new_verdict: string | null;
+}
+
+export function serializeChallenge(row: ChallengeRow) {
+  return {
+    id: row.challenge_id,
+    investigation_id: row.investigation_id,
+    challenger: row.challenger_wallet ?? "",
+    reason: row.reason ?? "",
+    stake_wei: String(row.stake_wei ?? "0"),
+    stake_deposited_wei: String(row.stake_deposited_wei ?? "0"),
+    status: challengeStatusCode(row.status),
+    created_at: Number(row.created_at_chain ?? 0),
+    resolution_deadline: Number(row.resolution_deadline ?? 0),
+    prior_verdict: verdictCode(row.prior_verdict),
+    new_verdict: verdictCode(row.new_verdict),
   };
 }
 

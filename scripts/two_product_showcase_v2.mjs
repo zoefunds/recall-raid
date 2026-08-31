@@ -1,14 +1,23 @@
 #!/usr/bin/env node
 // Two real-product showcase run against a freshly deployed RecallRaid
-// contract (0xcb8081F71210EC19Db3E70b4A880CfcfEb9a9E27) — entirely
+// contract (0x4aB01fb5435cdEfD3c651Cfc51f0F1fa1E2Ef6a4) — entirely
 // different products from every prior showcase run (Rock 'n Play,
 // Tread+, MALM, Instant Pot, Boppy, Jetson Hoverboard). Every call here
 // is a genuine happy-path call — deliberately NO negative/expect-revert
 // calls, since a guard-clause rejection shows up on the GenLayer explorer
 // as an execution error even though it is contract-correct. Exercises
 // every non-admin, non-deadline-gated read and write method, including
-// the new `verify_evidence` method added in the most recent contract
-// review round.
+// `verify_evidence`, which this contract version now gates
+// `request_verdict` on: every evidence item must be url_checked AND
+// url_reachable AND content_hash_verified before a verdict can be
+// requested. That means a recall_notice evidence item's content_hash
+// can no longer be a synthetic placeholder — it must be the sha256 of
+// the actual bytes GenVM will fetch from the live URL, computed here via
+// `hashUrlContent()` right before add_evidence. After verify_evidence,
+// the script explicitly reads back get_evidence and confirms
+// url_reachable + content_hash_verified before ever calling
+// request_verdict, so a verification miss aborts cleanly instead of
+// producing a guaranteed-revert explorer error.
 //
 // NOT exercised here (by design, not oversight): claim_evidence_timeout,
 // claim_verdict_timeout, claim_challenge_timeout, settle_investigation —
@@ -24,7 +33,7 @@ import { studionet } from "genlayer-js/chains";
 import { createHash } from "node:crypto";
 import { makeProductImage } from "./lib/make_product_image.mjs";
 
-const CONTRACT_ADDRESS = "0xcb8081F71210EC19Db3E70b4A880CfcfEb9a9E27";
+const CONTRACT_ADDRESS = "0x4aB01fb5435cdEfD3c651Cfc51f0F1fa1E2Ef6a4";
 const RPC_URL = "https://studio.genlayer.com/api";
 const API_BASE = "https://recallraid-api.fly.dev";
 const WEB_BASE = "https://recall-raid.vercel.app";
@@ -93,6 +102,20 @@ async function read(client, functionName, args = []) {
 }
 
 function sha256(buf) { return createHash("sha256").update(buf).digest("hex"); }
+
+// The strict verify_evidence gate (content_hash_verified requires
+// sha256(bytes GenVM fetches) == the claimed content_hash) means a
+// recall_notice evidence item's hash must be the REAL fetched bytes of
+// the live page, not a synthetic placeholder — a placeholder can never
+// pass verification, which would then permanently block request_verdict
+// for that investigation (evidence is append-only, no fix-up possible).
+// Fetching it ourselves right before add_evidence and using that exact
+// hash is the only way to get a real content_hash_verified: true result.
+async function hashUrlContent(url) {
+  const res = await fetch(url);
+  const buf = Buffer.from(await res.arrayBuffer());
+  return sha256(buf);
+}
 
 const cookieJars = {};
 async function apiCall(role, path, opts = {}) {
@@ -204,8 +227,23 @@ async function main() {
   record("Cloudinary upload (product 1 photo, real visible image)", "integration", true, photo1Url);
   const ev1a = await write(hunter.client, "add_evidence", [inv1Id, "product_photo", sha256(kiddeImage), photo1Url, "Photo of the Kidde fire extinguisher as listed, showing the plastic handle and push-button style referenced in the CPSC recall (TEST DATA)."]);
   record("add_evidence (product 1, photo)", "write", (!ev1a.leaderErrored && ev1a.consensusHealthy), `tx=${ev1a.txHash} result=${ev1a.resultName}`);
-  const recallHash1 = sha256(Buffer.from("cpsc-kidde-fire-extinguisher-2017|reference"));
-  const ev1b = await write(hunter.client, "add_evidence", [inv1Id, "recall_notice", recallHash1, "https://www.cpsc.gov/Recalls/2018/Kidde-Recalls-Fire-Extinguishers-with-Plastic-Handles-Due-to-Failure-to-Discharge-and-Nozzle-Detachment-One-Death-Reported", "CPSC recall notice confirming the November 2017 Kidde plastic-handle fire extinguisher recall due to failure-to-discharge and nozzle-detachment hazards, one death reported (TEST DATA, real recall)."]);
+  // Points at a static PDF hosting of the real CPSC recall notice, not
+  // cpsc.gov's own dynamic page directly — confirmed via
+  // contracts/diagnostics/nondet_consensus_diagnostic.py's
+  // check_web_get_url that cpsc.gov's live page returns
+  // MAJORITY_DISAGREE under gl.nondet.web.get (independent validator
+  // fetches don't converge on identical bytes, likely WAF/bot-detection
+  // or per-request dynamic content), while a static-file host of the
+  // same official document round-trips with MAJORITY_AGREE and a stable
+  // sha256. Same real, official recall content either way — this is
+  // about where GenVM can reliably fetch it from, not about using
+  // different information. inv.recall_source_url (set below) still
+  // points at the real cpsc.gov page for the adjudication prompt, which
+  // fetches via gl.nondet.web.render (text/browser rendering), a
+  // different code path not shown to have this problem.
+  const recallUrl1 = "https://files.aptuitivcdn.com/GB7r14nbKy-1182/docs/Fire/Kidde-Fire-Extinguisher-Recall.pdf";
+  const recallHash1 = await hashUrlContent(recallUrl1);
+  const ev1b = await write(hunter.client, "add_evidence", [inv1Id, "recall_notice", recallHash1, recallUrl1, "Static-hosted copy of the official CPSC recall notice (see the investigation's recall_source_url for the live cpsc.gov page) confirming the November 2017 Kidde plastic-handle fire extinguisher recall due to failure-to-discharge and nozzle-detachment hazards, one death reported (TEST DATA, real recall)."]);
   record("add_evidence (product 1, recall reference)", "write", (!ev1b.leaderErrored && ev1b.consensusHealthy), `tx=${ev1b.txHash} result=${ev1b.resultName}`);
 
   await apiCall("hunter", `/evidence/${inv1Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: ev1b.txHash }) });
@@ -213,9 +251,21 @@ async function main() {
 
   const evidenceIds1 = await read(hunter.client, "get_evidence_ids_for_investigation", [inv1Id]);
   record("get_evidence_ids_for_investigation (product 1, pre-verify)", "view", true, JSON.stringify(evidenceIds1));
+  let product1AllVerified = true;
   for (const evId of evidenceIds1) {
     const verifyEvRes = await write(hunter.client, "verify_evidence", [evId]);
     record(`verify_evidence (product 1, evidence ${evId})`, "write", (!verifyEvRes.leaderErrored && verifyEvRes.consensusHealthy), `tx=${verifyEvRes.txHash} result=${verifyEvRes.resultName} parsed=${JSON.stringify(verifyEvRes.parsedResult)}`);
+    const evAfter = await read(hunter.client, "get_evidence", [evId]);
+    const ok = evAfter.url_reachable && evAfter.content_hash_verified;
+    record(`get_evidence (product 1, evidence ${evId}, verification check)`, "view", true, JSON.stringify(evAfter));
+    if (!ok) product1AllVerified = false;
+  }
+  // request_verdict now reverts unless every evidence item is reachable
+  // AND content-hash-verified — calling it against unverified evidence
+  // would be a guaranteed, avoidable explorer error, so confirm the real
+  // verification result here first rather than finding out from a revert.
+  if (!product1AllVerified) {
+    throw new Error(`Product 1 evidence did not fully verify (reachable + hash-matched) — aborting before request_verdict to avoid a guaranteed revert. Evidence ids: ${JSON.stringify(evidenceIds1)}`);
   }
 
   let verdict1 = await write(hunter.client, "request_verdict", [inv1Id]);
@@ -256,8 +306,7 @@ async function main() {
   // PRODUCT 2 — Zen Magnets / Neoballs high-powered magnet sets (real,
   // CPSC recall Aug 2021 — ~10 million units, ingestion hazard, deaths
   // and surgeries reported). Straight submit -> evidence -> verify_evidence
-  // -> verdict, no challenge, for a clean contrast; also where evidence
-  // verification against an unreachable/non-text URL is demonstrated.
+  // -> verdict, no challenge, for a clean contrast.
   // =====================================================================
   section("PRODUCT 2 — Zen Magnets / Neoballs High-Powered Magnet Sets (real CPSC recall)");
   const bounty2 = 4n * 10n ** 16n;
@@ -283,8 +332,13 @@ async function main() {
   record("Cloudinary upload (product 2 photo, real visible image)", "integration", true, photo2Url);
   const ev2a = await write(hunter.client, "add_evidence", [inv2Id, "product_photo", sha256(zenImage), photo2Url, "Photo of the Neoballs magnet set as listed, matching the recalled high-powered magnet ball design (TEST DATA)."]);
   record("add_evidence (product 2, photo)", "write", (!ev2a.leaderErrored && ev2a.consensusHealthy), `tx=${ev2a.txHash} result=${ev2a.resultName}`);
-  const recallHash2 = sha256(Buffer.from("cpsc-zen-magnets-neoballs-2021|reference"));
-  const ev2b = await write(hunter.client, "add_evidence", [inv2Id, "recall_notice", recallHash2, "https://cpsc.gov/Recalls/2021/Zen-Magnets-and-Neoballs-Magnets-Recalled-Due-to-Ingestion-Hazard", "CPSC recall notice confirming the August 2021 Zen Magnets/Neoballs recall due to ingestion hazard (TEST DATA, real recall)."]);
+  // Same static-hosting rationale as product 1's recall reference — a
+  // static PDF of the official CPSC/Zen Magnets joint recall press
+  // release, confirmed GenVM-fetch-stable, rather than cpsc.gov's own
+  // dynamic page directly.
+  const recallUrl2 = "https://zenmagnets.com/wp-content/uploads/2021/08/CPSC-Joint-Recall-Press-Release.pdf";
+  const recallHash2 = await hashUrlContent(recallUrl2);
+  const ev2b = await write(hunter.client, "add_evidence", [inv2Id, "recall_notice", recallHash2, recallUrl2, "Static-hosted copy of the official CPSC/Zen Magnets joint recall press release (see the investigation's recall_source_url for the live cpsc.gov page) confirming the August 2021 Zen Magnets/Neoballs recall due to ingestion hazard (TEST DATA, real recall)."]);
   record("add_evidence (product 2, recall reference)", "write", (!ev2b.leaderErrored && ev2b.consensusHealthy), `tx=${ev2b.txHash} result=${ev2b.resultName}`);
 
   await apiCall("hunter", `/evidence/${inv2Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: ev2b.txHash }) });
@@ -292,9 +346,17 @@ async function main() {
 
   const evidenceIds2 = await read(hunter.client, "get_evidence_ids_for_investigation", [inv2Id]);
   record("get_evidence_ids_for_investigation (product 2, pre-verify)", "view", true, JSON.stringify(evidenceIds2));
+  let product2AllVerified = true;
   for (const evId of evidenceIds2) {
     const verifyEvRes = await write(hunter.client, "verify_evidence", [evId]);
     record(`verify_evidence (product 2, evidence ${evId})`, "write", (!verifyEvRes.leaderErrored && verifyEvRes.consensusHealthy), `tx=${verifyEvRes.txHash} result=${verifyEvRes.resultName} parsed=${JSON.stringify(verifyEvRes.parsedResult)}`);
+    const evAfter = await read(hunter.client, "get_evidence", [evId]);
+    const ok = evAfter.url_reachable && evAfter.content_hash_verified;
+    record(`get_evidence (product 2, evidence ${evId}, verification check)`, "view", true, JSON.stringify(evAfter));
+    if (!ok) product2AllVerified = false;
+  }
+  if (!product2AllVerified) {
+    throw new Error(`Product 2 evidence did not fully verify (reachable + hash-matched) — aborting before request_verdict to avoid a guaranteed revert. Evidence ids: ${JSON.stringify(evidenceIds2)}`);
   }
 
   let verdict2 = await write(hunter.client, "request_verdict", [inv2Id]);

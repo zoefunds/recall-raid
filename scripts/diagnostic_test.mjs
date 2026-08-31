@@ -61,7 +61,7 @@ async function main() {
 
   const report = { contract: CONTRACT_ADDRESS, rpc: RPC_URL, checks: {} };
 
-  for (const fn of ["check_constant", "check_web_fetch", "check_llm_classification"]) {
+  for (const fn of ["check_constant", "check_web_fetch", "check_web_get_raw", "check_web_request_raw", "check_llm_classification"]) {
     process.stdout.write(`Running ${fn}...\n`);
     const res = await run(client, fn);
     report.checks[fn] = {

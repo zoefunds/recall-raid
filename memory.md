@@ -1910,3 +1910,108 @@ left the contract and landed in a real wallet — the full economic
 lifecycle (bounty escrow → verdict → challenge → settlement → withdrawal)
 has now been exercised end-to-end with real elapsed time on this
 deployment, not just simulated/immediate-window testing.
+
+## External review: evidence verifiability, resolve/timeout, seller-bond linking (2026-08-31)
+
+Team review quoted: "add application actions for resolving or timing out
+an open challenge and for linking a verified seller bond to an
+investigation. Also make the required uploaded evidence materially
+verifiable and available to the contract's adjudication path, rather
+than storing only an unchecked URL and client-supplied hash with empty
+metadata."
+
+Checked the live contract before touching anything: `resolve_challenge`,
+`claim_challenge_timeout`, and `link_seller_bond` already existed (added
+in earlier rounds) — the review was against an earlier/different
+snapshot for those two points, not the current code. Confirmed and left
+alone.
+
+The evidence-verifiability point was real: `Evidence` had `content_hash`
+(client-computed, never checked) and `url` (never fetched), with no
+metadata beyond the submitter's own claim, and the verdict prompt only
+ever saw the raw claim, never anything the contract itself had confirmed.
+Fixed by mirroring the exact trust model `verify_seller_bond_listing`
+already uses:
+
+- Added `url_checked`, `url_reachable`, `fetch_excerpt`, `verified_at`
+  fields to `Evidence`.
+- New write method `verify_evidence(evidence_id)`: every validator
+  independently fetches `ev.url` live via `gl.nondet.web.render` and
+  reaches consensus on the boolean `reachable` result only (byte-for-byte
+  equality on a live page's exact text is fragile across independent
+  fetches — the boolean is what's required to agree, same reasoning as
+  `verify_seller_bond_listing`'s identifier-presence check). The fetched
+  excerpt is stored as a leader-attested, best-effort snapshot, same
+  trust level as the manufacturer/recall/listing excerpts already fetched
+  inside `_run_verdict_pass`.
+- `_run_verdict_pass`'s evidence snapshot and `_render_verdict_prompt`
+  now tell the model explicitly, per evidence item, whether it was
+  "independently checked and reachable" / "checked but unreachable" /
+  "never independently checked" — so adjudication can actually weigh
+  verified evidence differently from an unchecked claim, per the review's
+  ask.
+- Exposed the new fields on `get_evidence` (view) and mirrored them into
+  `apps/api`'s `evidence_cache` (new migration
+  `20260831000000_add_evidence_verification.sql`, `syncEvidence` updated)
+  and the `ChainEvidence`/`Evidence` TS types on both `apps/api` and
+  `apps/web`. No UI surface added yet (not asked for) — the data is
+  plumbed through and ready for a future "verified" badge.
+
+`genvm-lint` passes at 31 methods (12 view, 19 write, up from 30/18) and
+all 27 structural tests still pass unchanged. README and DEPLOYMENT.md
+method counts updated to match.
+
+## Fresh contract 0xcb8081F71210EC19Db3E70b4A880CfcfEb9a9E27 + two-product live verification (2026-08-31)
+
+New deployment. Wired into `.env`, `apps/web/.env.local`, `apps/api/.env`,
+Fly secrets (`fly secrets set` triggered a real rolling redeploy of both
+machines), and the hardcoded `CONTRACT_ADDRESS` constants in
+`scripts/full_contract_test_suite.mjs`, `scripts/four_product_showcase.mjs`,
+`scripts/two_more_products.mjs`.
+
+**`fly ssh console` and `fly postgres connect` were both hard-blocked by
+the auto-mode permission classifier** (outright denial, not a user
+prompt) — asked the user to run the equivalent commands directly.
+`psql` is not installed in the `recallraid-api` container, so the
+truncate had to go through a `node -e` one-liner using the already-
+installed `pg` package instead of a `psql -c` invocation. Both the
+migration (`node /app/dist/db/migrate.js`) and the cache truncate
+succeeded when the user ran them. **If DB access is needed again on a
+future redeploy, lead with the node/pg one-liner, not psql — this
+container doesn't have psql.**
+
+Two entirely new real products (never used before): Kidde plastic-handle
+fire extinguishers (real CPSC recall, Nov 2017/2018, 37.8M units, failure-
+to-discharge + nozzle detachment, one death) and Zen Magnets/Neoballs
+high-powered magnets (real CPSC recall, Aug 2021, ~10M units, ingestion
+hazard, deaths/surgeries reported) — both verified against live CPSC
+search results before use (WebSearch, not WebFetch — cpsc.gov returns
+403 to WebFetch's fetcher; WebSearch's own summarization of the search
+snippet was sufficient and the live `fetch_excerpt` captured by
+`verify_evidence` during the actual run independently confirmed the
+Zen Magnets page content anyway).
+
+`scripts/two_product_showcase_v2.mjs` covered: seller bond create+verify+link,
+submit+evidence+verify_evidence+verdict+challenge+resolve (product 1),
+submit+evidence+verify_evidence+verdict (product 2, no challenge),
+cancel_investigation (separate minimal submission). Hit a transient
+client-side `SSL alert number 20 / bad record mac` fetch failure
+(genuinely a local network blip, not a contract/consensus error — it
+happened between two contract calls with no rejected transaction) right
+after `cancel_investigation` succeeded. Resumed the remaining steps
+(bond 2 topup/withdraw, both `withdraw()` calls, full view sweep) via
+`scripts/two_product_showcase_v2_resume.mjs`. Combined: **39/39 checks
+passed, zero contract errors on the explorer**, `MAJORITY_AGREE`
+throughout including all 4 `verify_evidence` calls (the new method
+added this session — see the review-response entry above and
+`review.md`).
+
+Deferred as usual (real elapsed time required): `claim_evidence_timeout`,
+`claim_verdict_timeout`, `claim_challenge_timeout`, `settle_investigation`
+— none of this round's investigations had a window elapse yet.
+
+Wrote `review.md` at the repo root documenting the full review-response
+(challenge resolve/timeout and seller-bond linking were already correct;
+evidence verifiability was the real gap, now fixed) plus this live
+verification run, per the user's explicit request to document fixes as
+directed by the team.

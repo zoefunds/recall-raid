@@ -228,6 +228,10 @@ class Evidence:
     url: str             # pointer to off-chain storage (R2) or a public source URL
     description: str
     submitted_at: u64
+    url_checked: bool      # False until verify_evidence has run at least once
+    url_reachable: bool    # real, validator-consensus result of an actual live GenVM fetch of `url` — not a client claim
+    fetch_excerpt: str     # leader-fetched text excerpt (best-effort, not consensus-checked byte-for-byte — see verify_evidence)
+    verified_at: u64       # 0 until verify_evidence has run at least once
 
 
 @allow_storage
@@ -509,9 +513,16 @@ class RecallRaid(gl.Contract):
         be lexically inside that closure, not delegated out."""
         evidence_lines = []
         for ev in evidence_snapshot:
+            if not ev.get("checked"):
+                verification_note = "NOT independently checked yet — treat as an unverified claim only"
+            elif ev.get("reachable"):
+                excerpt = (ev.get("excerpt") or "")[:400]
+                verification_note = "URL independently fetched and confirmed reachable; excerpt=\"%s\"" % excerpt
+            else:
+                verification_note = "URL independently fetched but was unreachable/empty — treat as unsupported"
             evidence_lines.append(
-                "- type=%s description=%s url=%s hash=%s"
-                % (ev["type"], ev["description"], ev["url"], ev["hash"])
+                "- type=%s description=%s url=%s hash=%s verification=[%s]"
+                % (ev["type"], ev["description"], ev["url"], ev["hash"], verification_note)
             )
 
         return (
@@ -668,6 +679,14 @@ class RecallRaid(gl.Contract):
                 "description": ev.description,
                 "url": ev.url,
                 "hash": ev.content_hash,
+                # Real, previously-fetched material from `verify_evidence` —
+                # not the submitter's own claim — so adjudication can weigh
+                # evidence whose URL was never independently checked
+                # differently from evidence GenVM has actually confirmed
+                # reachable.
+                "checked": bool(ev.url_checked),
+                "reachable": bool(ev.url_reachable),
+                "excerpt": ev.fetch_excerpt,
             }
             for ev in evidence_items
         ]
@@ -954,6 +973,10 @@ class RecallRaid(gl.Contract):
             url=url,
             description=description,
             submitted_at=_now(),
+            url_checked=False,
+            url_reachable=False,
+            fetch_excerpt="",
+            verified_at=u64(0),
         )
         self.evidence[ev_id] = ev
         self.evidence_ids.append(ev_id)
@@ -963,6 +986,54 @@ class RecallRaid(gl.Contract):
         inv.evidence_count = u32(int(inv.evidence_count) + 1)
         self.investigations[u32(investigation_id)] = inv
         return json.dumps({"evidence_id": int(ev_id)})
+
+    @gl.public.write
+    def verify_evidence(self, evidence_id: int) -> str:
+        """Real, GenLayer-native check of whether submitted evidence is
+        anything more than an unchecked claim: every validator
+        independently fetches `url` live via GenVM and the network reaches
+        consensus on whether it is actually reachable — the same
+        trust-minimized pattern as `verify_seller_bond_listing`. Only the
+        boolean `reachable` result is required to agree byte-for-byte
+        across validators (robust to a dynamic page's exact text
+        changing between independent fetches); the fetched excerpt itself
+        is stored as a leader-attested, best-effort snapshot for the
+        adjudication prompt and for human review — same trust level as
+        the manufacturer/recall/listing excerpts already fetched inside
+        `_run_verdict_pass`, which are likewise never required to match
+        byte-for-byte across validators. This turns evidence from "an
+        unchecked URL plus a client-supplied hash" into something the
+        contract has itself actually gone and looked at."""
+        self._require_not_paused()
+        ev = self.evidence.get(u32(evidence_id))
+        if ev is None:
+            raise gl.vm.UserError("[EXPECTED] evidence not found")
+        url = ev.url
+
+        def leader_fn():
+            try:
+                resp = gl.nondet.web.render(url, mode="text")
+                body = resp
+                if isinstance(body, (bytes, bytearray)):
+                    body = body.decode("utf-8", errors="replace")
+                body = str(body)[:MAX_FETCH_EXCERPT_CHARS]
+                return True, body
+            except Exception:  # noqa: BLE001 — an unreachable/non-text source just fails verification, never aborts the call
+                return False, ""
+
+        def validator_fn(leader_result):
+            reachable, _excerpt = _unwrap_leader_result(leader_result)
+            candidate_reachable, _candidate_excerpt = leader_fn()
+            return bool(candidate_reachable) == bool(reachable)
+
+        reachable, excerpt = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+
+        ev.url_checked = True
+        ev.url_reachable = bool(reachable)
+        ev.fetch_excerpt = excerpt if reachable else ""
+        ev.verified_at = _now()
+        self.evidence[u32(evidence_id)] = ev
+        return json.dumps({"evidence_id": int(evidence_id), "url_reachable": bool(reachable)})
 
     @gl.public.write
     def cancel_investigation(self, investigation_id: int) -> None:
@@ -1559,6 +1630,10 @@ class RecallRaid(gl.Contract):
             "url": ev.url,
             "description": ev.description,
             "submitted_at": int(ev.submitted_at),
+            "url_checked": bool(ev.url_checked),
+            "url_reachable": bool(ev.url_reachable),
+            "fetch_excerpt": ev.fetch_excerpt,
+            "verified_at": int(ev.verified_at),
         })
 
     @gl.public.view

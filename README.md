@@ -145,6 +145,17 @@ bond is also linked and slashed) plus reputation. If `NO_ISSUE`, the
 bounty is refunded. `NEEDS_MORE_EVIDENCE` lets the hunter add more
 evidence and retry.
 
+Evidence itself is materially checked, not just an unchecked URL and a
+client-supplied hash sitting in storage: `verify_evidence` has every
+validator independently fetch the evidence `url` live via GenVM and
+reach consensus on whether it's actually reachable, storing the result
+(`url_checked`, `url_reachable`, `fetch_excerpt`, `verified_at`) on the
+`Evidence` record itself. `request_verdict`'s adjudication prompt then
+tells the model explicitly, per evidence item, whether it was
+independently confirmed reachable, fetched-but-unreachable, or never
+checked at all — the same "the contract went and looked, not just took
+the submitter's word for it" trust model as `verify_seller_bond_listing`.
+
 **Seller** — can voluntarily post a Clean Inventory Bond
 (`create_seller_bond`) as a public confidence signal, prove real
 ownership of a specific listing via `verify_seller_bond_listing`, then
@@ -178,7 +189,7 @@ the model's confidence percentage, wherever a verdict is shown.
 ```
 recallraid/
   contracts/
-    recallraid_contract.py       the GenLayer Intelligent Contract (30 methods: 12 view, 18 write)
+    recallraid_contract.py       the GenLayer Intelligent Contract (31 methods: 12 view, 19 write)
     tests/                       static structural tests (AST-based, no GenVM runtime required)
     diagnostics/
       nondet_consensus_diagnostic.py   minimal 3-check contract for isolating nondet-consensus bugs
@@ -214,13 +225,14 @@ recallraid/
 
 ## Contract method reference
 
-**Write (18)**: `submit_investigation` (payable), `add_evidence`,
-`request_verdict`, `cancel_investigation`, `claim_evidence_timeout`,
-`claim_verdict_timeout`, `open_challenge` (payable), `resolve_challenge`,
-`claim_challenge_timeout`, `settle_investigation`, `withdraw`,
-`create_seller_bond` (payable), `topup_seller_bond` (payable),
-`link_seller_bond`, `withdraw_seller_bond`, `verify_seller_bond_listing`,
-`set_paused` (admin), `transfer_administration` (admin).
+**Write (19)**: `submit_investigation` (payable), `add_evidence`,
+`verify_evidence`, `request_verdict`, `cancel_investigation`,
+`claim_evidence_timeout`, `claim_verdict_timeout`, `open_challenge`
+(payable), `resolve_challenge`, `claim_challenge_timeout`,
+`settle_investigation`, `withdraw`, `create_seller_bond` (payable),
+`topup_seller_bond` (payable), `link_seller_bond`,
+`withdraw_seller_bond`, `verify_seller_bond_listing`, `set_paused`
+(admin), `transfer_administration` (admin).
 
 **View (12)**: `get_investigation`, `get_investigation_count`,
 `get_investigation_id_at`, `list_investigations`, `get_evidence`,

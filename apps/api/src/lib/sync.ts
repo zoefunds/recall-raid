@@ -98,8 +98,8 @@ export async function syncEvidence(evidenceId: number): Promise<void> {
   await pool.query(
     `insert into evidence_cache (
        evidence_id, investigation_id, submitter_wallet, evidence_type, content_hash, url,
-       description, submitted_at_chain, synced_at
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8, now())
+       description, submitted_at_chain, url_checked, url_reachable, fetch_excerpt, verified_at_chain, synced_at
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
      on conflict (evidence_id) do update set
        investigation_id = excluded.investigation_id,
        submitter_wallet = excluded.submitter_wallet,
@@ -108,6 +108,10 @@ export async function syncEvidence(evidenceId: number): Promise<void> {
        url = excluded.url,
        description = excluded.description,
        submitted_at_chain = excluded.submitted_at_chain,
+       url_checked = excluded.url_checked,
+       url_reachable = excluded.url_reachable,
+       fetch_excerpt = excluded.fetch_excerpt,
+       verified_at_chain = excluded.verified_at_chain,
        synced_at = now()
     `,
     [
@@ -119,6 +123,10 @@ export async function syncEvidence(evidenceId: number): Promise<void> {
       ev.url,
       ev.description,
       ev.submitted_at,
+      ev.url_checked,
+      ev.url_reachable,
+      ev.fetch_excerpt,
+      ev.verified_at,
     ],
   );
 }

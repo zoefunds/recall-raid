@@ -21,7 +21,7 @@ deploy):
 ✓ Lint passed (3 checks)
 ✓ Validation passed
   Contract: RecallRaid
-  Methods: 30 (12 view, 18 write)
+  Methods: 31 (12 view, 19 write)
 ```
 
 Fix every lint/validation failure before deploying — do not deploy a

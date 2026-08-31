@@ -113,6 +113,10 @@ export interface Evidence {
   url: string;
   description: string;
   submitted_at: number;
+  url_checked: boolean;
+  url_reachable: boolean;
+  fetch_excerpt: string;
+  verified_at: number;
 }
 
 export interface Challenge {

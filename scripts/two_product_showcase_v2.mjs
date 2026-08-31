@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-// Four real-product showcase run against a freshly deployed
-// RecallRaid contract. Every call here is a genuine happy-path call —
-// deliberately NO negative/expect-revert calls, since a guard-clause
-// rejection shows up on the GenLayer explorer as an execution error even
-// though it is contract-correct. This script exists specifically to
-// leave a clean, error-free transaction history on the explorer while
-// still exercising every non-admin, non-deadline-gated read and write
-// method with real, detailed, verifiably-real product/recall data (not
-// placeholder text).
+// Two real-product showcase run against a freshly deployed RecallRaid
+// contract (0xcb8081F71210EC19Db3E70b4A880CfcfEb9a9E27) — entirely
+// different products from every prior showcase run (Rock 'n Play,
+// Tread+, MALM, Instant Pot, Boppy, Jetson Hoverboard). Every call here
+// is a genuine happy-path call — deliberately NO negative/expect-revert
+// calls, since a guard-clause rejection shows up on the GenLayer explorer
+// as an execution error even though it is contract-correct. Exercises
+// every non-admin, non-deadline-gated read and write method, including
+// the new `verify_evidence` method added in the most recent contract
+// review round.
 //
 // NOT exercised here (by design, not oversight): claim_evidence_timeout,
 // claim_verdict_timeout, claim_challenge_timeout, settle_investigation —
@@ -16,7 +17,7 @@
 // genuinely reverts. set_paused / transfer_administration are admin-only
 // and explicitly out of scope per the request.
 //
-// Run: node scripts/four_product_showcase.mjs
+// Run: node scripts/two_product_showcase_v2.mjs
 
 import { createClient, createAccount } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
@@ -46,10 +47,7 @@ function section(title) {
 
 function makeClient(privateKey) {
   const account = createAccount(privateKey);
-  const client = createClient({
-    chain: { ...studionet, rpcUrls: { default: { http: [RPC_URL] } } },
-    account,
-  });
+  const client = createClient({ chain: { ...studionet, rpcUrls: { default: { http: [RPC_URL] } } }, account });
   return { address: account.address, client };
 }
 
@@ -75,6 +73,8 @@ async function write(client, functionName, args = [], value = 0n) {
   const nodeReceipts = receipt.consensus_data?.leader_receipt ?? [];
   const leader = nodeReceipts.find((r) => r.mode === "leader") ?? nodeReceipts[0];
   const leaderErrored = !!(leader?.execution_result && leader.execution_result !== "SUCCESS" && leader.execution_result !== "NONE");
+  // Allowlist, not excludelist — a previous run's excludelist missed
+  // NO_MAJORITY and silently logged a non-agreement as a pass. See memory.md.
   const consensusHealthy = ["", "AGREE", "MAJORITY_AGREE"].includes(receipt.result_name ?? "");
   const parsedResult = decodeLeaderResult(leader);
   return {
@@ -93,18 +93,6 @@ async function read(client, functionName, args = []) {
 }
 
 function sha256(buf) { return createHash("sha256").update(buf).digest("hex"); }
-
-// A real, visible generated photo per product — NOT a 1x1 test pixel.
-// The first run of this script reused full_contract_test_suite.mjs's
-// TEST_PNG fixture (a genuine 1x1 transparent pixel meant for
-// regression-test speed, not visual display), which rendered as a solid
-// black box once stretched to fill the evidence gallery's photo frame.
-// See memory.md for the full story.
-const PRODUCT_IMAGES = {
-  rockNPlay: makeProductImage({ seed: [176, 58, 46] }),   // Fisher-Price red
-  treadPlus: makeProductImage({ seed: [30, 30, 30] }),    // Peloton black
-  malm: makeProductImage({ seed: [60, 110, 160] }),        // IKEA blue
-};
 
 const cookieJars = {};
 async function apiCall(role, path, opts = {}) {
@@ -168,42 +156,78 @@ async function main() {
   const investigationIds = {};
 
   // =====================================================================
-  // PRODUCT 1 — Fisher-Price Rock 'n Play Sleeper (real, CPSC-recalled
-  // 2019, reannounced 2023 — infant fatalities from rolling over
-  // unrestrained). Full lifecycle: evidence, verdict, challenge, resolve.
+  // PRODUCT 1 — Kidde plastic-handle fire extinguishers (real, CPSC
+  // recall Nov 2017 / notice updated 2018 — 37.8 million units, failure
+  // to discharge + nozzle detachment, one death reported). Full
+  // lifecycle: evidence, verify_evidence, verdict, challenge, resolve,
+  // plus a linked + verified seller bond.
   // =====================================================================
-  section("PRODUCT 1 — Fisher-Price Rock 'n Play Sleeper (real CPSC recall)");
+  section("PRODUCT 1 — Kidde Fire Extinguishers (real CPSC recall) + seller bond");
+  const bondRes = await write(seller.client, "create_seller_bond", [], 3n * 10n ** 16n);
+  record("create_seller_bond (bond 1)", "write", (!bondRes.leaderErrored && bondRes.consensusHealthy), `tx=${bondRes.txHash} parsed=${JSON.stringify(bondRes.parsedResult)}`);
+  const bond1Id = bondRes.parsedResult?.bond_id;
+  const bond1Code = bondRes.parsedResult?.verification_code;
+  const listingUrl1 = `${WEB_BASE}/demo-listing/${bond1Id}?code=${encodeURIComponent(bond1Code)}`;
+
+  const listingCheck = await fetch(listingUrl1);
+  const listingText = await listingCheck.text();
+  record("GET demo-listing page contains bond's verification code", "integration", listingCheck.ok && listingText.includes(bond1Code), listingUrl1);
+
+  const verifyBondRes = await write(seller.client, "verify_seller_bond_listing", [bond1Id, listingUrl1]);
+  record("verify_seller_bond_listing (bond 1, real code match)", "write", (!verifyBondRes.leaderErrored && verifyBondRes.consensusHealthy), `tx=${verifyBondRes.txHash} result=${verifyBondRes.resultName}`);
+  const bond1AfterVerify = await read(seller.client, "get_seller_bond", [bond1Id]);
+  record("get_seller_bond (bond 1, post-verify)", "view", true, JSON.stringify(bond1AfterVerify));
+
   const bounty1 = 5n * 10n ** 16n;
   const sub1 = await write(hunter.client, "submit_investigation", [
-    "Rock 'n Play Sleeper (TEST ENTRY — real product, CPSC recall 2019/2023)",
-    "Fisher-Price",
-    "Rock 'n Play Sleeper",
+    "Plastic-Handle Fire Extinguisher, ABC-rated (TEST ENTRY — real product, CPSC recall 2017/2018)",
+    "Kidde",
+    "Plastic Handle Fire Extinguisher",
     "",
     "TestMarketplace",
-    `${WEB_BASE}/demo-listing/1?code=product1-marketplace-listing`,
-    "https://www.fisher-price.com",
-    "https://www.cpsc.gov/Recalls/2019/Fisher-Price-Recalls-Rock-n-Play-Sleepers-Due-to-Reports-of-Deaths",
-    "TEST DATA — real recalled product used to demonstrate a genuine CPSC-confirmed infant-sleep hazard. CPSC and Fisher-Price recalled 4.7 million Rock 'n Play Sleepers in April 2019 after infant fatalities from rolling over while unrestrained; the recall was reannounced in 2023 after additional deaths were reported. This listing represents a hypothetical marketplace reseller still offering the recalled unit.",
-    "Infant/Nursery",
+    listingUrl1,
+    "https://www.kidde.com",
+    "https://www.cpsc.gov/Recalls/2018/Kidde-Recalls-Fire-Extinguishers-with-Plastic-Handles-Due-to-Failure-to-Discharge-and-Nozzle-Detachment-One-Death-Reported",
+    "TEST DATA — real recalled product. CPSC and Kidde recalled 37.8 million residential and commercial fire extinguishers with plastic handles and push-button Pindicator models (134 plastic-handle models made 1973-2017) in November 2017 because the extinguishers can become clogged or require excessive force to discharge, and the nozzle can detach with enough force to pose an impact hazard; one death has been reported in a fire where the extinguisher failed to work. This listing represents a hypothetical marketplace reseller still offering a recalled unit with the seller having posted a Clean Inventory Bond and verified ownership of this exact listing.",
+    "Home Safety",
     1,
   ], bounty1);
   record("submit_investigation (product 1)", "write", (!sub1.leaderErrored && sub1.consensusHealthy), `tx=${sub1.txHash} result=${sub1.resultName} parsed=${JSON.stringify(sub1.parsedResult)}`);
   const inv1Id = sub1.parsedResult?.investigation_id;
-  investigationIds.rockNPlay = inv1Id;
+  investigationIds.kiddeExtinguisher = inv1Id;
 
-  const photo1Url = await uploadEvidencePhoto("hunter", inv1Id, "rock-n-play-listing-photo.png", PRODUCT_IMAGES.rockNPlay);
-  record("Cloudinary upload (product 1 photo)", "integration", true, photo1Url);
-  const ev1a = await write(hunter.client, "add_evidence", [inv1Id, "product_photo", sha256(PRODUCT_IMAGES.rockNPlay), photo1Url, "Photo of the Rock 'n Play Sleeper as listed by the reseller, showing the original Fisher-Price branding and inclined sleeper design (TEST DATA)."]);
+  const linkRes = await write(seller.client, "link_seller_bond", [inv1Id, bond1Id]);
+  record("link_seller_bond (bond 1 -> product 1, verified + matching listing)", "write", (!linkRes.leaderErrored && linkRes.consensusHealthy), `tx=${linkRes.txHash} result=${linkRes.resultName}`);
+
+  const kiddeImage = makeProductImage({ seed: [200, 30, 30] }); // fire-extinguisher red
+  const photo1Url = await uploadEvidencePhoto("hunter", inv1Id, "kidde-extinguisher-listing-photo.png", kiddeImage);
+  record("Cloudinary upload (product 1 photo, real visible image)", "integration", true, photo1Url);
+  const ev1a = await write(hunter.client, "add_evidence", [inv1Id, "product_photo", sha256(kiddeImage), photo1Url, "Photo of the Kidde fire extinguisher as listed, showing the plastic handle and push-button style referenced in the CPSC recall (TEST DATA)."]);
   record("add_evidence (product 1, photo)", "write", (!ev1a.leaderErrored && ev1a.consensusHealthy), `tx=${ev1a.txHash} result=${ev1a.resultName}`);
-  const recallHash1 = sha256(Buffer.from("cpsc-rock-n-play-2019|reference"));
-  const ev1b = await write(hunter.client, "add_evidence", [inv1Id, "recall_notice", recallHash1, "https://www.cpsc.gov/Recalls/2019/Fisher-Price-Recalls-Rock-n-Play-Sleepers-Due-to-Reports-of-Deaths", "CPSC recall notice confirming the April 2019 recall of 4.7 million Rock 'n Play Sleepers due to infant fatalities (TEST DATA, real recall)."]);
+  const recallHash1 = sha256(Buffer.from("cpsc-kidde-fire-extinguisher-2017|reference"));
+  const ev1b = await write(hunter.client, "add_evidence", [inv1Id, "recall_notice", recallHash1, "https://www.cpsc.gov/Recalls/2018/Kidde-Recalls-Fire-Extinguishers-with-Plastic-Handles-Due-to-Failure-to-Discharge-and-Nozzle-Detachment-One-Death-Reported", "CPSC recall notice confirming the November 2017 Kidde plastic-handle fire extinguisher recall due to failure-to-discharge and nozzle-detachment hazards, one death reported (TEST DATA, real recall)."]);
   record("add_evidence (product 1, recall reference)", "write", (!ev1b.leaderErrored && ev1b.consensusHealthy), `tx=${ev1b.txHash} result=${ev1b.resultName}`);
 
   await apiCall("hunter", `/evidence/${inv1Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: ev1b.txHash }) });
   await apiCall("hunter", `/investigations/${inv1Id}/sync`, { method: "POST", body: JSON.stringify({}) });
 
-  const verdict1 = await write(hunter.client, "request_verdict", [inv1Id]);
+  const evidenceIds1 = await read(hunter.client, "get_evidence_ids_for_investigation", [inv1Id]);
+  record("get_evidence_ids_for_investigation (product 1, pre-verify)", "view", true, JSON.stringify(evidenceIds1));
+  for (const evId of evidenceIds1) {
+    const verifyEvRes = await write(hunter.client, "verify_evidence", [evId]);
+    record(`verify_evidence (product 1, evidence ${evId})`, "write", (!verifyEvRes.leaderErrored && verifyEvRes.consensusHealthy), `tx=${verifyEvRes.txHash} result=${verifyEvRes.resultName} parsed=${JSON.stringify(verifyEvRes.parsedResult)}`);
+  }
+
+  let verdict1 = await write(hunter.client, "request_verdict", [inv1Id]);
   record("request_verdict (product 1)", "write", (!verdict1.leaderErrored && verdict1.consensusHealthy), `tx=${verdict1.txHash} result=${verdict1.resultName} parsed=${JSON.stringify(verdict1.parsedResult)}`);
+  // If consensus wasn't reached, the investigation stays in its prior
+  // state untouched (no partial commit) — a plain retry is legitimate,
+  // not a forced/guaranteed-reject call. See memory.md.
+  while (!verdict1.consensusHealthy || verdict1.leaderErrored) {
+    console.log("  retrying request_verdict (product 1) — prior attempt did not reach clean agreement, investigation state unaffected...");
+    verdict1 = await write(hunter.client, "request_verdict", [inv1Id]);
+    record("request_verdict (product 1, retry)", "write", (!verdict1.leaderErrored && verdict1.consensusHealthy), `tx=${verdict1.txHash} result=${verdict1.resultName} parsed=${JSON.stringify(verdict1.parsedResult)}`);
+  }
   await apiCall("hunter", `/investigations/${inv1Id}/sync`, { method: "POST", body: JSON.stringify({}) });
   const inv1AfterVerdict = await read(hunter.client, "get_investigation", [inv1Id]);
   record("get_investigation (product 1, post-verdict)", "view", true, JSON.stringify(inv1AfterVerdict));
@@ -229,136 +253,95 @@ async function main() {
   }
 
   // =====================================================================
-  // PRODUCT 2 — Peloton Tread+ (real, CPSC-recalled May 2021 — one child
-  // death, 70+ incidents of entrapment under the rear roller). Also
-  // where the seller-bond ownership-verification flow gets exercised,
-  // linked to this exact investigation's marketplace listing.
+  // PRODUCT 2 — Zen Magnets / Neoballs high-powered magnet sets (real,
+  // CPSC recall Aug 2021 — ~10 million units, ingestion hazard, deaths
+  // and surgeries reported). Straight submit -> evidence -> verify_evidence
+  // -> verdict, no challenge, for a clean contrast; also where evidence
+  // verification against an unreachable/non-text URL is demonstrated.
   // =====================================================================
-  section("PRODUCT 2 — Peloton Tread+ (real CPSC recall) + seller bond");
-  const bondRes = await write(seller.client, "create_seller_bond", [], 3n * 10n ** 16n);
-  record("create_seller_bond (bond 1)", "write", (!bondRes.leaderErrored && bondRes.consensusHealthy), `tx=${bondRes.txHash} parsed=${JSON.stringify(bondRes.parsedResult)}`);
-  const bond1Id = bondRes.parsedResult?.bond_id;
-  const bond1Code = bondRes.parsedResult?.verification_code;
-  const listingUrl2 = `${WEB_BASE}/demo-listing/${bond1Id}?code=${encodeURIComponent(bond1Code)}`;
-
-  const listingCheck = await fetch(listingUrl2);
-  const listingText = await listingCheck.text();
-  record("GET demo-listing page contains bond's verification code", "integration", listingCheck.ok && listingText.includes(bond1Code), listingUrl2);
-
-  const verifyRes = await write(seller.client, "verify_seller_bond_listing", [bond1Id, listingUrl2]);
-  record("verify_seller_bond_listing (bond 1, real code match)", "write", (!verifyRes.leaderErrored && verifyRes.consensusHealthy), `tx=${verifyRes.txHash} result=${verifyRes.resultName}`);
-  const bond1AfterVerify = await read(seller.client, "get_seller_bond", [bond1Id]);
-  record("get_seller_bond (bond 1, post-verify)", "view", true, JSON.stringify(bond1AfterVerify));
-
-  const bounty2 = 6n * 10n ** 16n;
+  section("PRODUCT 2 — Zen Magnets / Neoballs High-Powered Magnet Sets (real CPSC recall)");
+  const bounty2 = 4n * 10n ** 16n;
   const sub2 = await write(hunter.client, "submit_investigation", [
-    "Tread+ Treadmill (TEST ENTRY — real product, CPSC recall May 2021)",
-    "Peloton",
-    "Tread+",
+    "Neoballs High-Powered Magnet Set, 216-count (TEST ENTRY — real product, CPSC recall Aug 2021)",
+    "Zen Magnets",
+    "Neoballs 216-count set",
     "",
     "TestMarketplace",
-    listingUrl2,
-    "https://www.onepeloton.com",
-    "https://www.cpsc.gov/Recalls/2021/Peloton-Recalls-Tread-Plus-Treadmills-After-One-Child-Died-and-More-than-70-Incidents-Reported",
-    "TEST DATA — real recalled product. CPSC and Peloton recalled the Tread+ in May 2021 after a child died and more than 70 incidents were reported of people, pets, or objects being pulled underneath the rear roller. Peloton later paid a $19,065,000 civil penalty for failing to promptly report the hazard. This listing represents a hypothetical marketplace reseller still offering the recalled unit, with the seller having posted a Clean Inventory Bond and verified ownership of this exact listing.",
-    "Fitness Equipment",
+    `${WEB_BASE}/demo-listing/2?code=product2-marketplace-listing`,
+    "https://zenmagnets.com",
+    "https://cpsc.gov/Recalls/2021/Zen-Magnets-and-Neoballs-Magnets-Recalled-Due-to-Ingestion-Hazard",
+    "TEST DATA — real recalled product. CPSC and Zen Magnets LLC recalled about 10 million Zen Magnets and Neoballs high-powered magnet sets in August 2021 due to ingestion hazard: when two or more magnets are swallowed they can attract to each other across intestinal walls, causing perforations, blockage, infection, or death. Zen Magnets is aware of two children requiring surgery to remove ingested magnets and intestinal tissue; CPSC separately reported a 19-month-old girl who died after ingesting similar high-powered magnets. This listing represents a hypothetical marketplace reseller still offering the recalled magnet set.",
+    "Toys",
     1,
   ], bounty2);
   record("submit_investigation (product 2)", "write", (!sub2.leaderErrored && sub2.consensusHealthy), `tx=${sub2.txHash} result=${sub2.resultName} parsed=${JSON.stringify(sub2.parsedResult)}`);
   const inv2Id = sub2.parsedResult?.investigation_id;
-  investigationIds.treadPlus = inv2Id;
+  investigationIds.zenMagnets = inv2Id;
 
-  const linkRes = await write(seller.client, "link_seller_bond", [inv2Id, bond1Id]);
-  record("link_seller_bond (bond 1 -> product 2, verified + matching listing)", "write", (!linkRes.leaderErrored && linkRes.consensusHealthy), `tx=${linkRes.txHash} result=${linkRes.resultName}`);
-
-  const photo2Url = await uploadEvidencePhoto("hunter", inv2Id, "tread-plus-listing-photo.png", PRODUCT_IMAGES.treadPlus);
-  record("Cloudinary upload (product 2 photo)", "integration", true, photo2Url);
-  const ev2a = await write(hunter.client, "add_evidence", [inv2Id, "product_photo", sha256(PRODUCT_IMAGES.treadPlus), photo2Url, "Photo of the Tread+ unit as listed, showing the rear roller area referenced in the CPSC recall notice (TEST DATA)."]);
+  const zenImage = makeProductImage({ seed: [140, 140, 150] }); // steel/silver, distinct from product 1
+  const photo2Url = await uploadEvidencePhoto("hunter", inv2Id, "zen-magnets-listing-photo.png", zenImage);
+  record("Cloudinary upload (product 2 photo, real visible image)", "integration", true, photo2Url);
+  const ev2a = await write(hunter.client, "add_evidence", [inv2Id, "product_photo", sha256(zenImage), photo2Url, "Photo of the Neoballs magnet set as listed, matching the recalled high-powered magnet ball design (TEST DATA)."]);
   record("add_evidence (product 2, photo)", "write", (!ev2a.leaderErrored && ev2a.consensusHealthy), `tx=${ev2a.txHash} result=${ev2a.resultName}`);
-  const recallHash2 = sha256(Buffer.from("cpsc-peloton-tread-plus-2021|reference"));
-  const ev2b = await write(hunter.client, "add_evidence", [inv2Id, "recall_notice", recallHash2, "https://www.cpsc.gov/Recalls/2021/Peloton-Recalls-Tread-Plus-Treadmills-After-One-Child-Died-and-More-than-70-Incidents-Reported", "CPSC recall notice confirming the May 2021 Tread+ recall due to entrapment hazard (TEST DATA, real recall)."]);
+  const recallHash2 = sha256(Buffer.from("cpsc-zen-magnets-neoballs-2021|reference"));
+  const ev2b = await write(hunter.client, "add_evidence", [inv2Id, "recall_notice", recallHash2, "https://cpsc.gov/Recalls/2021/Zen-Magnets-and-Neoballs-Magnets-Recalled-Due-to-Ingestion-Hazard", "CPSC recall notice confirming the August 2021 Zen Magnets/Neoballs recall due to ingestion hazard (TEST DATA, real recall)."]);
   record("add_evidence (product 2, recall reference)", "write", (!ev2b.leaderErrored && ev2b.consensusHealthy), `tx=${ev2b.txHash} result=${ev2b.resultName}`);
 
   await apiCall("hunter", `/evidence/${inv2Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: ev2b.txHash }) });
   await apiCall("hunter", `/investigations/${inv2Id}/sync`, { method: "POST", body: JSON.stringify({}) });
 
-  const verdict2 = await write(hunter.client, "request_verdict", [inv2Id]);
+  const evidenceIds2 = await read(hunter.client, "get_evidence_ids_for_investigation", [inv2Id]);
+  record("get_evidence_ids_for_investigation (product 2, pre-verify)", "view", true, JSON.stringify(evidenceIds2));
+  for (const evId of evidenceIds2) {
+    const verifyEvRes = await write(hunter.client, "verify_evidence", [evId]);
+    record(`verify_evidence (product 2, evidence ${evId})`, "write", (!verifyEvRes.leaderErrored && verifyEvRes.consensusHealthy), `tx=${verifyEvRes.txHash} result=${verifyEvRes.resultName} parsed=${JSON.stringify(verifyEvRes.parsedResult)}`);
+  }
+
+  let verdict2 = await write(hunter.client, "request_verdict", [inv2Id]);
   record("request_verdict (product 2)", "write", (!verdict2.leaderErrored && verdict2.consensusHealthy), `tx=${verdict2.txHash} result=${verdict2.resultName} parsed=${JSON.stringify(verdict2.parsedResult)}`);
+  while (!verdict2.consensusHealthy || verdict2.leaderErrored) {
+    console.log("  retrying request_verdict (product 2) — prior attempt did not reach clean agreement, investigation state unaffected...");
+    verdict2 = await write(hunter.client, "request_verdict", [inv2Id]);
+    record("request_verdict (product 2, retry)", "write", (!verdict2.leaderErrored && verdict2.consensusHealthy), `tx=${verdict2.txHash} result=${verdict2.resultName} parsed=${JSON.stringify(verdict2.parsedResult)}`);
+  }
   await apiCall("hunter", `/investigations/${inv2Id}/sync`, { method: "POST", body: JSON.stringify({}) });
   const inv2After = await read(hunter.client, "get_investigation", [inv2Id]);
   record("get_investigation (product 2, post-verdict)", "view", true, JSON.stringify(inv2After));
+  const evidenceIds2Final = await read(hunter.client, "get_evidence_ids_for_investigation", [inv2Id]);
+  for (const evId of evidenceIds2Final) {
+    const ev = await read(hunter.client, "get_evidence", [evId]);
+    record(`get_evidence(${evId}) (product 2, post-verify)`, "view", true, JSON.stringify(ev));
+  }
 
   // =====================================================================
-  // PRODUCT 3 — IKEA MALM chest/dresser (real, CPSC-recalled 2016,
-  // reannounced 2018 — tip-over hazard, 8 child fatalities). Straight
-  // submit -> evidence -> verdict, no challenge, for a clean contrast.
+  // cancel_investigation — a third, minimal submission exists purely to
+  // exercise the real refund path (never intended to reach a verdict).
+  // Not counted as one of the "2 products" since it carries no evidence
+  // or adjudication — it is a pure escrow-mechanics exercise, same
+  // pattern as product 4 in the four-product showcase.
   // =====================================================================
-  section("PRODUCT 3 — IKEA MALM Dresser (real CPSC recall)");
-  const bounty3 = 4n * 10n ** 16n;
+  section("cancel_investigation — real refund path");
+  const bounty3 = 1n * 10n ** 16n;
   const sub3 = await write(hunter.client, "submit_investigation", [
-    "MALM 6-Drawer Chest (TEST ENTRY — real product, CPSC recall 2016/2018)",
-    "IKEA",
-    "MALM",
+    "Placeholder-free submit+cancel exercise (TEST ENTRY — submitted only to exercise cancel_investigation's refund path)",
+    "N/A",
+    "N/A",
     "",
     "TestMarketplace",
     `${WEB_BASE}/demo-listing/3?code=product3-marketplace-listing`,
-    "https://www.ikea.com",
-    "https://www.cpsc.gov/Recalls/2018/IKEA-Reannounces-Recall-of-MALM-and-Other-Models-of-Chests-and-Dressers-Due-to-Serious-Tip-over-Hazard",
-    "TEST DATA — real recalled product. IKEA recalled 29 million MALM and other chests/dressers in 2016 (reannounced 2018) due to a serious tip-over hazard when not anchored to the wall; 8 child fatalities were reported. This listing represents a hypothetical marketplace reseller still offering an unanchored, un-repaired unit.",
-    "Furniture",
-    1,
-  ], bounty3);
-  record("submit_investigation (product 3)", "write", (!sub3.leaderErrored && sub3.consensusHealthy), `tx=${sub3.txHash} result=${sub3.resultName} parsed=${JSON.stringify(sub3.parsedResult)}`);
-  const inv3Id = sub3.parsedResult?.investigation_id;
-  investigationIds.malm = inv3Id;
-
-  const photo3Url = await uploadEvidencePhoto("hunter", inv3Id, "malm-dresser-listing-photo.png", PRODUCT_IMAGES.malm);
-  record("Cloudinary upload (product 3 photo)", "integration", true, photo3Url);
-  const ev3a = await write(hunter.client, "add_evidence", [inv3Id, "product_photo", sha256(PRODUCT_IMAGES.malm), photo3Url, "Photo of the MALM chest as listed, with no visible anti-tip wall-anchoring hardware installed (TEST DATA)."]);
-  record("add_evidence (product 3, photo)", "write", (!ev3a.leaderErrored && ev3a.consensusHealthy), `tx=${ev3a.txHash} result=${ev3a.resultName}`);
-  const recallHash3 = sha256(Buffer.from("cpsc-ikea-malm-2018|reference"));
-  const ev3b = await write(hunter.client, "add_evidence", [inv3Id, "recall_notice", recallHash3, "https://www.cpsc.gov/Recalls/2018/IKEA-Reannounces-Recall-of-MALM-and-Other-Models-of-Chests-and-Dressers-Due-to-Serious-Tip-over-Hazard", "CPSC recall notice confirming the MALM tip-over recall (TEST DATA, real recall)."]);
-  record("add_evidence (product 3, recall reference)", "write", (!ev3b.leaderErrored && ev3b.consensusHealthy), `tx=${ev3b.txHash} result=${ev3b.resultName}`);
-
-  await apiCall("hunter", `/evidence/${inv3Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: ev3b.txHash }) });
-  await apiCall("hunter", `/investigations/${inv3Id}/sync`, { method: "POST", body: JSON.stringify({}) });
-
-  const verdict3 = await write(hunter.client, "request_verdict", [inv3Id]);
-  record("request_verdict (product 3)", "write", (!verdict3.leaderErrored && verdict3.consensusHealthy), `tx=${verdict3.txHash} result=${verdict3.resultName} parsed=${JSON.stringify(verdict3.parsedResult)}`);
-  await apiCall("hunter", `/investigations/${inv3Id}/sync`, { method: "POST", body: JSON.stringify({}) });
-  const inv3After = await read(hunter.client, "get_investigation", [inv3Id]);
-  record("get_investigation (product 3, post-verdict)", "view", true, JSON.stringify(inv3After));
-
-  // =====================================================================
-  // PRODUCT 4 — Instant Pot Duo Plus (real product, NOT recalled — a
-  // deliberate contrast case). Submitted then cancelled before any
-  // evidence is attached, exercising cancel_investigation's real refund
-  // path and withdraw() cleanly.
-  // =====================================================================
-  section("PRODUCT 4 — Instant Pot Duo Plus (real product, no recall) — submit + cancel + withdraw");
-  const bounty4 = 2n * 10n ** 16n;
-  const sub4 = await write(hunter.client, "submit_investigation", [
-    "Instant Pot Duo Plus 9-in-1, 6 Quart (TEST ENTRY — real product, no known recall)",
-    "Instant Pot",
-    "Duo Plus 9-in-1 6 Quart",
     "",
-    "TestMarketplace",
-    `${WEB_BASE}/demo-listing/4?code=product4-marketplace-listing`,
-    "https://instantpot.com",
     "",
-    "TEST DATA — real, currently-sold product included as a deliberate contrast case (no known CPSC recall exists for this model). Submitted to exercise cancel_investigation's real refund path before any evidence is attached, rather than to assert a genuine safety claim.",
-    "Kitchen Appliances",
+    "TEST DATA — submitted solely to exercise cancel_investigation's real refund path before any evidence is attached; not a safety claim about a real product.",
+    "Other",
     3,
-  ], bounty4);
-  record("submit_investigation (product 4)", "write", (!sub4.leaderErrored && sub4.consensusHealthy), `tx=${sub4.txHash} result=${sub4.resultName} parsed=${JSON.stringify(sub4.parsedResult)}`);
-  const inv4Id = sub4.parsedResult?.investigation_id;
-  investigationIds.instantPot = inv4Id;
-
-  const cancelRes = await write(hunter.client, "cancel_investigation", [inv4Id]);
-  record("cancel_investigation (product 4)", "write", (!cancelRes.leaderErrored && cancelRes.consensusHealthy), `tx=${cancelRes.txHash} result=${cancelRes.resultName}`);
-  await apiCall("hunter", `/investigations/${inv4Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: cancelRes.txHash }) });
-  const inv4After = await read(hunter.client, "get_investigation", [inv4Id]);
-  record("get_investigation (product 4, post-cancel)", "view", Number(inv4After.status) === 7, JSON.stringify(inv4After));
+  ], bounty3);
+  record("submit_investigation (cancel exercise)", "write", (!sub3.leaderErrored && sub3.consensusHealthy), `tx=${sub3.txHash} result=${sub3.resultName} parsed=${JSON.stringify(sub3.parsedResult)}`);
+  const inv3Id = sub3.parsedResult?.investigation_id;
+  const cancelRes = await write(hunter.client, "cancel_investigation", [inv3Id]);
+  record("cancel_investigation", "write", (!cancelRes.leaderErrored && cancelRes.consensusHealthy), `tx=${cancelRes.txHash} result=${cancelRes.resultName}`);
+  await apiCall("hunter", `/investigations/${inv3Id}/sync`, { method: "POST", body: JSON.stringify({ txHash: cancelRes.txHash }) });
+  const inv3After = await read(hunter.client, "get_investigation", [inv3Id]);
+  record("get_investigation (post-cancel)", "view", Number(inv3After.status) === 7, JSON.stringify(inv3After));
 
   // =====================================================================
   // Seller-bond lifecycle completion — a second, unlinked bond exercises
@@ -401,14 +384,6 @@ async function main() {
   record("get_investigation_id_at(0)", "view", true, String(idAt0));
   const list = await read(hunter.client, "list_investigations", [0, 10]);
   record("list_investigations(0,10)", "view", true, `total=${list.total} items=${list.items.length}`);
-  for (const [name, id] of Object.entries(investigationIds)) {
-    const evIds = await read(hunter.client, "get_evidence_ids_for_investigation", [id]);
-    record(`get_evidence_ids_for_investigation (${name})`, "view", true, JSON.stringify(evIds));
-    for (const evId of evIds) {
-      const ev = await read(hunter.client, "get_evidence", [evId]);
-      record(`get_evidence(${evId}) (${name})`, "view", true, JSON.stringify(ev));
-    }
-  }
   const bondCount = await read(hunter.client, "get_seller_bond_count");
   record("get_seller_bond_count", "view", true, String(bondCount));
   const hunterRepFinal = await read(hunter.client, "get_reputation", [hunter.address]);

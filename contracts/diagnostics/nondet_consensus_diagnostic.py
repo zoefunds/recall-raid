@@ -48,6 +48,7 @@
 # same underlying reason: none of them go through `.calldata`. See
 # `_unwrap_leader_result` below.
 
+import hashlib
 from genlayer import *
 from dataclasses import dataclass  # `from genlayer import *` does not re-export this on the pinned runner — see RecallRaid's own contract for the same note.
 
@@ -70,11 +71,15 @@ class NondetConsensusDiagnostic(gl.Contract):
     last_constant_result: u32
     last_web_fetch_result: u32
     last_llm_result: u32
+    last_web_get_status: str
+    last_web_request_status: str
 
     def __init__(self):
         self.last_constant_result = u32(0)
         self.last_web_fetch_result = u32(0)
         self.last_llm_result = u32(0)
+        self.last_web_get_status = ""
+        self.last_web_request_status = ""
 
     # ----------------------------------------------------------------
     # Control 1: the absolute minimum nondet round-trip. No web access,
@@ -130,6 +135,90 @@ class NondetConsensusDiagnostic(gl.Contract):
 
         result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
         self.last_web_fetch_result = u32(int(result))
+
+    # ----------------------------------------------------------------
+    # Control 2b/2c: RecallRaid's verify_evidence needs raw response
+    # bytes (to sha256-compare against a client-supplied content_hash),
+    # which `gl.nondet.web.render` cannot provide (it returns
+    # browser-rendered/decoded text, not the literal bytes served).
+    # `gl.nondet.web.get` and `gl.nondet.web.request` are the two
+    # documented primitives that expose `.status_code`/`.body`, but both
+    # came back "unreachable" for a trivially-reachable URL in
+    # RecallRaid's own live testing on this exact runner pin — see
+    # memory.md. These two checks capture the actual exception type and
+    # message (or success + response shape) as a STRING result, rather
+    # than swallowing it into a bare bool, specifically so it can be read
+    # back and diagnosed without needing another RecallRaid redeploy.
+    # Returning the message itself (not raising) keeps this consensus-
+    # safe: leader and validators just need to agree on the same string.
+    # ----------------------------------------------------------------
+    @gl.public.write
+    def check_web_get_raw(self) -> None:
+        def leader_fn():
+            try:
+                resp = gl.nondet.web.get("https://example.com/")
+                status_ok = 200 <= int(resp.status) < 300
+                body = bytes(resp.body)
+                computed = hashlib.sha256(body).hexdigest()
+                return "OK status_ok=%s status=%s body_len=%s sha256=%s" % (str(status_ok), str(resp.status), str(len(body)), computed)
+            except Exception as exc:  # noqa: BLE001 — the whole point is to observe this, not hide it
+                return "EXC %s: %s" % (type(exc).__name__, str(exc)[:300])
+
+        def validator_fn(leader_result):
+            candidate = leader_fn()
+            return candidate == _unwrap_leader_result(leader_result)
+
+        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        self.last_web_get_status = str(result)
+
+    # Parametrized version of the above, to test a specific real-world
+    # URL (e.g. a .gov site with possible bot/WAF blocking) instead of
+    # only the always-cooperative example.com.
+    @gl.public.write
+    def check_web_get_url(self, url: str) -> None:
+        def leader_fn():
+            try:
+                resp = gl.nondet.web.get(url)
+                status_ok = 200 <= int(resp.status) < 300
+                body = bytes(resp.body)
+                computed = hashlib.sha256(body).hexdigest()
+                excerpt = body[:200]
+                try:
+                    excerpt_text = excerpt.decode("utf-8", errors="replace")
+                except Exception:  # noqa: BLE001
+                    excerpt_text = ""
+                return "OK status_ok=%s status=%s body_len=%s sha256=%s excerpt=%s" % (
+                    str(status_ok), str(resp.status), str(len(body)), computed, excerpt_text,
+                )
+            except Exception as exc:  # noqa: BLE001 — the whole point is to observe this, not hide it
+                return "EXC %s: %s" % (type(exc).__name__, str(exc)[:300])
+
+        def validator_fn(leader_result):
+            candidate = leader_fn()
+            return candidate == _unwrap_leader_result(leader_result)
+
+        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        self.last_web_get_status = str(result)
+
+    @gl.public.write
+    def check_web_request_raw(self) -> None:
+        def leader_fn():
+            try:
+                resp = gl.nondet.web.request("https://example.com/", method="GET")
+                status = getattr(resp, "status_code", "NO_STATUS_CODE_ATTR")
+                has_body = hasattr(resp, "body")
+                body_type = type(resp.body).__name__ if has_body else "NO_BODY_ATTR"
+                body_len = len(resp.body) if has_body else -1
+                return "OK status=%s body_type=%s body_len=%s" % (str(status), body_type, str(body_len))
+            except Exception as exc:  # noqa: BLE001 — the whole point is to observe this, not hide it
+                return "EXC %s: %s" % (type(exc).__name__, str(exc)[:300])
+
+        def validator_fn(leader_result):
+            candidate = leader_fn()
+            return candidate == _unwrap_leader_result(leader_result)
+
+        result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        self.last_web_request_status = str(result)
 
     # ----------------------------------------------------------------
     # Control 3: one real gl.nondet.exec_prompt call with the smallest,
@@ -189,3 +278,11 @@ class NondetConsensusDiagnostic(gl.Contract):
     @gl.public.view
     def get_last_llm_result(self) -> int:
         return int(self.last_llm_result)
+
+    @gl.public.view
+    def get_last_web_get_status(self) -> str:
+        return self.last_web_get_status
+
+    @gl.public.view
+    def get_last_web_request_status(self) -> str:
+        return self.last_web_request_status

@@ -3,14 +3,14 @@
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchEvidenceForInvestigation, fetchInvestigation, syncInvestigation } from '@/lib/api';
+import { fetchChallengesForInvestigation, fetchEvidenceForInvestigation, fetchInvestigation, syncChallenge, syncInvestigation } from '@/lib/api';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { Card, CardBody } from '@/components/ui/Card';
 import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip, VerdictChip } from '@/components/ui/StatusChip';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { Button } from '@/components/ui/Button';
 import { formatCountdown, formatDate, truncateAddress, weiToGen } from '@/lib/format';
-import { InvestigationStatus, VERDICT_DESCRIPTION, VERDICT_LABEL } from '@/types/contract';
+import { ChallengeStatus, InvestigationStatus, VERDICT_DESCRIPTION, VERDICT_LABEL } from '@/types/contract';
 import { useContractWrite } from '@/hooks/useContractWrite';
 import { TransactionStatusModal } from '@/components/TransactionStatusModal';
 import { computeRequiredChallengeStakeWei } from '@/lib/genlayer-client';
@@ -31,6 +31,12 @@ export default function InvestigationDetailPage() {
     queryKey: ['evidence', id],
     queryFn: () => fetchEvidenceForInvestigation(id),
     enabled: !!invQuery.data,
+  });
+  const challengesQuery = useQuery({
+    queryKey: ['challenges', id],
+    queryFn: () => fetchChallengesForInvestigation(id),
+    enabled: !!invQuery.data && !!invQuery.data.open_challenge_id,
+    refetchInterval: 15_000,
   });
 
   const write = useContractWrite();
@@ -66,6 +72,13 @@ export default function InvestigationDetailPage() {
     await qc.invalidateQueries({ queryKey: ['evidence', id] });
   }
 
+  async function refreshChallengeAfterTx(challengeId: number, txHash?: string) {
+    await syncChallenge(challengeId, txHash);
+    await syncInvestigation(inv.id, txHash);
+    await qc.invalidateQueries({ queryKey: ['investigation', id] });
+    await qc.invalidateQueries({ queryKey: ['challenges', id] });
+  }
+
   async function handleRequestVerdict() {
     await ensureSession();
     const res = await write.send('request_verdict', [inv.id]);
@@ -85,10 +98,34 @@ export default function InvestigationDetailPage() {
     if (res) await refreshAfterTx(res.txHash);
   }
 
+  const openChallenge = challengesQuery.data?.challenges.find((c) => c.status === ChallengeStatus.OPEN);
+
+  async function handleResolveChallenge() {
+    if (!openChallenge) return;
+    await ensureSession();
+    const res = await write.send('resolve_challenge', [openChallenge.id]);
+    if (res) await refreshChallengeAfterTx(openChallenge.id, res.txHash);
+  }
+
+  async function handleClaimChallengeTimeout() {
+    if (!openChallenge) return;
+    await ensureSession();
+    const res = await write.send('claim_challenge_timeout', [openChallenge.id]);
+    if (res) await refreshChallengeAfterTx(openChallenge.id, res.txHash);
+  }
+
   const now = Date.now() / 1000;
   const canRequestVerdict = inv.status === InvestigationStatus.EVIDENCE_SUBMITTED;
   const canOpenChallenge = inv.status === InvestigationStatus.VERDICT_REACHED && now < inv.challenge_deadline;
   const canSettle = inv.status === InvestigationStatus.VERDICT_REACHED && now >= inv.challenge_deadline && !inv.settled;
+  // resolve_challenge and claim_challenge_timeout are both permissionless
+  // (no sender-address check in the contract) — anyone can trigger
+  // resolution or, once the resolution window has genuinely elapsed,
+  // sweep an abandoned challenge. The UI still only offers the timeout
+  // action once the real on-chain deadline has passed, matching the
+  // project's "never force a deadline-gated call early" rule.
+  const canResolveChallenge = !!openChallenge;
+  const canClaimChallengeTimeout = !!openChallenge && now >= openChallenge.resolution_deadline;
 
   return (
     <div className="mx-auto max-w-container px-margin-mobile py-8 md:px-margin-desktop">
@@ -103,11 +140,16 @@ export default function InvestigationDetailPage() {
           canRequestVerdict={canRequestVerdict}
           canOpenChallenge={canOpenChallenge}
           canSettle={canSettle}
+          canResolveChallenge={canResolveChallenge}
+          canClaimChallengeTimeout={canClaimChallengeTimeout}
+          openChallenge={openChallenge}
           challengeReason={challengeReason}
           setChallengeReason={setChallengeReason}
           onRequestVerdict={handleRequestVerdict}
           onOpenChallenge={handleOpenChallenge}
           onSettle={handleSettle}
+          onResolveChallenge={handleResolveChallenge}
+          onClaimChallengeTimeout={handleClaimChallengeTimeout}
           txStatus={write.status}
         />
       </div>
@@ -192,6 +234,21 @@ function EvidenceGallery({ evidenceQuery }: { evidenceQuery: ReturnType<typeof u
                   <p className="truncate font-mono text-body-sm text-muted" title={ev.content_hash}>
                     sha256: {ev.content_hash.slice(0, 16)}…
                   </p>
+                  {ev.url_checked ? (
+                    ev.content_hash_verified ? (
+                      <span className="mt-1 inline-block rounded bg-primary/10 px-2 py-0.5 font-mono text-label-caps uppercase text-primary">
+                        Hash verified
+                      </span>
+                    ) : (
+                      <span className="mt-1 inline-block rounded bg-danger/10 px-2 py-0.5 font-mono text-label-caps uppercase text-danger">
+                        {ev.url_reachable ? 'Hash mismatch' : 'URL unreachable'}
+                      </span>
+                    )
+                  ) : (
+                    <span className="mt-1 inline-block rounded bg-surface-high px-2 py-0.5 font-mono text-label-caps uppercase text-muted">
+                      Not yet verified
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -280,11 +337,16 @@ function BountyPanel({
   canRequestVerdict,
   canOpenChallenge,
   canSettle,
+  canResolveChallenge,
+  canClaimChallengeTimeout,
+  openChallenge,
   challengeReason,
   setChallengeReason,
   onRequestVerdict,
   onOpenChallenge,
   onSettle,
+  onResolveChallenge,
+  onClaimChallengeTimeout,
   txStatus,
 }: {
   inv: Awaited<ReturnType<typeof fetchInvestigation>>;
@@ -292,11 +354,16 @@ function BountyPanel({
   canRequestVerdict: boolean;
   canOpenChallenge: boolean;
   canSettle: boolean;
+  canResolveChallenge: boolean;
+  canClaimChallengeTimeout: boolean;
+  openChallenge: Awaited<ReturnType<typeof fetchChallengesForInvestigation>>['challenges'][number] | undefined;
   challengeReason: string;
   setChallengeReason: (v: string) => void;
   onRequestVerdict: () => void;
   onOpenChallenge: () => void;
   onSettle: () => void;
+  onResolveChallenge: () => void;
+  onClaimChallengeTimeout: () => void;
   txStatus: string;
 }) {
   const busy = !['idle', 'confirmed', 'failed', 'rejected', 'timeout'].includes(txStatus);
@@ -352,6 +419,30 @@ function BountyPanel({
           <Button className="w-full" variant="ghost" onClick={onSettle} loading={busy}>
             Settle Investigation
           </Button>
+        )}
+
+        {isConnected && openChallenge && (canResolveChallenge || canClaimChallengeTimeout) && (
+          <div className="space-y-2 rounded border border-secondary/30 bg-secondary/5 p-3">
+            <div className="font-mono text-label-caps uppercase text-secondary">Open Challenge</div>
+            <p className="text-body-sm text-muted">
+              Challenged by {truncateAddress(openChallenge.challenger)}. Resolution re-runs the same
+              independent adjudication against current evidence — anyone can trigger it.
+            </p>
+            {canClaimChallengeTimeout ? (
+              <Button variant="tactical" className="w-full" onClick={onClaimChallengeTimeout} loading={busy}>
+                Claim Timeout (resolution window expired)
+              </Button>
+            ) : (
+              <>
+                <Button variant="tactical" className="w-full" onClick={onResolveChallenge} loading={busy}>
+                  Resolve Challenge
+                </Button>
+                <p className="font-mono text-body-sm text-muted">
+                  Resolution window closes {formatCountdown(openChallenge.resolution_deadline)}
+                </p>
+              </>
+            )}
+          </div>
         )}
 
         {inv.settled && <p className="text-body-sm text-status-safe">This investigation has been settled. Funds have been released to balances.</p>}

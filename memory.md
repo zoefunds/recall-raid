@@ -2015,3 +2015,148 @@ Wrote `review.md` at the repo root documenting the full review-response
 evidence verifiability was the real gap, now fixed) plus this live
 verification run, per the user's explicit request to document fixes as
 directed by the team.
+
+## Real bug caught by the pre-request_verdict safety check: `gl.nondet.web.get` fails silently on this runner (2026-09-01)
+
+External review re-audit (accurate, confirmed before fixing) found two
+remaining gaps in `verify_evidence`/`request_verdict` from the prior
+round: (1) `request_verdict`'s gate only checked `url_checked`, not
+`url_reachable`/`content_hash_verified` — tightened to require all
+three. (2) `content_hash_verified` was added to the contract but never
+propagated through `apps/api`'s `ChainEvidence` type, `sync.ts`,
+migration, or `serialize.ts`/`EvidenceRow` — and it turned out worse
+than flagged: `serializeEvidence` was silently dropping the ENTIRE
+verification block (`url_checked`, `url_reachable`, `fetch_excerpt`,
+`verified_at` too), so `GET /evidence` never exposed any of it to the
+frontend. Fixed all of it (new migration
+`20260901000000_add_evidence_hash_verification.sql`, full
+`serializeEvidence` rewrite, `ChainEvidence`/`Evidence` types, and a
+visible "Hash verified / Hash mismatch / Not yet verified" badge on the
+evidence gallery).
+
+Also added real application-action UI for the first review round's
+already-correct contract methods that had no frontend surface:
+`resolve_challenge` + `claim_challenge_timeout` on the hunt detail page
+(both permissionless — no sender check in the contract — so the UI
+offers them to anyone, gating the timeout action on the real elapsed
+`resolution_deadline`), and `link_seller_bond` on the seller dashboard
+(client-side pre-flight URL-canonicalization check before sending, to
+surface a mismatch as a clear message instead of only an on-chain
+revert). New `GET /investigations/:id/challenges` route now runs
+through a real `serializeChallenge` (previously returned raw
+`challenges_cache` rows with text-label enums that didn't match the
+frontend's numeric `Challenge` type at all — would have silently broken
+any consumer).
+
+**The `.get()` bug**: after redeploying to `0x7495ed94DE74d1F737703Ed55000CBd6f52a8566`
+and clearing the DB, ran `scripts/two_product_showcase_v2.mjs` with the
+new strict verify_evidence gate. `verify_evidence` came back
+`url_reachable: false, content_hash_verified: false` for BOTH evidence
+items on product 1 — including a Cloudinary-hosted image that is
+trivially reachable (confirmed via plain `curl`/browser). Since ALL
+validators independently agreed on `false` (`MAJORITY_AGREE` on the
+write itself), this ruled out real network flakiness — it pointed at
+`gl.nondet.web.get(url)` itself throwing inside the try/except on this
+specific pinned runner (`py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6`),
+with the broad `except Exception: return False, False, ""` swallowing
+whatever the real error was. Switched to `gl.nondet.web.request(url, method="GET")`
+instead — the same primitive already demonstrated with `.status_code`
+and `.body` access in GenLayer's own "Handling HTTP Errors" example —
+since `.get()` is documented too but apparently not reliable on this
+runner pin. **This was caught with zero errors on the explorer** only
+because the test script's own pre-flight check (read back
+`get_evidence` and confirm `url_reachable && content_hash_verified`
+before ever calling `request_verdict`) aborted the script client-side
+instead of letting `request_verdict` revert on-chain — exactly the
+safety net it was added for. Investigation 1 on this now-abandoned
+contract has permanently unverifiable evidence (append-only, no fix-up
+possible) and will never reach a verdict; irrelevant since a fresh
+redeploy replaces the whole state anyway.
+
+**If `verify_evidence` (or any future nondet web-fetch code) comes back
+uniformly "unreachable" for URLs that are obviously live, suspect the
+specific `gl.nondet.web.*` method call itself before suspecting the
+target URLs** — this exact failure mode already happened once.
+
+## `verify_evidence`'s real bug found: `.status_code` doesn't exist, it's `.status` (2026-09-01)
+
+Root-caused via the diagnostic contract, not guesswork: added
+`check_web_get_raw`/`check_web_request_raw` to
+`contracts/diagnostics/nondet_consensus_diagnostic.py` that captured the
+response object's actual attribute names (`sorted(dir(resp))`) instead of
+swallowing the exception. Result: `body,headers,status` — there is no
+`status_code` attribute on this pinned runner's response object, contra
+GenLayer's own docs examples which show `response.status_code`.
+`int(resp.status_code)` was throwing `AttributeError` on every single
+call, indistinguishable from a genuinely unreachable URL once caught by
+the broad `except Exception: return False, False, ""` — this is why
+switching from `.get()` to `.request()` earlier made no difference: both
+share the same response object shape, and the bug was never about which
+fetch method, only about the wrong attribute name.
+
+Confirmed the real fix end-to-end on the diagnostic contract before
+touching RecallRaid a third time: `resp.status` returns `200`, and
+`sha256(resp.body)` matches a plain local `fetch()` of the same URL byte-
+for-byte (`ff67a9d764d6a2367a187734e697f6a53217db9a21c101d410a113ca871a299d`
+for `https://example.com/`, 559 bytes, both sides). Fixed
+`verify_evidence` to use `gl.nondet.web.get(url)` + `resp.status` (not
+`.status_code`).
+
+This took 3 diagnostic-contract redeploys (cheap, no real data) to avoid
+guessing wrong on RecallRaid's actual production contract a third time —
+worth it. **Lesson for any future `gl.nondet.web.*` work: don't trust
+GenLayer's own doc examples' exact attribute names on a given pinned
+runner without confirming via a diagnostic call first — `.status` vs
+`.status_code` is exactly the kind of silent mismatch a broad
+try/except turns into "unreachable" instead of a visible error.**
+
+## Round closed: cryptographic evidence verification + application actions, all live-verified (2026-09-01)
+
+Final contract `0x4aB01fb5435cdEfD3c651Cfc51f0F1fa1E2Ef6a4`. Summary of
+the whole multi-redeploy saga (full detail in the entries above and in
+`review.md`):
+
+1. Review round 1: added `verify_evidence` (reachability only). Deployed,
+   tested, worked (`0xcb8081F71...`).
+2. Re-audit: flagged missing application actions (challenge resolve/
+   timeout UI, seller-bond-link UI) and a too-weak evidence gate.
+   Fixed all three, redeployed (`0x3552c42...` → superseded before
+   testing → `0x7495ed94...`).
+3. Live test on `0x7495ed94...` revealed `verify_evidence` returning
+   `false` for every URL including trivially-reachable ones — a real
+   contract bug (`.status_code` doesn't exist on this runner's response
+   object, only `.status` does), root-caused via 4 disposable diagnostic-
+   contract deploys rather than guessing against RecallRaid directly.
+   Fixed, redeployed (`0x2Aee909B...` → `0x4aB01fb5...` after the fix
+   needed one more correction).
+4. With the `.status` fix live, cpsc.gov's own page specifically failed
+   hash verification (`MAJORITY_DISAGREE` — WAF/bot-detection or dynamic
+   per-request content, confirmed via the diagnostic contract's
+   parametrized `check_web_get_url`), while a static PDF hosting of the
+   identical official recall document round-tripped reliably. Switched
+   the showcase script's recall-notice evidence URLs to static PDF
+   mirrors of the same real documents (kept the live cpsc.gov URL as the
+   investigation's own `recall_source_url`, used by the adjudication
+   pass's `render()`-based fetch, a different code path not shown to
+   have this problem).
+5. Final run on `0x4aB01fb5...`: **58/58 checks passed, 0 failed, zero
+   explorer errors**, every evidence item cryptographically hash-
+   verified. Investigation IDs 2 (Kidde) and 3 (Zen Magnets); id 1 is an
+   orphaned Kidde investigation from step 3's bug-hunting (permanently
+   stuck at EVIDENCE_SUBMITTED with one unverifiable evidence item — evidence
+   is append-only, no fix-up possible; harmless, causes no errors, just
+   inert leftover state); id 4 is the cancel-exercise investigation.
+
+**Lesson for the next redeploy cycle**: when `gl.nondet.web.*` code
+behaves unexpectedly, reach for the disposable diagnostic contract
+immediately rather than iterating blind on RecallRaid's own address —
+every guess against RecallRaid costs a real redeploy + DB-clear +
+live-test cycle; a diagnostic-contract iteration costs nothing and
+converges faster (this round needed 4 diagnostic deploys to fully
+root-cause, which would otherwise have been 4 wasted RecallRaid
+redeploys).
+
+Updated `README.md` (status section, "How it works" evidence/challenge/
+seller-bond paragraphs, repository layout, live-testing section) and
+rewrote `review.md` end-to-end to cover both audit rounds and the full
+bug-hunting story, per explicit user request to keep both current.

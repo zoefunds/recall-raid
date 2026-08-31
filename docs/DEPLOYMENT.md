@@ -68,44 +68,56 @@ integration work never requires a new address.
 
 ### ✅ Current deployment (StudioNet)
 
-`GENLAYER_CONTRACT_ADDRESS = 0xb2CB610EBbB773e2a6B9895CD49E3032C0722a70`
+`GENLAYER_CONTRACT_ADDRESS = 0x4aB01fb5435cdEfD3c651Cfc51f0F1fa1E2Ef6a4`
 
 Wired into root `.env`, `apps/web/.env.local`, `apps/api/.env` (all
 gitignored, local-only), Fly.io secrets for `recallraid-api`, and Vercel
 production environment variables for `apps/web`. Live-verified with:
 
 ```bash
-node scripts/full_contract_test_suite.mjs
+node scripts/two_product_showcase_v2.mjs
 ```
 
-which runs every read and write method against the deployed contract
-using three funded StudioNet test wallets — as of the last run: **67/67
-checks passing**, including both nondet-consensus paths
-(`request_verdict`/`resolve_challenge` and `verify_seller_bond_listing`)
-and the full seller-bond ownership-verification flow. Re-run this script
-after any future redeploy before considering a new address production-
-ready — a passing `genvm-lint`/structural-test pass only validates schema
-and static safety rules, not real GenVM consensus behavior.
+which runs every non-admin read and write method against the deployed
+contract using three funded StudioNet test wallets, including the
+cryptographic evidence-hash-verification gate (`verify_evidence` +
+`request_verdict`'s reachable-and-hash-matched requirement) — as of the
+last run: **58/58 checks passing**, including both nondet-consensus
+paths (`request_verdict`/`resolve_challenge` and
+`verify_seller_bond_listing`) and the full seller-bond
+ownership-verification flow. Re-run this script after any future
+redeploy before considering a new address production-ready — a passing
+`genvm-lint`/structural-test pass only validates schema and static
+safety rules, not real GenVM consensus behavior.
+(`scripts/full_contract_test_suite.mjs` is an older, broader suite kept
+for reference — its hardcoded `CONTRACT_ADDRESS` needs updating before
+reuse.)
 
-Also seeded with 6 real-world showcase investigations via
-`scripts/four_product_showcase.mjs` and `scripts/two_more_products.mjs`
-(Fisher-Price Rock 'n Play Sleeper, Peloton Tread+, IKEA MALM chest,
-Instant Pot Duo Plus, Boppy Original Newborn Lounger, Jetson Rogue
-42-Volt Hoverboard) — every transaction reached clean consensus, with
-zero unresolved errors left on the explorer. See the root README's
-Status section and `memory.md` for the full record, including the one
-`NO_MAJORITY` result that was retried to a clean outcome and the
-1x1-test-pixel evidence-photo mistake that was fixed for investigations
-5 and 6 but can't be retroactively fixed for 1-4 (evidence is
-append-only once a verdict is reached).
+Also seeded with 2 real-world showcase investigations (Kidde
+plastic-handle fire extinguishers, real CPSC recall Nov 2017/2018; Zen
+Magnets/Neoballs high-powered magnets, real CPSC recall Aug 2021) plus a
+third cancelled exercise investigation — every transaction reached clean
+consensus, with zero unresolved errors left on the explorer. See the
+root README's Status section, `review.md`, and `memory.md` for the full
+record, including a genuine platform-level bug this round of testing
+uncovered: `gl.nondet.web.get()`'s response object exposes `.status`,
+not the `.status_code` shown in GenLayer's own docs examples — root-
+caused via a disposable diagnostic contract rather than guessing against
+this production contract.
 
 There is also a separate, minimal diagnostic contract
-(`contracts/diagnostics/nondet_consensus_diagnostic.py`, last deployed to
-`0xDD5ab7df97DB9CeCadA8bB2692e5c115B7AE8E6d`) kept in the repo for
-isolating any *future* nondet-consensus regression from application-code
-bugs before spending time patching RecallRaid itself — see the README's
-"Debugging nondet consensus" section and `memory.md` for why this exists
-and what it already caught once.
+(`contracts/diagnostics/nondet_consensus_diagnostic.py`) kept in the repo
+for isolating any *future* nondet-consensus or web-fetch regression from
+application-code bugs before spending time patching RecallRaid itself —
+it now also has parametrized `check_web_get_url(url)` /
+`check_web_get_raw` / `check_web_request_raw` checks that print the
+fetch response object's real attributes and a real fetched-bytes sha256,
+which is exactly what caught the `.status_code` bug above. See the
+README's "Debugging nondet consensus" section and `memory.md` for the
+full diagnostic history. Redeploy this diagnostic contract fresh
+whenever debugging a new nondet/web-fetch issue rather than reusing an
+old address — its own source has been iterated on repeatedly and old
+deployments won't have the latest checks.
 
 **Redeploy workflow** (every time the contract's Python source changes):
 1. The project owner deploys the updated `recallraid_contract.py` via

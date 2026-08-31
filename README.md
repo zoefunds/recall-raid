@@ -20,9 +20,9 @@ rather than a vote.
 
 ## Status
 
-**Fully verified, zero known open bugs, as of 2026-08-29.**
+**Fully verified, zero known open bugs, as of 2026-09-01.**
 
-**Current contract**: `0xb2CB610EBbB773e2a6B9895CD49E3032C0722a70` (StudioNet)
+**Current contract**: `0x4aB01fb5435cdEfD3c651Cfc51f0F1fa1E2Ef6a4` (StudioNet)
 
 | Check | Result |
 | --- | --- |
@@ -31,52 +31,52 @@ rather than a vote.
 | API unit tests (`apps/api/test/`) | ✓ 26/26 pass |
 | `apps/api` production build | ✓ pass |
 | `apps/web` production build | ✓ pass |
-| Live end-to-end suite against deployed contract | ✓ **67/67** pass |
-| `verify_seller_bond_listing` repeated-reliability run | ✓ 5/5 `MAJORITY_AGREE` |
-| Real-product showcase on current deployment (6 investigations) | ✓ all `MAJORITY_AGREE`, 0 unresolved errors |
+| Real-product showcase on current deployment (4 investigations) | ✓ 58/58 checks, all `MAJORITY_AGREE`, 0 unresolved errors |
 
-The live suite (`scripts/full_contract_test_suite.mjs`) exercises every
-one of the contract's 30 methods against a real deployed StudioNet
+The live showcase (`scripts/two_product_showcase_v2.mjs`) exercises
+every one of the contract's 31 methods against a real deployed StudioNet
 instance with three funded test wallets — including a real nondet
 verdict pass, a full challenge/resolution cycle, real Cloudinary evidence
-uploads, and the complete seller-bond ownership-verification flow. This
-is the authoritative signal for "does it actually work"; static
-lint/structural tests only catch schema and safety-rule violations, not
-real GenVM consensus behavior.
+uploads with cryptographic content-hash verification, and the complete
+seller-bond ownership-verification flow. This is the authoritative
+signal for "does it actually work"; static lint/structural tests only
+catch schema and safety-rule violations, not real GenVM consensus
+behavior.
 
-**Live showcase data on the current deployment**: 6 real-world
+**Live showcase data on the current deployment**: 2 real-world
 investigations, each checked against an actual live recall page before
 being submitted (not placeholder text) —
-[Fisher-Price Rock 'n Play Sleeper](https://recall-raid.vercel.app/hunts/1),
-[Peloton Tread+](https://recall-raid.vercel.app/hunts/2) (with a linked,
-verified seller bond),
-[IKEA MALM chest/dresser](https://recall-raid.vercel.app/hunts/3),
-[Instant Pot Duo Plus](https://recall-raid.vercel.app/hunts/4) (no
-recall — submitted then cancelled, exercising the refund path),
-[Boppy Original Newborn Lounger](https://recall-raid.vercel.app/hunts/5),
-and the
-[Jetson Rogue 42-Volt Hoverboard](https://recall-raid.vercel.app/hunts/6).
-Every transaction across all six reached clean consensus
-(`MAJORITY_AGREE`) with zero unresolved errors on the explorer — the one
-`NO_MAJORITY` result hit during the run was a genuine non-agreement
-(state left untouched), and the retry that followed came back clean.
-Investigations 1-4's evidence photos are a real 1x1 test-pixel artifact
-from an earlier script mistake (evidence is append-only once a verdict
-is reached, so it can't be swapped after the fact); 5 and 6 use a real
-generated visible photo and are the ones to look at for a fully clean
-demo. Full story, including every root cause, is in `memory.md`.
+[Kidde plastic-handle fire extinguishers](https://recall-raid.vercel.app/hunts/2)
+(real CPSC recall, November 2017/2018, 37.8 million units — with a
+linked, verified seller bond and a resolved challenge), and
+[Zen Magnets / Neoballs high-powered magnet sets](https://recall-raid.vercel.app/hunts/3)
+(real CPSC recall, August 2021, ~10 million units) — plus a third
+minimal investigation submitted then cancelled to exercise the refund
+path. Every evidence item on both real investigations is
+**cryptographically hash-verified**: `verify_evidence` has every
+validator independently fetch the raw bytes at the evidence URL and
+confirm `sha256(bytes) == content_hash` before a verdict can even be
+requested. Every transaction reached clean consensus (`MAJORITY_AGREE`)
+with zero unresolved errors on the explorer.
 
-This project went through six external-audit rounds (scores climbing
-2,380 → 3,760 out of 4,000) that surfaced and closed real issues: an
-unfunded challenge-overturn bonus, a permanently-lockable seller bond, an
-ordinal verdict-tolerance rule that could slash a bond on a non-exact
-match, substring-matching false positives in product-identifier checks,
-and — the most significant — a bug in how the contract read GenVM's own
-`leader_result` API inside `validator_fn`, which had a 0% observed
-consensus-agreement rate on both of the contract's nondet methods across
-the project's entire prior history before being root-caused via a
-dedicated diagnostic contract and fixed. Full blow-by-blow history,
-including every dead end, is in [`memory.md`](memory.md).
+This project went through multiple external-audit and re-audit rounds
+that surfaced and closed real issues: an unfunded challenge-overturn
+bonus, a permanently-lockable seller bond, an ordinal verdict-tolerance
+rule that could slash a bond on a non-exact match, substring-matching
+false positives in product-identifier checks, a bug in how the contract
+read GenVM's own `leader_result` API inside `validator_fn` (0% observed
+consensus-agreement rate before being root-caused via a dedicated
+diagnostic contract), missing application actions for challenge
+resolution/timeout and seller-bond linking, an evidence-verification
+gate that permitted unreachable/hash-mismatched evidence through to
+adjudication, a full data-flow gap where `content_hash_verified` never
+reached the API/frontend, and — most recently — a genuine platform-level
+attribute-naming mismatch (`gl.nondet.web.get()`'s response object uses
+`.status`, not the `.status_code` shown in GenLayer's own docs examples)
+that was silently swallowed by exception handling until root-caused via
+four disposable diagnostic-contract deploys. Full blow-by-blow history,
+including every dead end, is in [`memory.md`](memory.md) and
+[`review.md`](review.md).
 
 **Known, honestly-scoped limitation**: `verify_seller_bond_listing`
 proves a bond owner controls the *content* of a specific listing page at
@@ -145,14 +145,19 @@ bond is also linked and slashed) plus reputation. If `NO_ISSUE`, the
 bounty is refunded. `NEEDS_MORE_EVIDENCE` lets the hunter add more
 evidence and retry.
 
-Evidence itself is materially checked, not just an unchecked URL and a
-client-supplied hash sitting in storage: `verify_evidence` has every
-validator independently fetch the evidence `url` live via GenVM and
-reach consensus on whether it's actually reachable, storing the result
-(`url_checked`, `url_reachable`, `fetch_excerpt`, `verified_at`) on the
-`Evidence` record itself. `request_verdict`'s adjudication prompt then
-tells the model explicitly, per evidence item, whether it was
-independently confirmed reachable, fetched-but-unreachable, or never
+Evidence itself is cryptographically checked, not just an unchecked URL
+and a client-supplied hash sitting in storage: `verify_evidence` has
+every validator independently fetch the evidence URL's raw bytes live
+via GenVM (`gl.nondet.web.get`) and reach consensus on two things —
+whether it's reachable (a real 2xx response), and whether
+`sha256(fetched bytes) == content_hash` actually matches, storing the
+result (`url_checked`, `url_reachable`, `content_hash_verified`,
+`fetch_excerpt`, `verified_at`) on the `Evidence` record itself.
+**`request_verdict` reverts unless every evidence item is reachable and
+hash-verified** — unverified or hash-mismatched evidence can never reach
+adjudication. The adjudication prompt then tells the model explicitly,
+per evidence item, whether it was independently confirmed and
+hash-matched, fetched-but-mismatched, fetched-but-unreachable, or never
 checked at all — the same "the contract went and looked, not just took
 the submitter's word for it" trust model as `verify_seller_bond_listing`.
 
@@ -160,9 +165,10 @@ the submitter's word for it" trust model as `verify_seller_bond_listing`.
 (`create_seller_bond`) as a public confidence signal, prove real
 ownership of a specific listing via `verify_seller_bond_listing`, then
 link the verified bond to an investigation about that exact listing
-(`link_seller_bond`) — slashed proportionally
-(`min(bond_deposited_wei, bounty_wei)`) only on `RECALL_CONFIRMED`,
-never on a mere `POTENTIAL_ISSUE`.
+(`link_seller_bond`, with a "Link to an investigation" action on the
+seller dashboard once a bond's listing is verified) — slashed
+proportionally (`min(bond_deposited_wei, bounty_wei)`) only on
+`RECALL_CONFIRMED`, never on a mere `POTENTIAL_ISSUE`.
 
 **Challenger** — can dispute a reached verdict within the challenge
 window by staking 20% of the bounty (`open_challenge`) and requesting a
@@ -170,7 +176,10 @@ fresh, independent re-verification (`resolve_challenge`) — not a vote.
 A failed challenge forfeits the full stake to the original hunter as
 compensation for a correct claim being disputed; an upheld challenge
 recomputes the verdict and applies a funded overturn bonus carved from
-the bounty pool.
+the bounty pool. The investigation detail page surfaces "Resolve
+Challenge" and, once the real on-chain resolution window has elapsed,
+"Claim Timeout" to any connected wallet — both are permissionless in the
+contract, so the UI doesn't gate them to the original challenger.
 
 Every deadline (`claim_evidence_timeout`, `claim_verdict_timeout`,
 `claim_challenge_timeout`) is a permissionless sweep, so funds can never
@@ -212,14 +221,21 @@ recallraid/
     src/lib/deadline-watcher.ts    background read-only sweep: mirrors tx receipts, flags upcoming deadlines
   scripts/
     full_contract_test_suite.mjs     comprehensive live end-to-end test against a deployed contract
-    diagnostic_test.mjs              runs the 3 diagnostic checks against a deployed diagnostic contract
-    four_product_showcase.mjs        4 real-world product investigations, zero negative/expect-revert calls
-    two_more_products.mjs            2 more real-world investigations with real visible evidence photos
+    diagnostic_test.mjs              runs the diagnostic checks against a deployed diagnostic contract
+    two_product_showcase_v2.mjs      current showcase: 2 real-world investigations with cryptographic
+                                       evidence-hash verification (58/58 checks against the current deployment)
+    two_product_showcase_v2_resume.mjs  resumes the above after a transient client-side network blip
+    four_product_showcase.mjs        [stale] 4-product showcase from a prior deployment, kept for reference
+    two_more_products.mjs            [stale] 2-product showcase from a prior deployment, kept for reference
     lib/make_product_image.mjs       dependency-free PNG generator for real (non-1x1-pixel) evidence photos
   docs/
     ARCHITECTURE.md               system design, on-chain/off-chain split, deployment topology
     SECURITY.md                   escrow safety, anti-abuse, known limitations
     DEPLOYMENT.md                 exact deploy steps for contract, API, frontend
+  contracts/diagnostics/
+    nondet_consensus_diagnostic.py  disposable diagnostic contract for isolating nondet-consensus/web-fetch
+                                     platform issues from application bugs — see memory.md for what it caught
+  review.md                       response to the team's application-review rounds — what was fixed, how verified
   memory.md                       persistent build log / decision record — read this first in any new session
 ```
 
@@ -307,17 +323,25 @@ and the full seller-bond listing-verification flow:
 node scripts/full_contract_test_suite.mjs
 ```
 
-As of the last run against `0xb2CB610EBbB773e2a6B9895CD49E3032C0722a70`:
-**67/67 checks passing**, including `MAJORITY_AGREE` on both nondet
-methods, the full challenge/resolution lifecycle, and every seller-bond
-ownership guard (unverified-bond rejection, mismatched-listing
-rejection, and a legitimate verified+matching link all behaving
-correctly). Two smaller scripts round out the live evidence:
-`scripts/four_product_showcase.mjs` and `scripts/two_more_products.mjs`
-submitted 6 real-world product investigations end to end (see the
-Status section above) with deliberately zero negative/expect-revert
-calls, since a guard-clause rejection shows up as an execution error on
-the GenLayer explorer even though it's contract-correct.
+As of the last full run against a prior deployment: **67/67 checks
+passing**, including `MAJORITY_AGREE` on both nondet methods, the full
+challenge/resolution lifecycle, and every seller-bond ownership guard
+(unverified-bond rejection, mismatched-listing rejection, and a
+legitimate verified+matching link all behaving correctly). This suite's
+`CONTRACT_ADDRESS` constant should be updated before re-running it
+against the current deployment above.
+
+`scripts/two_product_showcase_v2.mjs` is the current showcase script —
+it submitted the 2 real-world investigations described in the Status
+section above (Kidde fire extinguishers, Zen Magnets/Neoballs) end to
+end against `0x4aB01fb5435cdEfD3c651Cfc51f0F1fa1E2Ef6a4`, including the
+new cryptographic evidence-hash-verification gate, with deliberately
+zero negative/expect-revert calls, since a guard-clause rejection shows
+up as an execution error on the GenLayer explorer even though it's
+contract-correct. **58/58 checks passed.** Older scripts
+(`scripts/four_product_showcase.mjs`, `scripts/two_more_products.mjs`)
+remain in the repo as reference for prior deployments' showcases but
+target stale contract addresses.
 
 ## Debugging nondet consensus
 

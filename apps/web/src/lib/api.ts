@@ -1,5 +1,5 @@
 import { env } from './env';
-import type { Evidence, Investigation, LeaderboardRow, PlatformStats, SellerBond } from '@/types/contract';
+import type { Challenge, Evidence, Investigation, LeaderboardRow, PlatformStats, SellerBond } from '@/types/contract';
 
 export class ApiError extends Error {
   status?: number;
@@ -88,6 +88,10 @@ export function requestEvidenceUploadUrl(payload: {
   fileName?: string;
 }): Promise<UploadUrlResponse> {
   return apiFetch('/evidence/upload-url', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function fetchChallengesForInvestigation(investigationId: number | string): Promise<{ challenges: Challenge[] }> {
+  return apiFetch(`/investigations/${investigationId}/challenges`);
 }
 
 export function fetchLeaderboard(limit = 50): Promise<LeaderboardRow[]> {

@@ -17,6 +17,13 @@ export const InvestigationStatus = {
 
 export type InvestigationStatusCode = (typeof InvestigationStatus)[keyof typeof InvestigationStatus];
 
+export const ChallengeStatus = {
+  OPEN: 1,
+  UPHELD: 2,
+  OVERTURNED: 3,
+  EXPIRED: 4,
+} as const;
+
 export const INVESTIGATION_STATUS_LABEL: Record<number, string> = {
   0: 'OPEN',
   1: 'EVIDENCE_SUBMITTED',
@@ -115,6 +122,7 @@ export interface Evidence {
   submitted_at: number;
   url_checked: boolean;
   url_reachable: boolean;
+  content_hash_verified: boolean;
   fetch_excerpt: string;
   verified_at: number;
 }

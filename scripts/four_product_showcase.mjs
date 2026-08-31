@@ -23,7 +23,7 @@ import { studionet } from "genlayer-js/chains";
 import { createHash } from "node:crypto";
 import { makeProductImage } from "./lib/make_product_image.mjs";
 
-const CONTRACT_ADDRESS = "0xcb8081F71210EC19Db3E70b4A880CfcfEb9a9E27";
+const CONTRACT_ADDRESS = "0x4aB01fb5435cdEfD3c651Cfc51f0F1fa1E2Ef6a4";
 const RPC_URL = "https://studio.genlayer.com/api";
 const API_BASE = "https://recallraid-api.fly.dev";
 const WEB_BASE = "https://recall-raid.vercel.app";

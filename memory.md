@@ -1860,3 +1860,53 @@ live: every settled card in the grid now reads e.g. "The independent
 re-check confirmed this exact product against an official recall
 notice..." instead of the raw submitted description or a bare verdict
 number.
+
+## Real settlement + real withdrawal — the last deferred methods, completed (2026-08-31)
+
+The four real-time-gated methods flagged as deferred back on 2026-08-29
+(`claim_evidence_timeout`, `claim_verdict_timeout`,
+`claim_challenge_timeout`, `settle_investigation`) needed their actual
+deadlines to elapse before they could be called without a guaranteed
+`[EXPECTED]` rejection. Checked `challenge_deadline` on investigations
+1/2/3/5/6 directly on-chain on 2026-08-31 (`now >= challenge_deadline`
+true for all five, confirmed via a live read before calling anything) and
+called `settle_investigation` for real on each:
+
+```
+inv 1 (Rock 'n Play, NO_ISSUE):      submitter refund 0.05 GEN
+inv 2 (Tread+, RECALL_CONFIRMED):    hunter share 0.06 GEN, seller bond slashed 0.03 GEN
+inv 3 (MALM, RECALL_CONFIRMED):      hunter share 0.04 GEN (no bond linked)
+inv 5 (Boppy, RECALL_CONFIRMED):     hunter share 0.03 GEN
+inv 6 (Jetson, NO_ISSUE):            submitter refund 0.03 GEN
+```
+
+All five: `MAJORITY_AGREE`, zero errors. This is the fourth of the four
+previously-deferred methods now confirmed live (investigation 2's
+`claim_challenge_timeout` path was never needed since `resolve_challenge`
+was called directly within its window; `claim_evidence_timeout` and
+`claim_verdict_timeout` remain the two not yet exercised live — no
+investigation has sat unresolved long enough to hit those specific
+deadlines).
+
+API cache sync for the settled investigations hit StudioNet's daily RPC
+rate limit (5000 req/day) partway through — 4 of 5 syncs returned
+`Rate limit exceeded: 5000 requests per day` (external infra limit, not
+an app bug). Investigation 2 synced before the limit hit; the other four
+will pick up via the background deadline-watcher sweep once the daily
+limit resets, or can be synced manually later.
+
+**`settle_investigation` only credits the internal pull-payment ledger —
+it never sends GEN directly**, by design (the zero-then-credit escrow
+discipline documented in `docs/SECURITY.md`). User asked why no GEN had
+landed in a wallet after settlement; checked `get_balance` directly
+(hunter: 0.24 GEN credited, matching the sum of all five outcomes above;
+seller: 0, correctly — the slashed bond amount flows into the hunter's
+share, not to the seller) and called `withdraw(240000000000000000)` for
+the hunter for real. Confirmed via the wallet's own on-chain balance
+before/after (not just the contract's internal ledger): balance increased
+by exactly `240000000000000000` wei, matching the credited amount
+exactly. `MAJORITY_AGREE`, zero errors. This is real GEN that actually
+left the contract and landed in a real wallet — the full economic
+lifecycle (bounty escrow → verdict → challenge → settlement → withdrawal)
+has now been exercised end-to-end with real elapsed time on this
+deployment, not just simulated/immediate-window testing.

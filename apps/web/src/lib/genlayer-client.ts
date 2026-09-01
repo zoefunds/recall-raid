@@ -107,6 +107,37 @@ interface WriteCallArgs {
 }
 
 /**
+ * Contract write return values are nested in the leader receipt rather than
+ * at `receipt.result`. Decode the same payload shape used by the integration
+ * scripts so callers can reliably use IDs returned by write methods such as
+ * submit_investigation, add_evidence, open_challenge, and create_seller_bond.
+ */
+function decodeContractWriteResult(receipt: unknown): unknown {
+  const consensusData = (receipt as { consensus_data?: { leader_receipt?: unknown[] } } | undefined)?.consensus_data;
+  const leaderReceipts = consensusData?.leader_receipt ?? [];
+  const leader = leaderReceipts.find((item) => (item as { mode?: unknown })?.mode === 'leader') ?? leaderReceipts[0];
+  const payload = (leader as { result?: { payload?: unknown } } | undefined)?.result?.payload;
+
+  if (typeof payload === 'string') return payload;
+  const readable = (payload as { readable?: unknown } | undefined)?.readable;
+  if (typeof readable !== 'string') return receipt;
+
+  try {
+    const once = JSON.parse(readable) as unknown;
+    if (typeof once === 'string') {
+      try {
+        return JSON.parse(once) as unknown;
+      } catch {
+        return once;
+      }
+    }
+    return once;
+  } catch {
+    return readable;
+  }
+}
+
+/**
  * Generic wrapper around a payable/non-payable contract write, driving the
  * shared transaction lifecycle states used by <TransactionStatusModal />.
  * Every write action in the app (submit_investigation, add_evidence,
@@ -199,7 +230,7 @@ export async function callContractWrite({
     }
 
     emit({ status: 'confirmed', txHash, message: 'Confirmed.' });
-    return { txHash, result: receipt };
+    return { txHash, result: decodeContractWriteResult(receipt) };
   } catch (err) {
     const { status, message } = classifyError(err);
     emit({ status, message });

@@ -89,7 +89,24 @@ export default function InvestigationDetailPage() {
     await ensureSession();
     const stake = computeRequiredChallengeStakeWei(BigInt(inv.bounty_wei));
     const res = await write.send('open_challenge', [inv.id, challengeReason || 'Disputing verdict'], stake);
-    if (res) await refreshAfterTx(res.txHash);
+    if (!res) return;
+
+    // open_challenge creates a separate on-chain Challenge record. The
+    // resolve/timeout controls read that record from challenges_cache, so
+    // syncing only the parent investigation leaves those controls with no
+    // data. Decode the returned id and seed the challenge cache first.
+    const result = res.result as { challenge_id?: unknown } | null;
+    const challengeId = Number(result?.challenge_id);
+    if (Number.isInteger(challengeId) && challengeId > 0) {
+      await refreshChallengeAfterTx(challengeId, res.txHash);
+      await qc.invalidateQueries({ queryKey: ['evidence', id] });
+      return;
+    }
+
+    // Preserve the investigation refresh if a future client/RPC response
+    // lacks a decodable return payload; the normal decoded path above is
+    // required to make challenge completion actions available immediately.
+    await refreshAfterTx(res.txHash);
   }
 
   async function handleSettle() {

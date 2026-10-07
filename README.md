@@ -10,8 +10,8 @@ the backend relays each final decision to Base Sepolia for settlement.
 | Component | Network / URL | Identifier |
 |---|---|---|
 | USDC | Base Sepolia | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
-| RecallRaidEscrow | Base Sepolia | `0xce45b80019A59C153659f014bC74900d930A6886` |
-| RecallRaid adjudicator | GenLayer StudioNet | `0x193f060bc67A350B4158f52D403BCdd14151A835` |
+| RecallRaidEscrow | Base Sepolia | `0x5D6426aA81583Fd795385952CB6d82A1Ed5a15F4` |
+| RecallRaid adjudicator | GenLayer StudioNet | `0xa4e1D02aBaed368461870D1453d709d51183A119` |
 | API | Fly.io | `https://recallraid-usdc-api.fly.dev` |
 | Frontend | Vercel | `https://recall-raid.vercel.app` |
 
@@ -46,4 +46,4 @@ PYTHONPYCACHEPREFIX=/tmp/recallraid-pycache python3 -m py_compile contracts/reca
 
 Three real Base Sepolia runs cover a no-issue refund, a recall-confirmed bounty
 with seller-bond slash, and an overturned funded challenge. Their funding,
-relay, and claim transactions are displayed at `/milestone`.
+relay, and claim transactions are displayed under `/hunts` in the Active Hunts feed.

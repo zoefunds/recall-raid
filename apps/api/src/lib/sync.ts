@@ -6,6 +6,15 @@ import { investigationStatusLabel, verdictLabel, challengeStatusLabel, bondStatu
 export async function syncInvestigation(investigationId: number): Promise<void> {
   const inv = await chain.getInvestigation(investigationId);
 
+  // A freshly cleared cache may not have seen this wallet through /auth yet.
+  // Satisfy the investigations_cache FK before inserting the investigation.
+  if (inv.submitter) {
+    await pool.query(
+      `insert into users (wallet_address) values ($1) on conflict (wallet_address) do nothing`,
+      [inv.submitter.toLowerCase()],
+    );
+  }
+
   await pool.query(
     `insert into investigations_cache (
        investigation_id, submitter_wallet, base_case_id, product_name, brand, model_number, serial_number,
@@ -81,15 +90,6 @@ export async function syncInvestigation(investigationId: number): Promise<void> 
       inv.description,
     ],
   );
-
-  // Ensure the submitter has a users row for the FK, in case they've never
-  // logged in through /auth (e.g. this sync ran from a webhook/poller).
-  if (inv.submitter) {
-    await pool.query(
-      `insert into users (wallet_address) values ($1) on conflict (wallet_address) do nothing`,
-      [inv.submitter.toLowerCase()],
-    );
-  }
 
   const evidenceIds = await chain.getEvidenceIdsForInvestigation(investigationId);
   for (const evidenceId of evidenceIds) {

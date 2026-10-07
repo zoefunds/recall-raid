@@ -61,7 +61,10 @@ HUNTER_DEFAULT_PAYOUT_BPS = u32(10000)   # hunter gets 100% of bounty on RECALL_
 NO_ISSUE_REFUND_BPS = u32(10000)         # bounty fully refunds to submitter on NO_ISSUE
 EVIDENCE_WINDOW_SECONDS = u64(72 * 3600)        # 72h to submit first evidence
 VERDICT_WINDOW_SECONDS = u64(48 * 3600)         # 48h for the investigation nondet pass to be requested/resolved
-CHALLENGE_WINDOW_SECONDS = u64(48 * 3600)       # 48h challenge window after a verdict
+# StudioNet/Base Sepolia milestone window. This remains a real, observable
+# challenge period while allowing an end-to-end test to reach settlement in a
+# single run. Increase this for a mainnet deployment.
+CHALLENGE_WINDOW_SECONDS = u64(90)
 CHALLENGE_RESOLUTION_SECONDS = u64(48 * 3600)   # 48h to resolve an open challenge before it expires
 MAX_EVIDENCE_PER_INVESTIGATION = 25
 MAX_FETCH_EXCERPT_CHARS = 4000

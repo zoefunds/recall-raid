@@ -1,12 +1,20 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
 import { ethers } from "ethers";
+import { createAccount, createClient } from "genlayer-js";
+import { studionet } from "genlayer-js/chains";
 
 const key = process.env.DEPLOYER_PRIVATE_KEY;
 if (!key) throw new Error("DEPLOYER_PRIVATE_KEY is required");
-const rpc = process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org";
-const escrowAddress = process.env.RECALLRAID_ESCROW_ADDRESS || "0xce45b80019A59C153659f014bC74900d930A6886";
+const genlayerAddress = process.env.GENLAYER_CONTRACT_ADDRESS;
+if (!genlayerAddress) throw new Error("GENLAYER_CONTRACT_ADDRESS is required");
+const escrowAddress = process.env.RECALLRAID_ESCROW_ADDRESS;
+if (!escrowAddress) throw new Error("RECALLRAID_ESCROW_ADDRESS is required");
 const usdcAddress = process.env.BASE_SEPOLIA_USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
-const provider = new ethers.JsonRpcProvider(rpc);
+const baseRpc = process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org";
+const genlayerRpc = process.env.GENLAYER_RPC_URL || "https://studio.genlayer.com/api";
+
+const provider = new ethers.JsonRpcProvider(baseRpc);
 const wallet = new ethers.Wallet(key, provider);
 const usdc = new ethers.Contract(usdcAddress, [
   "function approve(address,uint256) returns (bool)",
@@ -14,126 +22,143 @@ const usdc = new ethers.Contract(usdcAddress, [
 ], wallet);
 const escrow = new ethers.Contract(escrowAddress, [
   "function fundInvestigation(bytes32,uint256)",
-  "function fundChallenge(bytes32,uint256)",
-  "function fundSellerBond(bytes32,uint256)",
-  "function linkSellerBond(bytes32,bytes32)",
   "function relayAdjudication(bytes32,uint8,address,bool,bytes32)",
   "function claim()",
   "function claimable(address) view returns (uint256)",
   "function getCase(bytes32) view returns ((address submitter,address challenger,address hunter,bytes32 sellerBondId,uint256 bounty,uint256 challengeStake,uint8 verdict,bool finalized,bytes32 genlayerDecisionHash))",
-  "function getSellerBond(bytes32) view returns ((address seller,uint256 balance,uint256 totalDeposited,uint256 totalSlashed,uint256 linkedCases,bool withdrawn))",
 ], wallet);
+const glClient = createClient({
+  chain: { ...studionet, rpcUrls: { default: { http: [genlayerRpc] } } },
+  account: createAccount(key),
+});
 
-async function confirmed(txPromise) {
-  const tx = await txPromise;
-  // Public Base Sepolia RPC nodes can briefly disagree immediately after a
-  // block; two confirmations keep the next estimateGas call from reading a
-  // stale allowance/claimable value from another backend.
-  const receipt = await tx.wait(2);
-  if (!receipt || receipt.status !== 1) throw new Error(`transaction failed: ${tx.hash}`);
-  return tx.hash;
-}
-
-async function approveAnd(method, id, amount) {
-  const approvalTx = await confirmed(usdc.approve(escrowAddress, amount));
-  const fundingTx = await confirmed(escrow[method](id, amount));
-  return { approvalTx, fundingTx };
-}
-
-const runId = new Date().toISOString();
 const fixtures = [
   {
-    slug: "fisher-price-rock-n-play-no-issue",
     title: "Fisher-Price Rock 'n Play Sleeper listing re-check",
-    product: "Fisher-Price Rock 'n Play Sleeper",
-    marketplace: "Independent resale listing",
-    evidence: "CPSC recall notice 19-105 and listing identifiers were re-checked; this fixture exercises the NO_ISSUE refund route.",
-    bounty: 500_000n,
-    verdict: 1,
-    challenge: 0n,
-    challengeOverturned: false,
+    slug: "fisher-price-rock-n-play", productName: "Fisher-Price Rock 'n Play Sleeper", brand: "Fisher-Price",
+    model: "Rock 'n Play Sleeper", marketplace: "Independent resale listing", category: "Baby products",
+    bounty: 500_000n, evidenceUrl: "https://recall-raid.vercel.app/e2e-evidence/fisher-price-rock-n-play",
+    description: "Check a resale listing against the documented infant-safety recall and product identifiers.",
   },
   {
-    slug: "peloton-tread-recall-confirmed",
-    title: "Peloton Tread+ recall-confirmed seller-bond settlement",
-    product: "Peloton Tread+ Treadmill",
-    marketplace: "Second-hand fitness equipment listing",
-    evidence: "CPSC recall 21-129 identifies the Tread+ hazard; this fixture exercises bounty payout plus a proportional seller-bond slash.",
-    bounty: 750_000n,
-    bond: 500_000n,
-    verdict: 3,
-    challenge: 0n,
-    challengeOverturned: false,
+    title: "Peloton Tread+ recall-confirmed listing",
+    slug: "peloton-tread-plus", productName: "Peloton Tread+ Treadmill", brand: "Peloton",
+    model: "TR01", marketplace: "Second-hand fitness listing", category: "Fitness equipment",
+    bounty: 750_000n, evidenceUrl: "https://recall-raid.vercel.app/e2e-evidence/peloton-tread-plus",
+    description: "Evaluate a second-hand Tread+ listing against the documented pull-under hazard and recall details.",
   },
   {
-    slug: "anker-power-bank-challenge-overturned",
-    title: "Anker power-bank potential-issue challenged outcome",
-    product: "Anker 535 Power Bank",
-    marketplace: "Consumer electronics marketplace listing",
-    evidence: "Model and serial evidence supports a potential battery-safety issue; this fixture exercises a funded challenge and overturned-stake return.",
-    bounty: 600_000n,
-    verdict: 2,
-    challenge: 120_000n,
-    challengeOverturned: true,
+    title: "Anker 535 Power Bank safety listing",
+    slug: "anker-535-power-bank", productName: "Anker 535 Power Bank (PowerCore 20K)", brand: "Anker",
+    model: "A1366", marketplace: "Consumer electronics marketplace", category: "Electronics",
+    bounty: 600_000n, evidenceUrl: "https://recall-raid.vercel.app/e2e-evidence/anker-535-power-bank?v=2",
+    description: "Assess the identified power-bank model against submitted lithium-ion battery safety evidence.",
   },
 ];
 
-const output = [];
+function decodeResult(receipt) {
+  const receipts = receipt?.consensus_data?.leader_receipt ?? [];
+  const leader = receipts.find((item) => item?.mode === "leader") ?? receipts[0];
+  const payload = leader?.result?.payload;
+  if (typeof payload === "string") return payload;
+  const readable = payload?.readable;
+  if (typeof readable !== "string") return undefined;
+  try {
+    const once = JSON.parse(readable);
+    if (typeof once === "string") { try { return JSON.parse(once); } catch { return once; } }
+    return once;
+  } catch { return readable; }
+}
+
+async function glWrite(functionName, args) {
+  const txHash = await glClient.writeContract({ address: genlayerAddress, functionName, args });
+  console.error(`GenLayer ${functionName}: ${txHash}`);
+  const receipt = await glClient.waitForTransactionReceipt({ hash: txHash, status: "FINALIZED", retries: 180, interval: 5000 });
+  const resultName = String(receipt.result_name ?? "").toUpperCase();
+  if (resultName && resultName !== "AGREE" && resultName !== "MAJORITY_AGREE") throw new Error(`${functionName} failed consensus: ${resultName}`);
+  return { txHash, result: decodeResult(receipt) };
+}
+
+async function glRead(functionName, args) {
+  const raw = await glClient.readContract({ address: genlayerAddress, functionName, args });
+  return typeof raw === "string" ? JSON.parse(raw) : raw;
+}
+
+async function baseConfirmed(txPromise) {
+  const tx = await txPromise;
+  console.error(`Base transaction: ${tx.hash}`);
+  const receipt = await tx.wait(2);
+  if (!receipt || receipt.status !== 1) throw new Error(`Base transaction failed: ${tx.hash}`);
+  return tx.hash;
+}
+
+async function fundCase(caseId, amount) {
+  return {
+    approvalTx: await baseConfirmed(usdc.approve(escrowAddress, amount)),
+    fundingTx: await baseConfirmed(escrow.fundInvestigation(caseId, amount)),
+  };
+}
+
+const startedAt = new Date().toISOString();
 const initialUsdc = await usdc.balanceOf(wallet.address);
-for (let index = 0; index < fixtures.length; index += 1) {
-  const item = fixtures[index];
-  const caseId = ethers.id(`recallraid:e2e:${runId}:${item.slug}`);
-  const funded = await approveAnd("fundInvestigation", caseId, item.bounty);
-  let bond;
-  if (item.bond) {
-    const bondId = ethers.id(`recallraid:e2e:${runId}:bond:${item.slug}`);
-    const bondFunding = await approveAnd("fundSellerBond", bondId, item.bond);
-    const linkTx = await confirmed(escrow.linkSellerBond(caseId, bondId));
-    bond = { bondId, amountUsdcBaseUnits: item.bond.toString(), ...bondFunding, linkTx };
-  }
-  let challenge;
-  if (item.challenge) {
-    const challengeFunding = await approveAnd("fundChallenge", caseId, item.challenge);
-    challenge = { amountUsdcBaseUnits: item.challenge.toString(), ...challengeFunding };
-  }
-  const decisionHash = ethers.id(JSON.stringify({ runId, caseId, verdict: item.verdict, evidence: item.evidence }));
-  const relayTx = await confirmed(escrow.relayAdjudication(caseId, item.verdict, wallet.address, item.challengeOverturned, decisionHash));
-  const onchain = await escrow.getCase(caseId);
+const pending = [];
+const requestedFixtureIndex = process.env.FIXTURE_INDEX === undefined ? null : Number(process.env.FIXTURE_INDEX);
+const fixtureEntries = [...fixtures.entries()].filter(([index]) => requestedFixtureIndex === null || index === requestedFixtureIndex);
+if (fixtureEntries.length === 0) throw new Error(`FIXTURE_INDEX must be between 0 and ${fixtures.length - 1}`);
+
+for (const [index, item] of fixtureEntries) {
+  const caseId = ethers.id(`recallraid:cross-chain-e2e:${startedAt}:${item.slug}`);
+  const baseFunding = await fundCase(caseId, item.bounty);
+  const response = await fetch(item.evidenceUrl);
+  if (!response.ok) throw new Error(`Evidence fetch failed: ${item.evidenceUrl}`);
+  const evidenceHash = createHash("sha256").update(new Uint8Array(await response.arrayBuffer())).digest("hex");
+  const submitted = await glWrite("submit_investigation", [
+    caseId, Number(item.bounty), item.productName, item.brand, item.model, `E2E-${index + 1}`,
+    item.marketplace, item.evidenceUrl, "", "", item.description, item.category, 1,
+  ]);
+  const investigationId = Number(submitted.result?.investigation_id);
+  if (!Number.isInteger(investigationId)) throw new Error(`Could not decode investigation id from ${submitted.txHash}`);
+  const added = await glWrite("add_evidence", [investigationId, "recall_notice", evidenceHash, item.evidenceUrl, item.description]);
+  const evidenceId = Number(added.result?.evidence_id);
+  if (!Number.isInteger(evidenceId)) throw new Error(`Could not decode evidence id from ${added.txHash}`);
+  const verified = await glWrite("verify_evidence", [evidenceId]);
+  if (!verified.result?.url_reachable || !verified.result?.content_hash_verified) throw new Error(`GenLayer evidence verification failed for ${investigationId}`);
+  const adjudicated = await glWrite("request_verdict", [investigationId]);
+  const state = await glRead("get_investigation", [investigationId]);
+  if (![1, 2, 3].includes(Number(state.verdict))) throw new Error(`Investigation ${investigationId} has non-relayable verdict ${state.verdict}`);
+  pending.push({ index, item, caseId, baseFunding, evidenceHash, investigationId, evidenceId, submitted, added, verified, adjudicated, state });
+}
+
+const latestDeadline = Math.max(...pending.map(({ state }) => Number(state.challenge_deadline)));
+const waitMs = Math.max(0, (latestDeadline + 3) * 1000 - Date.now());
+if (waitMs > 0) {
+  console.error(`Waiting ${Math.ceil(waitMs / 1000)}s for the real GenLayer challenge windows to close...`);
+  await new Promise((resolve) => setTimeout(resolve, waitMs));
+}
+
+const output = [];
+for (const test of pending) {
+  const settled = await glWrite("settle_investigation", [test.investigationId]);
+  const finalState = await glRead("get_investigation", [test.investigationId]);
+  const relayTx = await baseConfirmed(escrow.relayAdjudication(test.caseId, Number(finalState.verdict), wallet.address, false, test.adjudicated.txHash));
   const claimableBeforeClaim = await escrow.claimable(wallet.address);
-  const claimTx = await confirmed(escrow.claim());
+  const claimTx = await baseConfirmed(escrow.claim());
+  const marked = await glWrite("mark_base_relayed", [test.investigationId, relayTx]);
+  const baseState = await escrow.getCase(test.caseId);
   output.push({
-    number: index + 1,
-    ...item,
-    bounty: undefined,
-    bond: bond ?? null,
-    challenge: challenge ?? null,
-    bountyUsdcBaseUnits: item.bounty.toString(),
-    caseId,
-    decisionHash,
-    approvalTx: funded.approvalTx,
-    fundingTx: funded.fundingTx,
-    relayTx,
-    claimTx,
+    number: test.index + 1, title: test.item.title, productName: test.item.productName,
+    description: test.item.description, bountyUsdcBaseUnits: test.item.bounty.toString(), caseId: test.caseId,
+    investigationId: test.investigationId, evidenceId: test.evidenceId, evidenceUrl: test.item.evidenceUrl,
+    evidenceSha256: test.evidenceHash, verdict: Number(finalState.verdict), confidenceBps: Number(finalState.ai_confidence_bps),
+    genlayerTransactions: { submit: test.submitted.txHash, addEvidence: test.added.txHash, verifyEvidence: test.verified.txHash, adjudicate: test.adjudicated.txHash, settle: settled.txHash, markBaseRelayed: marked.txHash },
+    baseTransactions: { approval: test.baseFunding.approvalTx, funding: test.baseFunding.fundingTx, relay: relayTx, claim: claimTx },
     claimableBeforeClaimUsdcBaseUnits: claimableBeforeClaim.toString(),
-    verifiedState: {
-      submitter: onchain.submitter,
-      hunter: onchain.hunter,
-      verdict: Number(onchain.verdict),
-      finalized: onchain.finalized,
-      challengeStakeUsdcBaseUnits: onchain.challengeStake.toString(),
-      genlayerDecisionHash: onchain.genlayerDecisionHash,
-    },
+    verifiedBaseState: { finalized: baseState.finalized, verdict: Number(baseState.verdict), genlayerDecisionHash: baseState.genlayerDecisionHash },
   });
 }
 
 console.log(JSON.stringify({
-  network: "Base Sepolia",
-  chainId: 84532,
-  runAt: runId,
-  wallet: wallet.address,
-  usdcAddress,
-  escrowAddress,
-  initialWalletUsdcBaseUnits: initialUsdc.toString(),
-  finalWalletUsdcBaseUnits: (await usdc.balanceOf(wallet.address)).toString(),
-  cases: output,
+  startedAt, completedAt: new Date().toISOString(), wallet: wallet.address,
+  genlayer: { contractAddress: genlayerAddress }, baseSepolia: { chainId: 84532, escrowAddress, usdcAddress },
+  initialWalletUsdcBaseUnits: initialUsdc.toString(), finalWalletUsdcBaseUnits: (await usdc.balanceOf(wallet.address)).toString(), cases: output,
 }, null, 2));

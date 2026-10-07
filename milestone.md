@@ -15,10 +15,10 @@ verification, verdict consensus, and challenge re-adjudication.
 |---|---|
 | Base Sepolia chain id | `84532` |
 | USDC | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
-| RecallRaidEscrow | `0xce45b80019A59C153659f014bC74900d930A6886` |
-| Base deployment tx | `0x3a1388328c4d23d1775e4c74a4d8e8cb31722feb65ae16a8773d18d8a6a76bd5` |
-| GenLayer adjudicator | `0x193f060bc67A350B4158f52D403BCdd14151A835` |
-| GenLayer deployment tx | `0x07ec2204e37d069573f98507a35e510b1e91361343f2e2e337a78bb671b0e830` |
+| RecallRaidEscrow | `0x5D6426aA81583Fd795385952CB6d82A1Ed5a15F4` |
+| Base deployment tx | `0xb60871d4e652d66cef7a3e66431a8ff1819ce24d662603369d3467681d731aa4` |
+| GenLayer adjudicator | `0xa4e1D02aBaed368461870D1453d709d51183A119` |
+| GenLayer deployment tx | `0x0a9929c10a80cf39d590ff108a09da6d7bf0ec7cb6e9cda5f9c0341971f50e51` |
 | Deployer / relayer | `0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb` |
 
 The Base contract was compiled locally with Solidity optimizer settings of 200
@@ -76,45 +76,47 @@ GenLayer. Challenge and seller-bond flows similarly fund Base first. The wallet
 page reads actual USDC wallet/claimable balances and claims directly from the
 Base escrow. All monetary labels and formatting use six-decimal USDC.
 
-The `/milestone` route displays the three real E2E cases below with direct Base
-Sepolia explorer links. No displayed case or transaction is placeholder data.
+The `/hunts` Active Hunts feed reads these cases from the normal backend cache,
+using the same cards and detail routes as user-created hunts. There is no
+separate milestone page or hard-coded test-hunt section.
 
 ## Three live E2E scenarios
 
-Run timestamp: `2026-10-07T14:04:13.991Z`. The test wallet began and ended with
-`15.9 USDC`, proving that every funded amount was accounted for and reclaimed.
+Completed on 7 October 2026. In every completed case, the Base contract stores
+the exact finalized GenLayer adjudication transaction hash as its decision
+proof. Each bounty was claimed after relay.
 
-### 1. No-issue refund
+### 1. Fisher-Price cross-chain settlement (investigation 2)
 
 - Product: Fisher-Price Rock 'n Play Sleeper
 - Bounty: `0.50 USDC`
-- Outcome: `NO_ISSUE`
-- Case: `0x494a00ea51ca1e430729387ad77a498edeb4dc3922917838fa1e6b2e92ed0497`
-- Fund: `0xf9a70755a0eecf03d73b82cdc728d0f6e84b9f9e516d95330de3f6faa47ff04f`
-- Relay: `0x4cf36927ce009fee953df16ba45fd9684acb1f516ee8a6e936026bb3ae6d0966`
-- Claim: `0x456001fadee3dc4421fbf98bf5904832130f2dcf618086c962c7e28d7344e933`
+- Outcome: `POTENTIAL_ISSUE` at 65% confidence
+- GenLayer adjudication: `0xfeb516b4a62faeb05c5a3e0af7aaf218d3b1fa36805dd5f4063bfdcee97cc28a`
+- GenLayer settlement: `0x1b3a01ba56c715c777ddbef66bb3ce7a352f0567da4320781279baa1a96a509c`
+- Base relay: `0xf4729bc128f9e8a24450136911b6a8549185be5e3dd8f45b8466cfe429a13952`
+- Base claim: `0x3cbd50f04fbeb5d2db205790544bfccedb74a10094fa9b633303020ec78f40d2`
 
-### 2. Recall confirmed with seller-bond slash
+### 2. Peloton cross-chain settlement (investigation 3)
 
 - Product: Peloton Tread+ Treadmill
 - Bounty: `0.75 USDC`
-- Seller bond: `0.50 USDC`
-- Outcome: `RECALL_CONFIRMED`; `1.25 USDC` became claimable
-- Case: `0xfd2282394ab4091d152044aa3c15f7ffa0dac7023a56fbb1bcb015aea3bcef53`
-- Fund: `0x503361dad62cd161c3966099402f8374c8218dcd35fd093566196f3d3de6fa72`
-- Relay: `0x1777c927e1ca69f9264299cd17567d821fae5c89a66efdf3e7bd89393e7f7a52`
-- Claim: `0x25fa33c7d4d5377e7fa33336dc595ffecaa8a27a31ac586ca1f48cd71f0d8631`
+- Outcome: `POTENTIAL_ISSUE` at 68% confidence
+- GenLayer adjudication: `0xe5f04dc5b630fbbb323d84aedaae705d989e686a3569e76fb8537b025ecb5754`
+- GenLayer settlement: `0xd8fc8e347b4c98c587de575bd1cf17535d2f3a9b641d35251e6078feb33ff02e`
+- Base relay: `0xc26fafca76e1d95481b5bd6f809ef225adf16146a1162462133b1d00e291caed`
+- Base claim: `0x550e8f865fd9d3486cd0a3fd32b4d28b22469d90c17b8d2df83fcfe1d7824313`
 
-### 3. Funded challenge overturned
+### 3. Independent Fisher-Price settlement (investigation 5)
 
-- Product: Anker 535 Power Bank
-- Bounty: `0.60 USDC`
-- Challenge stake: `0.12 USDC`
-- Outcome: `POTENTIAL_ISSUE`, challenge overturned; `0.72 USDC` became claimable
-- Case: `0xbfc4a983b5e86e71e435288d3c66f6e2728d37c42355ff1f1f3222ff045d9b38`
-- Fund: `0xd04c788c14baffbb720d8503f0b37d5e015abe896ba0b08c2ebf2559da009fdd`
-- Relay: `0xc5288fbe2bf41a4a08e0d8aa0e91a047cead51f928867f8de17953428d122426`
-- Claim: `0xdeeef085a9c0cd342df5cab0d5a9c55c33758a3dcee5f8bc19ab4ced8ca32590`
+- Product: Fisher-Price Rock 'n Play Sleeper
+- Bounty: `0.50 USDC`
+- Outcome: `POTENTIAL_ISSUE` at 62% confidence
+- Case: `0x9141822015bf32736f981c2aca443dd4fe470eed08ee1b9b270f895432c88ad8`
+- GenLayer adjudication: `0xa1bc2a2ba355160c2446ad41a5459b52214160a21a4f15b29c1d95bb2dd22336`
+- GenLayer settlement: `0x758f073147564eeaba8515420a3d47a2dc98dc98dbb89a94eb6570aa00df868d`
+- Base funding: `0xa7c194da67ca2638f7aa781c5b6e5bd10e0d301e4328e21505cd4eb7d87bdcee`
+- Base relay: `0x9b5864cf16f8307582c12e534f18203d04f687399d3cb9a5f1dcd00461ea9ca2`
+- Base claim: `0xc4fa639a4a0bea73fb4486a92997d463cb620ccc70da57ef350d384fefdc2d80`
 
 The first attempt also exposed a public-RPC consistency race. The permanent E2E
 harness now waits for two confirmations before a dependent transaction, which
@@ -126,7 +128,7 @@ prevents a second RPC backend from seeing a stale allowance or claimable value.
 - `npm run build:api` — passed
 - `npm run build:web` — passed
 - Python syntax compile of the GenLayer contract — passed
-- Base Sepolia three-scenario E2E — passed
+- Three Base Sepolia + GenLayer E2E settlements — passed
 - GenLayer deployment consensus — accepted with `MAJORITY_AGREE`
 
 ## Compare range

@@ -3,11 +3,11 @@
 ## Current addresses
 
 - Base Sepolia USDC: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
-- RecallRaidEscrow: `0xce45b80019A59C153659f014bC74900d930A6886`
-- GenLayer adjudicator: `0x193f060bc67A350B4158f52D403BCdd14151A835`
+- RecallRaidEscrow: `0x5D6426aA81583Fd795385952CB6d82A1Ed5a15F4`
+- GenLayer adjudicator: `0xa4e1D02aBaed368461870D1453d709d51183A119`
 - Deployer/relayer: `0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb`
-- Base deployment tx: `0x3a1388328c4d23d1775e4c74a4d8e8cb31722feb65ae16a8773d18d8a6a76bd5`
-- GenLayer deployment tx: `0x07ec2204e37d069573f98507a35e510b1e91361343f2e2e337a78bb671b0e830`
+- Base deployment tx: `0xb60871d4e652d66cef7a3e66431a8ff1819ce24d662603369d3467681d731aa4`
+- GenLayer deployment tx: `0x0a9929c10a80cf39d590ff108a09da6d7bf0ec7cb6e9cda5f9c0341971f50e51`
 
 ## Contracts
 
@@ -15,7 +15,7 @@
 npm run compile:base
 DEPLOYER_PRIVATE_KEY=... npm run deploy:base
 genlayer deploy --contract contracts/recallraid_contract.py
-genlayer schema 0x193f060bc67A350B4158f52D403BCdd14151A835
+genlayer schema 0xa4e1D02aBaed368461870D1453d709d51183A119
 ```
 
 ## API
@@ -32,4 +32,4 @@ curl https://recallraid-usdc-api.fly.dev/health
 ## Frontend
 
 Set all public variables from `.env.example`, build, and deploy `apps/web`.
-Verify `/`, `/hunts`, `/submit`, `/seller`, `/wallet`, and `/milestone`.
+Verify `/`, `/hunts`, `/submit`, `/seller`, and `/wallet`.

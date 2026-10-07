@@ -134,4 +134,4 @@ prevents a second RPC backend from seeing a stale allowance or claimable value.
 ## Compare range
 
 Milestone base: `fe45e9a` (the latest repository update before this work).
-The final compare URL is recorded after the milestone commit is pushed.
+Implementation compare: [fe45e9a...e372aba](https://github.com/zoefunds/recall-raid/compare/fe45e9a...e372aba).

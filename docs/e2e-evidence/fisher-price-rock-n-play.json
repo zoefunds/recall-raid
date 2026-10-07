@@ -1,0 +1,9 @@
+{
+  "case": "Fisher-Price Rock 'n Play Sleeper listing re-check",
+  "product": "Fisher-Price Rock 'n Play Sleeper",
+  "model": "Rock 'n Play Sleeper",
+  "reported_hazard": "Infant fatality risk when used without restraints or after the child can roll over",
+  "official_reference": "U.S. CPSC Recall 19-105",
+  "official_url": "https://www.cpsc.gov/Recalls/2019/Fisher-Price-Recalls-Rock-n-Play-Sleepers-Due-to-Reports-of-Deaths",
+  "test_scope": "A real cross-chain adjudication test using Base Sepolia USDC and GenLayer StudioNet."
+}

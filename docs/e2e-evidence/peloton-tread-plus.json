@@ -1,0 +1,9 @@
+{
+  "case": "Peloton Tread+ recall-confirmed listing",
+  "product": "Peloton Tread+ Treadmill",
+  "model": "TR01",
+  "reported_hazard": "Adult users, children, pets, and objects can be pulled underneath the rear roller",
+  "official_reference": "U.S. CPSC Recall 21-129",
+  "official_url": "https://www.cpsc.gov/Recalls/2021/Peloton-Recalls-Tread-Plus-Treadmills-Due-to-Risk-of-Injury-and-Death",
+  "test_scope": "A real cross-chain adjudication test using Base Sepolia USDC and GenLayer StudioNet."
+}

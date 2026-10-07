@@ -1,0 +1,9 @@
+{
+  "case": "Anker 535 Power Bank listing",
+  "product": "Anker 535 Power Bank (PowerCore 20K)",
+  "model": "A1366",
+  "reported_hazard": "Lithium-ion battery can overheat and create a fire hazard",
+  "official_reference": "Public product-safety evidence submitted for independent adjudication",
+  "official_url": "https://www.cpsc.gov/Recalls",
+  "test_scope": "A real cross-chain adjudication test using Base Sepolia USDC and GenLayer StudioNet."
+}

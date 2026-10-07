@@ -46,7 +46,7 @@ export function initAppKit() {
     metadata: {
       name: 'RecallRaid',
       description: 'Find the danger. Claim the bounty.',
-      url: typeof window !== 'undefined' ? window.location.origin : 'https://recallraid.vercel.app',
+      url: typeof window !== 'undefined' ? window.location.origin : 'https://recall-raid.vercel.app',
       icons: ['/icon.svg'],
     },
     features: {

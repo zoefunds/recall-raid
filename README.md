@@ -13,7 +13,7 @@ the backend relays each final decision to Base Sepolia for settlement.
 | RecallRaidEscrow | Base Sepolia | `0xce45b80019A59C153659f014bC74900d930A6886` |
 | RecallRaid adjudicator | GenLayer StudioNet | `0x193f060bc67A350B4158f52D403BCdd14151A835` |
 | API | Fly.io | `https://recallraid-usdc-api.fly.dev` |
-| Frontend | Vercel | `https://recallraid.vercel.app` |
+| Frontend | Vercel | `https://recall-raid.vercel.app` |
 
 The deployer/relayer address is `0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb`.
 Private keys and service credentials are never committed.

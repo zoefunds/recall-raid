@@ -8,18 +8,19 @@ export async function syncInvestigation(investigationId: number): Promise<void> 
 
   await pool.query(
     `insert into investigations_cache (
-       investigation_id, submitter_wallet, product_name, brand, model_number, serial_number,
+       investigation_id, submitter_wallet, base_case_id, product_name, brand, model_number, serial_number,
        marketplace, marketplace_url, manufacturer_url, recall_source_url, category, hazard_class,
        status, verdict, bounty_wei, bounty_deposited_wei, seller_bond_id, ai_confidence_bps,
        hunter_payout_bps, evidence_count, created_at_chain, evidence_deadline, verdict_deadline,
-       challenge_deadline, open_challenge_id, settled, description, search_keywords, synced_at
+       challenge_deadline, open_challenge_id, settled, relay_tx_hash, description, search_keywords, synced_at
      ) values (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,
-       to_tsvector('english', coalesce($3,'') || ' ' || coalesce($4,'') || ' ' || coalesce($11,'')),
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,
+       to_tsvector('english', coalesce($4,'') || ' ' || coalesce($5,'') || ' ' || coalesce($12,'')),
        now()
      )
      on conflict (investigation_id) do update set
        submitter_wallet = excluded.submitter_wallet,
+       base_case_id = excluded.base_case_id,
        product_name = excluded.product_name,
        brand = excluded.brand,
        model_number = excluded.model_number,
@@ -43,6 +44,7 @@ export async function syncInvestigation(investigationId: number): Promise<void> 
        challenge_deadline = excluded.challenge_deadline,
        open_challenge_id = excluded.open_challenge_id,
        settled = excluded.settled,
+       relay_tx_hash = excluded.relay_tx_hash,
        description = excluded.description,
        search_keywords = excluded.search_keywords,
        synced_at = now()
@@ -50,6 +52,7 @@ export async function syncInvestigation(investigationId: number): Promise<void> 
     [
       inv.id,
       inv.submitter?.toLowerCase() ?? null,
+      inv.base_case_id,
       inv.product_name,
       inv.brand,
       inv.model_number,
@@ -74,6 +77,7 @@ export async function syncInvestigation(investigationId: number): Promise<void> 
       inv.challenge_deadline,
       inv.open_challenge_id || null,
       inv.settled,
+      inv.relay_tx_hash,
       inv.description,
     ],
   );
@@ -137,15 +141,16 @@ export async function syncChallenge(challengeId: number): Promise<void> {
   const c = await chain.getChallenge(challengeId);
   await pool.query(
     `insert into challenges_cache (
-       challenge_id, investigation_id, challenger_wallet, reason, stake_wei, stake_deposited_wei,
+       challenge_id, investigation_id, challenger_wallet, reason, stake_wei, stake_deposited_wei, base_tx_hash,
        status, created_at_chain, resolution_deadline, prior_verdict, new_verdict, synced_at
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
      on conflict (challenge_id) do update set
        investigation_id = excluded.investigation_id,
        challenger_wallet = excluded.challenger_wallet,
        reason = excluded.reason,
        stake_wei = excluded.stake_wei,
        stake_deposited_wei = excluded.stake_deposited_wei,
+       base_tx_hash = excluded.base_tx_hash,
        status = excluded.status,
        created_at_chain = excluded.created_at_chain,
        resolution_deadline = excluded.resolution_deadline,
@@ -160,6 +165,7 @@ export async function syncChallenge(challengeId: number): Promise<void> {
       c.reason,
       c.stake_wei,
       c.stake_deposited_wei,
+      c.base_tx_hash,
       challengeStatusLabel(c.status),
       c.created_at,
       c.resolution_deadline,
@@ -179,12 +185,13 @@ export async function syncSellerBond(bondId: number): Promise<void> {
   );
   await pool.query(
     `insert into seller_bonds_cache (
-       bond_id, seller_wallet, bond_wei, bond_deposited_wei, status, created_at_chain,
+       bond_id, seller_wallet, base_bond_id, bond_wei, bond_deposited_wei, status, created_at_chain,
        linked_investigation_count, slashed_total_wei, verification_code, listing_url,
        listing_verified, synced_at
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
      on conflict (bond_id) do update set
        seller_wallet = excluded.seller_wallet,
+       base_bond_id = excluded.base_bond_id,
        bond_wei = excluded.bond_wei,
        bond_deposited_wei = excluded.bond_deposited_wei,
        status = excluded.status,
@@ -199,6 +206,7 @@ export async function syncSellerBond(bondId: number): Promise<void> {
     [
       bond.id,
       bond.seller.toLowerCase(),
+      bond.base_bond_id,
       bond.bond_wei,
       bond.bond_deposited_wei,
       bondStatusLabel(bond.status),

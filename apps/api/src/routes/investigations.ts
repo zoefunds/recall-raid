@@ -5,6 +5,10 @@ import { syncInvestigation } from "../lib/sync.js";
 import { requireAuth } from "../plugins/auth-plugin.js";
 import { badRequest, notFound } from "../lib/http-errors.js";
 import { serializeInvestigation, type InvestigationRow } from "../lib/serialize.js";
+import { chain } from "../lib/genlayer.js";
+import { getCaseEscrow, relayAdjudication, relayCancellation } from "../lib/base-sepolia.js";
+import { ethers } from "ethers";
+import { config } from "../lib/config.js";
 
 const ListQuerySchema = z.object({
   status: z.string().optional(),
@@ -109,6 +113,52 @@ export async function investigationRoutes(app: FastifyInstance) {
 
       const { rows } = await pool.query("select * from investigations_cache where investigation_id = $1", [id]);
       return reply.send({ investigation: rows[0] });
+    },
+  );
+
+  // Relays a final GenLayer adjudication to the Base Sepolia USDC escrow.
+  // The Base contract enforces one-time finalization, so retries are safe.
+  app.post(
+    "/investigations/:id/relay",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      requireAuth(req);
+      const id = Number((req.params as { id: string }).id);
+      if (!Number.isInteger(id) || id <= 0) throw badRequest("id must be a positive integer");
+      const inv = await chain.getInvestigation(id);
+      const finalVerdict = inv.settled && [1, 2, 3].includes(inv.verdict);
+      const terminalRefund = [6, 7].includes(inv.status);
+      if (!finalVerdict && !terminalRefund) throw badRequest("GenLayer adjudication is not terminal");
+
+      const existing = await getCaseEscrow(inv.base_case_id);
+      if (existing.finalized) {
+        await pool.query("update investigations_cache set relay_tx_hash = coalesce(nullif(relay_tx_hash, ''), 'already-finalized') where investigation_id = $1", [id]);
+        return reply.send({ relayed: true, alreadyFinalized: true, case: existing });
+      }
+
+      const evidenceIds = await chain.getEvidenceIdsForInvestigation(id);
+      const firstEvidence = evidenceIds.length ? await chain.getEvidence(evidenceIds[0]) : null;
+      const hunter = inv.verdict === 1 || terminalRefund ? ethers.ZeroAddress : firstEvidence?.submitter;
+      if (!hunter) throw badRequest("A payout verdict requires at least one evidence submitter");
+      const { rows: challengeRows } = await pool.query(
+        "select status from challenges_cache where investigation_id = $1 order by created_at_chain desc limit 1",
+        [id],
+      );
+      const challengeOverturned = challengeRows[0]?.status === "OVERTURNED";
+      const decisionHash = ethers.id(JSON.stringify({
+        genlayerContract: config.genlayer.contractAddress,
+        investigationId: id,
+        caseId: inv.base_case_id,
+        verdict: inv.verdict,
+        confidenceBps: inv.ai_confidence_bps,
+        hunter,
+        challengeOverturned,
+      }));
+      const relayTxHash = terminalRefund
+        ? await relayCancellation(inv.base_case_id, decisionHash)
+        : await relayAdjudication({ caseId: inv.base_case_id, verdict: inv.verdict, hunter, challengeOverturned, decisionHash });
+      await pool.query("update investigations_cache set relay_tx_hash = $2, synced_at = now() where investigation_id = $1", [id, relayTxHash]);
+      return reply.send({ relayed: true, relayTxHash, decisionHash });
     },
   );
 }

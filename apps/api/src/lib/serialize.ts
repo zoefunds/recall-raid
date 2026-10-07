@@ -13,6 +13,7 @@ import {
 export interface InvestigationRow {
   investigation_id: number;
   submitter_wallet: string | null;
+  base_case_id: string;
   product_name: string;
   brand: string;
   model_number: string | null;
@@ -38,12 +39,14 @@ export interface InvestigationRow {
   challenge_deadline: string | number | null;
   open_challenge_id: number | null;
   settled: boolean;
+  relay_tx_hash: string;
 }
 
 export function serializeInvestigation(row: InvestigationRow) {
   return {
     id: row.investigation_id,
     submitter: row.submitter_wallet ?? "",
+    base_case_id: row.base_case_id,
     product_name: row.product_name,
     brand: row.brand,
     model_number: row.model_number ?? "",
@@ -69,6 +72,7 @@ export function serializeInvestigation(row: InvestigationRow) {
     challenge_deadline: Number(row.challenge_deadline ?? 0),
     open_challenge_id: row.open_challenge_id ?? 0,
     settled: row.settled,
+    relay_tx_hash: row.relay_tx_hash,
   };
 }
 
@@ -113,6 +117,7 @@ export interface ChallengeRow {
   reason: string | null;
   stake_wei: string | null;
   stake_deposited_wei: string | null;
+  base_tx_hash: string;
   status: string;
   created_at_chain: string | number | null;
   resolution_deadline: string | number | null;
@@ -128,6 +133,7 @@ export function serializeChallenge(row: ChallengeRow) {
     reason: row.reason ?? "",
     stake_wei: String(row.stake_wei ?? "0"),
     stake_deposited_wei: String(row.stake_deposited_wei ?? "0"),
+    base_tx_hash: row.base_tx_hash,
     status: challengeStatusCode(row.status),
     created_at: Number(row.created_at_chain ?? 0),
     resolution_deadline: Number(row.resolution_deadline ?? 0),
@@ -139,6 +145,7 @@ export function serializeChallenge(row: ChallengeRow) {
 export interface SellerBondRow {
   bond_id: number;
   seller_wallet: string | null;
+  base_bond_id: string;
   bond_wei: string | null;
   bond_deposited_wei: string | null;
   status: string;
@@ -154,6 +161,7 @@ export function serializeSellerBond(row: SellerBondRow) {
   return {
     id: row.bond_id,
     seller: row.seller_wallet ?? "",
+    base_bond_id: row.base_bond_id,
     bond_wei: String(row.bond_wei ?? "0"),
     bond_deposited_wei: String(row.bond_deposited_wei ?? "0"),
     status: bondStatusCode(row.status),

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip } from '@/components/ui/StatusChip';
 import { CardSkeleton, ErrorState, Skeleton } from '@/components/ui/States';
-import { weiToGen } from '@/lib/format';
+import { usdcBaseUnitsToDisplay } from '@/lib/format';
 import { LogoMark } from '@/components/Logo';
 
 export default function LandingPage() {
@@ -42,9 +42,9 @@ function Hero() {
           <span className="text-primary">Claim the Bounty.</span>
         </h1>
         <p className="mx-auto mt-5 max-w-xl text-center text-body-md text-muted">
-          RecallRaid pays hunters in GEN for surfacing recalled, defective, or mislabeled marketplace
-          listings — every verdict is independently re-verified on-chain from public evidence, never
-          decided from one person&apos;s word.
+          RecallRaid pays hunters in Base Sepolia USDC for surfacing recalled, defective, or mislabeled
+          marketplace listings. GenLayer independently adjudicates public evidence; Base Sepolia holds
+          and settles every dollar of escrowed value.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/hunts">
@@ -71,8 +71,8 @@ function StatsBento({ statsQuery }: { statsQuery: ReturnType<typeof useQuery<Awa
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <StatTile label="Verified Discoveries" value={isLoading ? undefined : String(data?.verified_discoveries ?? 0)} tone="cyan" />
           <StatTile
-            label="GEN Distributed"
-            value={isLoading ? undefined : `${weiToGen(data?.gen_distributed_wei ?? '0', 2)} GEN`}
+            label="USDC Distributed"
+            value={isLoading ? undefined : `${usdcBaseUnitsToDisplay(data?.usdc_distributed_base_units ?? '0', 2)} USDC`}
             tone="orange"
           />
           <StatTile label="Active Threats" value={isLoading ? undefined : String(data?.active_threats ?? 0)} tone="red" />
@@ -132,7 +132,7 @@ function PriorityTargets({ targetsQuery }: { targetsQuery: ReturnType<typeof use
                   </div>
                   <h3 className="mb-1 truncate font-sans text-body-md font-semibold text-on-surface">{inv.product_name}</h3>
                   <p className="mb-3 truncate text-body-sm text-muted">{inv.brand || inv.marketplace}</p>
-                  <div className="font-mono text-data-mono text-primary">{weiToGen(inv.bounty_wei)} GEN bounty</div>
+                  <div className="font-mono text-data-mono text-primary">{usdcBaseUnitsToDisplay(inv.bounty_wei)} USDC bounty</div>
                 </CardBody>
               </Card>
             </Link>
@@ -146,9 +146,9 @@ function PriorityTargets({ targetsQuery }: { targetsQuery: ReturnType<typeof use
 function HowItWorks() {
   const steps = [
     { n: '01', title: 'Spot the danger', body: 'Find a recalled, defective, or mislabeled listing on any marketplace.' },
-    { n: '02', title: 'Stake & submit', body: 'Post a GEN bounty and attach evidence — photos, screenshots, source URLs.' },
+    { n: '02', title: 'Fund & submit', body: 'Escrow USDC on Base Sepolia and attach evidence — photos, screenshots, source URLs.' },
     { n: '03', title: 'Independent verdict', body: 'Multiple validators re-fetch public evidence and reach a verdict — not your word alone.' },
-    { n: '04', title: 'Claim the bounty', body: 'Confirmed findings pay out instantly to your on-chain balance.' },
+    { n: '04', title: 'Claim the bounty', body: 'The relayed verdict unlocks claimable USDC from the Base Sepolia escrow.' },
   ];
   return (
     <section className="border-y border-border-subtle bg-surface-container/30">

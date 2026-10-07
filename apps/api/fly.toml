@@ -5,7 +5,7 @@
 # or auto-stop between requests). min_machines_running = 1 and
 # auto_stop_machines = "off" together guarantee at least one machine is
 # always serving; do not add scale-to-zero behavior here.
-app = "recallraid-api"
+app = "recallraid-usdc-api"
 primary_region = "iad"
 
 [build]

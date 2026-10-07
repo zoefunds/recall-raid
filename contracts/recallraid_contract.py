@@ -190,6 +190,7 @@ CONFIDENCE_TOLERANCE_BPS = u32(1500)  # leader/validator confidence scores may d
 class Investigation:
     id: u32
     submitter: Address
+    base_case_id: str          # bytes32 id of the funded Base Sepolia escrow case
     product_name: str
     brand: str
     model_number: str
@@ -203,8 +204,8 @@ class Investigation:
     hazard_class: u8
     status: u8
     verdict: u8
-    bounty_wei: u256            # commercial term — the amount promised at submission
-    bounty_deposited_wei: u256  # ledger — the amount actually held in escrow right now
+    bounty_wei: u256            # USDC base units (6 decimals); value is held on Base Sepolia
+    bounty_deposited_wei: u256  # mirrored Base Sepolia escrow amount; GenLayer holds no value
     seller_bond_id: u32         # 0 if no seller bond is linked
     ai_confidence_bps: u32
     hunter_payout_bps: u32      # fraction of bounty_wei paid to the finder on settle
@@ -215,6 +216,7 @@ class Investigation:
     challenge_deadline: u64
     open_challenge_id: u32      # 0 if none currently open
     settled: bool
+    relay_tx_hash: str          # Base Sepolia relay transaction once finalized
 
 
 @allow_storage
@@ -242,8 +244,9 @@ class Challenge:
     investigation_id: u32
     challenger: Address
     reason: str
-    stake_wei: u256            # commercial term
-    stake_deposited_wei: u256  # ledger
+    stake_wei: u256            # USDC base units escrowed on Base Sepolia
+    stake_deposited_wei: u256  # mirrored Base escrow amount; GenLayer holds no value
+    base_tx_hash: str
     status: u8
     created_at: u64
     resolution_deadline: u64
@@ -283,8 +286,9 @@ class SellerBond:
     haven't been attached to anything yet."""
     id: u32
     seller: Address
-    bond_wei: u256            # commercial term — total ever deposited
-    bond_deposited_wei: u256  # ledger — currently held (term minus withdrawals minus slashes)
+    base_bond_id: str
+    bond_wei: u256            # USDC base units deposited on Base Sepolia
+    bond_deposited_wei: u256  # mirrored Base balance; GenLayer holds no value
     status: u8
     created_at: u64
     linked_investigation_count: u32
@@ -306,28 +310,10 @@ class ReputationScore:
 
 
 # --------------------------------------------------------------------------
-# Minimal EVM interface stub for the recipient side of a GEN transfer.
-# Every payout in this contract funnels through `_send_gen` — the single
-# emission chokepoint — so every place money leaves the contract can be
-# audited by grepping for one function name.
+# GenLayer is adjudication-only. No payment interface exists here: all USDC
+# deposits, challenge stakes, seller bonds, claims, and slashes are executed
+# by RecallRaidEscrow on Base Sepolia.
 # --------------------------------------------------------------------------
-
-@gl.evm.contract_interface
-class _Recipient:
-    class View:
-        pass
-
-    class Write:
-        pass
-
-
-def _send_gen(to_address: Address, amount: u256) -> None:
-    if to_address == Address("0x0000000000000000000000000000000000000000"):
-        raise gl.vm.UserError("[EXPECTED] missing recipient address")
-    if amount <= u256(0):
-        raise gl.vm.UserError("[EXPECTED] transfer amount must be positive")
-    _Recipient(to_address).emit_transfer(value=amount)
-
 
 def _now() -> u64:
     # No gl.vm.get_timestamp / gl.message.raw on the pinned runner — GenVM
@@ -372,12 +358,8 @@ class RecallRaid(gl.Contract):
 
     reputation: TreeMap[Address, ReputationScore]
 
-    # Pull-payment ledger. Every payout credits a balance here instead of
-    # transferring immediately — a single verdict/settlement can owe money
-    # to more than one party (hunter + submitter refund share + challenger),
-    # and doing an unbounded number of external calls inside one settlement
-    # transaction is both a gas and a reentrancy-surface concern. Only
-    # `withdraw()` ever calls `_send_gen`.
+    # Deprecated zero-value compatibility ledger. Payments are exclusively
+    # accounted for and transferred by the Base Sepolia USDC escrow.
     balances: TreeMap[Address, u256]
 
     def __init__(self):
@@ -891,9 +873,11 @@ class RecallRaid(gl.Contract):
     # WRITE — Investigation submission & evidence
     # ==================================================================
 
-    @gl.public.write.payable
+    @gl.public.write
     def submit_investigation(
         self,
+        base_case_id: str,
+        bounty_usdc_base_units: int,
         product_name: str,
         brand: str,
         model_number: str,
@@ -907,8 +891,8 @@ class RecallRaid(gl.Contract):
         hazard_class: int,
     ) -> str:
         self._require_not_paused()
-        if gl.message.value <= u256(0):
-            raise gl.vm.UserError("[EXPECTED] investigation must be funded with a GEN bounty")
+        if not base_case_id or bounty_usdc_base_units <= 0:
+            raise gl.vm.UserError("[EXPECTED] a funded Base Sepolia case id and positive USDC bounty are required")
         if not product_name or not marketplace or not marketplace_url:
             raise gl.vm.UserError("[EXPECTED] product_name, marketplace, and marketplace_url are required")
         if hazard_class not in (1, 2, 3):
@@ -925,6 +909,7 @@ class RecallRaid(gl.Contract):
         inv = Investigation(
             id=inv_id,
             submitter=gl.message.sender_address,
+            base_case_id=base_case_id,
             product_name=product_name,
             brand=brand,
             model_number=model_number,
@@ -938,8 +923,8 @@ class RecallRaid(gl.Contract):
             hazard_class=u8(hazard_class),
             status=INV_OPEN,
             verdict=VERDICT_NONE,
-            bounty_wei=gl.message.value,
-            bounty_deposited_wei=gl.message.value,
+            bounty_wei=u256(bounty_usdc_base_units),
+            bounty_deposited_wei=u256(bounty_usdc_base_units),
             seller_bond_id=u32(0),
             ai_confidence_bps=u32(0),
             hunter_payout_bps=u32(0),
@@ -950,6 +935,7 @@ class RecallRaid(gl.Contract):
             challenge_deadline=u64(0),
             open_challenge_id=u32(0),
             settled=False,
+            relay_tx_hash="",
         )
         self.investigations[inv_id] = inv
         self.investigation_ids.append(inv_id)
@@ -1047,7 +1033,7 @@ class RecallRaid(gl.Contract):
                 # printed the object's real attributes (`body`, `headers`,
                 # `status`) and confirmed `.status` + `.body` round-trip
                 # correctly with a matching sha256 against a plain local
-                # fetch of the same URL. See memory.md for the full story.
+                # fetch of the same URL.
                 resp = gl.nondet.web.get(url)
                 status_ok = 200 <= int(resp.status) < 300
                 body = resp.body
@@ -1091,14 +1077,10 @@ class RecallRaid(gl.Contract):
         if int(inv.status) != int(INV_OPEN):
             raise gl.vm.UserError("[EXPECTED] investigation can only be cancelled before evidence is submitted")
 
-        refund = inv.bounty_deposited_wei
-        if refund <= u256(0):
-            raise gl.vm.UserError("[EXPECTED] nothing to refund")
         inv.bounty_deposited_wei = u256(0)
         inv.status = INV_CANCELLED
         self.investigations[u32(investigation_id)] = inv
         self._unlink_seller_bond_if_present(inv)
-        self._credit_balance(inv.submitter, refund)
 
     # ==================================================================
     # WRITE — Investigation verdict (the nondet pass)
@@ -1161,21 +1143,17 @@ class RecallRaid(gl.Contract):
     def claim_evidence_timeout(self, investigation_id: int) -> None:
         """Permissionless sweep — if nobody ever submits evidence before
         the deadline, the submitter gets refunded and the investigation
-        closes out instead of holding GEN hostage forever."""
+        closes out instead of leaving the adjudication record open forever."""
         inv = self._get_investigation(investigation_id)
         if int(inv.status) != int(INV_OPEN):
             raise gl.vm.UserError("[EXPECTED] investigation is not awaiting first evidence")
         if _now() < inv.evidence_deadline:
             raise gl.vm.UserError("[EXPECTED] evidence window has not expired yet")
 
-        refund = inv.bounty_deposited_wei
-        if refund <= u256(0):
-            raise gl.vm.UserError("[EXPECTED] nothing to refund")
         inv.bounty_deposited_wei = u256(0)
         inv.status = INV_INVALID
         self.investigations[u32(investigation_id)] = inv
         self._unlink_seller_bond_if_present(inv)
-        self._credit_balance(inv.submitter, refund)
 
     @gl.public.write
     def claim_verdict_timeout(self, investigation_id: int) -> None:
@@ -1189,21 +1167,17 @@ class RecallRaid(gl.Contract):
         if int(_now()) < deadline:
             raise gl.vm.UserError("[EXPECTED] verdict window has not expired yet")
 
-        refund = inv.bounty_deposited_wei
-        if refund <= u256(0):
-            raise gl.vm.UserError("[EXPECTED] nothing to refund")
         inv.bounty_deposited_wei = u256(0)
         inv.status = INV_INVALID
         self.investigations[u32(investigation_id)] = inv
         self._unlink_seller_bond_if_present(inv)
-        self._credit_balance(inv.submitter, refund)
 
     # ==================================================================
     # WRITE — Challenges
     # ==================================================================
 
-    @gl.public.write.payable
-    def open_challenge(self, investigation_id: int, reason: str) -> str:
+    @gl.public.write
+    def open_challenge(self, investigation_id: int, reason: str, stake_usdc_base_units: int, base_tx_hash: str) -> str:
         self._require_not_paused()
         inv = self._get_investigation(investigation_id)
         if int(inv.status) != int(INV_VERDICT_REACHED):
@@ -1218,9 +1192,9 @@ class RecallRaid(gl.Contract):
         required_stake = u256((int(inv.bounty_wei) * int(CHALLENGE_STAKE_BPS)) // 10000)
         if required_stake <= u256(0):
             required_stake = u256(1)
-        if gl.message.value != required_stake:
+        if stake_usdc_base_units != int(required_stake) or not base_tx_hash:
             raise gl.vm.UserError(
-                "[EXPECTED] challenge stake must be exactly " + _u256_str(required_stake) + " wei"
+                "[EXPECTED] Base Sepolia challenge stake must be exactly " + _u256_str(required_stake) + " USDC base units"
             )
 
         challenge_id = self.next_challenge_id
@@ -1230,8 +1204,9 @@ class RecallRaid(gl.Contract):
             investigation_id=u32(investigation_id),
             challenger=gl.message.sender_address,
             reason=reason,
-            stake_wei=gl.message.value,
-            stake_deposited_wei=gl.message.value,
+            stake_wei=u256(stake_usdc_base_units),
+            stake_deposited_wei=u256(stake_usdc_base_units),
+            base_tx_hash=base_tx_hash,
             status=CHALLENGE_OPEN,
             created_at=now,
             resolution_deadline=u64(int(now) + int(CHALLENGE_RESOLUTION_SECONDS)),
@@ -1274,30 +1249,7 @@ class RecallRaid(gl.Contract):
         challenge.status = CHALLENGE_OVERTURNED if overturned else CHALLENGE_UPHELD
         self.challenges[u32(challenge_id)] = challenge
 
-        stake = challenge.stake_deposited_wei
-        challenge = self.challenges[u32(challenge_id)]
-        challenge.stake_deposited_wei = u256(0)
-        self.challenges[u32(challenge_id)] = challenge
-
         inv = self._get_investigation(int(challenge.investigation_id))
-
-        # The overturn bonus must be funded from a real, already-escrowed
-        # source — never manufactured — or credited balances can exceed
-        # the contract's actual GEN, leaving later withdrawals insolvent
-        # (a real audit finding against an earlier revision of this
-        # contract: the bonus used to be minted from nothing here). Since
-        # "overturned" means the original submitter's verdict claim was
-        # proven wrong, it is the submitter's own escrowed bounty —
-        # bounty_deposited_wei, which they would otherwise be paid out of
-        # at settlement — that funds the correction. The bonus is capped
-        # at whatever remains in the pool, so it can never exceed what was
-        # actually deposited.
-        bonus = u256(0)
-        if overturned:
-            bounty_pool = inv.bounty_deposited_wei
-            bonus = u256(min(int(bounty_pool), (int(stake) * int(CHALLENGE_OVERTURN_BONUS_BPS)) // 10000))
-            if bonus > u256(0):
-                inv.bounty_deposited_wei = u256(int(bounty_pool) - int(bonus))
 
         inv.status = INV_VERDICT_REACHED
         inv.verdict = new_verdict
@@ -1308,13 +1260,8 @@ class RecallRaid(gl.Contract):
         self.investigations[u32(challenge.investigation_id)] = inv
 
         if overturned:
-            self._credit_balance(challenge.challenger, u256(int(stake) + int(bonus)))
-            self._bump_reputation(challenge.challenger, successful_challenge=True, earned_wei=u256(int(stake) + int(bonus)))
+            self._bump_reputation(challenge.challenger, successful_challenge=True)
         else:
-            # Upheld challenge: stake is forfeited to the treasury-less
-            # protocol by crediting it back to the original submitter as
-            # compensation for the frivolous challenge attempt.
-            self._credit_balance(inv.submitter, stake)
             self._bump_reputation(challenge.challenger, failed_challenge=True)
 
         return json.dumps({"overturned": overturned})
@@ -1333,8 +1280,6 @@ class RecallRaid(gl.Contract):
         if _now() < challenge.resolution_deadline:
             raise gl.vm.UserError("[EXPECTED] resolution window has not expired yet")
 
-        stake = challenge.stake_deposited_wei
-        challenge.stake_deposited_wei = u256(0)
         challenge.status = CHALLENGE_EXPIRED
         challenge.new_verdict = challenge.prior_verdict
         self.challenges[u32(challenge_id)] = challenge
@@ -1345,7 +1290,6 @@ class RecallRaid(gl.Contract):
         inv.challenge_deadline = u64(int(_now()) + int(CHALLENGE_WINDOW_SECONDS))
         self.investigations[u32(challenge.investigation_id)] = inv
 
-        self._credit_balance(inv.submitter, stake)
         self._bump_reputation(challenge.challenger, failed_challenge=True)
 
     # ==================================================================
@@ -1363,11 +1307,6 @@ class RecallRaid(gl.Contract):
             raise gl.vm.UserError("[EXPECTED] investigation already settled")
 
         bounty = inv.bounty_deposited_wei
-        if bounty <= u256(0):
-            raise gl.vm.UserError("[EXPECTED] no bounty deposited")
-
-        # Zero the ledger and persist BEFORE any transfer/credit is issued.
-        inv.bounty_deposited_wei = u256(0)
         inv.status = INV_SETTLED
         inv.settled = True
         self.investigations[u32(investigation_id)] = inv
@@ -1375,70 +1314,41 @@ class RecallRaid(gl.Contract):
 
         hunter_share = u256((int(bounty) * int(inv.hunter_payout_bps)) // 10000)
         submitter_refund = u256(int(bounty) - int(hunter_share))
-
         if hunter_share > u256(0):
-            self._credit_balance(inv.submitter, hunter_share)
-            self._bump_reputation(inv.submitter, valid_discovery=True, earned_wei=hunter_share)
-        if submitter_refund > u256(0):
-            self._credit_balance(inv.submitter, submitter_refund)
+            self._bump_reputation(inv.submitter, valid_discovery=True)
         if int(inv.verdict) == int(VERDICT_NO_ISSUE):
             self._bump_reputation(inv.submitter, invalid_report=True)
 
-        # Confirmed recall against a bonded seller's listing: slash a
-        # proportional share of their Clean Inventory Bond as a direct
-        # safety-accountability signal, separate from and in addition to
-        # the bounty itself (the bounty always came from the submitter's
-        # own stake, not the seller — the bond slash is the seller's cost).
-        slashed = u256(0)
-        if int(inv.seller_bond_id) != 0 and int(inv.verdict) == int(VERDICT_RECALL_CONFIRMED):
-            bond = self.seller_bonds.get(inv.seller_bond_id)
-            if bond is not None and int(bond.status) == int(BOND_ACTIVE) and int(bond.bond_deposited_wei) > 0:
-                slash_amount = u256(min(int(bond.bond_deposited_wei), int(bounty)))
-                bond.bond_deposited_wei = u256(int(bond.bond_deposited_wei) - int(slash_amount))
-                bond.slashed_total_wei = u256(int(bond.slashed_total_wei) + int(slash_amount))
-                if int(bond.bond_deposited_wei) == 0:
-                    bond.status = BOND_DEPLETED
-                self.seller_bonds[inv.seller_bond_id] = bond
-                self._credit_balance(inv.submitter, slash_amount)
-                slashed = slash_amount
-
         return json.dumps({
-            "hunter_share_wei": _u256_str(hunter_share),
-            "submitter_refund_wei": _u256_str(submitter_refund),
-            "seller_bond_slashed_wei": _u256_str(slashed),
+            "bounty_usdc_base_units": _u256_str(bounty),
+            "hunter_share_usdc_base_units": _u256_str(hunter_share),
+            "submitter_refund_usdc_base_units": _u256_str(submitter_refund),
+            "ready_for_base_relay": True,
         })
 
     @gl.public.write
-    def withdraw(self, amount_wei: int) -> None:
-        """The only function that ever calls `_send_gen`. GenLayer calldata
-        natively supports Python `int` as a public-method parameter type
-        (confirmed against the current SDK calldata spec at
-        sdk.genlayer.com — native int/str/bool/bytes/Address/list/dict are
-        all valid calldata, only *storage* fields are restricted to
-        fixed-width types), so the wei amount is accepted directly rather
-        than round-tripped through a decimal string, then cast to `u256`
-        for the storage-safe ledger arithmetic below."""
-        if amount_wei <= 0:
-            raise gl.vm.UserError("[EXPECTED] withdraw amount must be positive")
-        amount_u256 = u256(amount_wei)
-
-        caller = gl.message.sender_address
-        current = self.balances.get(caller)
-        if current is None or int(current) < int(amount_u256):
-            raise gl.vm.UserError("[EXPECTED] insufficient withdrawable balance")
-
-        self.balances[caller] = u256(int(current) - int(amount_u256))
-        _send_gen(caller, amount_u256)
+    def mark_base_relayed(self, investigation_id: int, relay_tx_hash: str) -> None:
+        """Admin-only idempotency marker after Base Sepolia confirms the USDC settlement."""
+        self._require_admin()
+        inv = self._get_investigation(investigation_id)
+        if not inv.settled:
+            raise gl.vm.UserError("[EXPECTED] adjudication must be settled before relay")
+        if inv.relay_tx_hash:
+            raise gl.vm.UserError("[EXPECTED] adjudication already relayed")
+        if not relay_tx_hash:
+            raise gl.vm.UserError("[EXPECTED] relay transaction hash is required")
+        inv.relay_tx_hash = relay_tx_hash
+        self.investigations[u32(investigation_id)] = inv
 
     # ==================================================================
     # WRITE — Seller Clean Inventory Bond
     # ==================================================================
 
-    @gl.public.write.payable
-    def create_seller_bond(self) -> str:
+    @gl.public.write
+    def create_seller_bond(self, base_bond_id: str, amount_usdc_base_units: int) -> str:
         self._require_not_paused()
-        if gl.message.value <= u256(0):
-            raise gl.vm.UserError("[EXPECTED] a Clean Inventory Bond must be funded with GEN")
+        if not base_bond_id or amount_usdc_base_units <= 0:
+            raise gl.vm.UserError("[EXPECTED] a funded Base Sepolia bond id and positive USDC amount are required")
 
         bond_id = self.next_bond_id
         created_at = _now()
@@ -1453,8 +1363,9 @@ class RecallRaid(gl.Contract):
         bond = SellerBond(
             id=bond_id,
             seller=gl.message.sender_address,
-            bond_wei=gl.message.value,
-            bond_deposited_wei=gl.message.value,
+            base_bond_id=base_bond_id,
+            bond_wei=u256(amount_usdc_base_units),
+            bond_deposited_wei=u256(amount_usdc_base_units),
             status=BOND_ACTIVE,
             created_at=created_at,
             linked_investigation_count=u32(0),
@@ -1468,19 +1379,19 @@ class RecallRaid(gl.Contract):
         self.next_bond_id = u32(int(bond_id) + 1)
         return json.dumps({"bond_id": int(bond_id), "verification_code": code})
 
-    @gl.public.write.payable
-    def topup_seller_bond(self, bond_id: int) -> None:
+    @gl.public.write
+    def topup_seller_bond(self, bond_id: int, amount_usdc_base_units: int, base_tx_hash: str) -> None:
         self._require_not_paused()
         bond = self._get_bond(bond_id)
         if gl.message.sender_address != bond.seller:
             raise gl.vm.UserError("[EXPECTED] only the bond owner can top it up")
         if int(bond.status) == int(BOND_WITHDRAWN):
             raise gl.vm.UserError("[EXPECTED] bond has been withdrawn and closed")
-        if gl.message.value <= u256(0):
-            raise gl.vm.UserError("[EXPECTED] top-up must include GEN")
+        if amount_usdc_base_units <= 0 or not base_tx_hash:
+            raise gl.vm.UserError("[EXPECTED] top-up must be confirmed in Base Sepolia USDC")
 
-        bond.bond_wei = u256(int(bond.bond_wei) + int(gl.message.value))
-        bond.bond_deposited_wei = u256(int(bond.bond_deposited_wei) + int(gl.message.value))
+        bond.bond_wei = u256(int(bond.bond_wei) + amount_usdc_base_units)
+        bond.bond_deposited_wei = u256(int(bond.bond_deposited_wei) + amount_usdc_base_units)
         if int(bond.status) == int(BOND_DEPLETED):
             bond.status = BOND_ACTIVE
         self.seller_bonds[u32(bond_id)] = bond
@@ -1536,12 +1447,9 @@ class RecallRaid(gl.Contract):
         if int(bond.linked_investigation_count) > 0:
             raise gl.vm.UserError("[EXPECTED] cannot withdraw a bond with linked investigations still unresolved; unlink completes automatically once each linked investigation settles, but this simple counter model requires the seller to wait for full settlement of all links before withdrawal")
 
-        remaining = bond.bond_deposited_wei
         bond.bond_deposited_wei = u256(0)
         bond.status = BOND_WITHDRAWN
         self.seller_bonds[u32(bond_id)] = bond
-        if remaining > u256(0):
-            self._credit_balance(bond.seller, remaining)
 
     @gl.public.write
     def verify_seller_bond_listing(self, bond_id: int, listing_url: str) -> None:
@@ -1618,6 +1526,7 @@ class RecallRaid(gl.Contract):
         return {
             "id": int(inv.id),
             "submitter": str(inv.submitter),
+            "base_case_id": inv.base_case_id,
             "product_name": inv.product_name,
             "brand": inv.brand,
             "model_number": inv.model_number,
@@ -1643,6 +1552,7 @@ class RecallRaid(gl.Contract):
             "challenge_deadline": int(inv.challenge_deadline),
             "open_challenge_id": int(inv.open_challenge_id),
             "settled": inv.settled,
+            "relay_tx_hash": inv.relay_tx_hash,
         }
 
     @gl.public.view
@@ -1709,6 +1619,7 @@ class RecallRaid(gl.Contract):
             "reason": c.reason,
             "stake_wei": _u256_str(c.stake_wei),
             "stake_deposited_wei": _u256_str(c.stake_deposited_wei),
+            "base_tx_hash": c.base_tx_hash,
             "status": int(c.status),
             "created_at": int(c.created_at),
             "resolution_deadline": int(c.resolution_deadline),
@@ -1722,6 +1633,7 @@ class RecallRaid(gl.Contract):
         return json.dumps({
             "id": int(bond.id),
             "seller": str(bond.seller),
+            "base_bond_id": bond.base_bond_id,
             "bond_wei": _u256_str(bond.bond_wei),
             "bond_deposited_wei": _u256_str(bond.bond_deposited_wei),
             "status": int(bond.status),

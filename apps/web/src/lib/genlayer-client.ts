@@ -7,7 +7,7 @@
  * the user connected to a browser wallet (MetaMask / WalletConnect /
  * Coinbase Wallet) and to obtain an EIP-1193 provider; genlayer-js is then
  * handed that provider so every write is still signed by the user's own
- * wallet (per memory.md: "the backend never signs a transaction").
+ * wallet. The backend signs only the final Base Sepolia relay.
  *
  * VERIFIED against the installed genlayer-js@1.2.0 source
  * (node_modules/genlayer-js/dist/index.js): `createClient({ chain, account,
@@ -206,7 +206,7 @@ export async function callContractWrite({
       // NOTE: an earlier version of this message blamed a "known GenVM
       // web-fetch timing issue" for verify_seller_bond_listing
       // disagreements specifically. That diagnosis was wrong and has
-      // since been corrected (see memory.md): the actual cause was this
+      // since been corrected: the actual cause was this
       // app's own contract code not unwrapping GenVM's leader_result via
       // isinstance(..., gl.vm.Return) + .calldata, which has been fixed
       // (contracts/recallraid_contract.py's _unwrap_leader_result) and
@@ -294,7 +294,7 @@ function classifyError(err: unknown): { status: TxLifecycleStatus; message: stri
     return { status: 'rejected', message: 'You declined the transaction in your wallet.' };
   }
   if (lower.includes('insufficient funds') || lower.includes('insufficient balance')) {
-    return { status: 'failed', message: "You don't have enough GEN in your wallet to cover this transaction plus network fees." };
+    return { status: 'failed', message: "Your adjudication transaction could not cover the network fee." };
   }
   if (lower.includes('timeout') || lower.includes('timed out')) {
     return { status: 'timeout', message: 'The network took too long to confirm this transaction. It may still complete — check back shortly.' };
@@ -304,7 +304,7 @@ function classifyError(err: unknown): { status: TxLifecycleStatus; message: stri
   }
   if (lower.includes('[expected]')) {
     // Contract-level UserError — strip the internal error-taxonomy prefix
-    // documented in the contract (memory.md's four-prefix scheme) before
+    // documented in the contract's four-prefix scheme before
     // showing it, since the message body itself is usually already
     // user-readable.
     return { status: 'failed', message: raw.replace(/^\[EXPECTED\]\s*/i, '') };

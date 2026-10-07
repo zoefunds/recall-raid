@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useAccount } from 'wagmi';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchInvestigation, fetchSellerBonds, syncInvestigation, syncSellerBond } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
-import { genToWei, weiToGen } from '@/lib/format';
+import { usdcBaseUnitsToDisplay, usdcToBaseUnits } from '@/lib/format';
+import { fundSellerBond, linkSellerBond, makeEscrowId } from '@/lib/base-sepolia';
 import { useConnectedAddress } from '@/components/ConnectWalletButton';
 import { useContractWrite } from '@/hooks/useContractWrite';
 import { useWalletSession } from '@/hooks/useWalletSession';
@@ -32,6 +34,7 @@ function normalizeUrlForCompare(url: string): string {
 
 export default function SellerDashboardPage() {
   const { address, isConnected } = useConnectedAddress();
+  const { connector } = useAccount();
   const qc = useQueryClient();
   const [bondAmount, setBondAmount] = useState('');
   const [listingUrlByBond, setListingUrlByBond] = useState<Record<number, string>>({});
@@ -44,7 +47,7 @@ export default function SellerDashboardPage() {
   const linkWrite = useContractWrite();
   const { ensureSession } = useWalletSession();
 
-  async function handleLinkBond(bondId: number, listingUrl: string) {
+  async function handleLinkBond(bondId: number, listingUrl: string, baseBondId: string) {
     const investigationIdRaw = (linkInvestigationIdByBond[bondId] || '').trim();
     const investigationId = Number(investigationIdRaw);
     if (!investigationIdRaw || !Number.isInteger(investigationId) || investigationId <= 0) return;
@@ -63,6 +66,9 @@ export default function SellerDashboardPage() {
         }));
         return;
       }
+      if (!address || !connector) return;
+      const provider = await connector.getProvider();
+      await linkSellerBond(provider, address, inv.base_case_id as `0x${string}`, baseBondId as `0x${string}`);
     } catch {
       setLinkErrorByBond((prev) => ({ ...prev, [bondId]: `Could not find investigation #${investigationId}.` }));
       return;
@@ -99,8 +105,12 @@ export default function SellerDashboardPage() {
 
   async function handleCreateBond() {
     await ensureSession();
-    const wei = genToWei(bondAmount);
-    const res = await write.send('create_seller_bond', [], wei);
+    if (!address || !connector) return;
+    const amount = usdcToBaseUnits(bondAmount);
+    const baseBondId = makeEscrowId('bond', address);
+    const provider = await connector.getProvider();
+    await fundSellerBond(provider, address, baseBondId, amount);
+    const res = await write.send('create_seller_bond', [baseBondId, Number(amount)]);
     if (res) {
       setBondAmount('');
       try {
@@ -141,7 +151,7 @@ export default function SellerDashboardPage() {
           <h2 className="mb-3 font-mono text-label-caps uppercase text-muted">Create Clean Inventory Bond</h2>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <label className="flex-1">
-              <div className="mb-1 font-mono text-label-caps uppercase text-muted">Amount (GEN)</div>
+              <div className="mb-1 font-mono text-label-caps uppercase text-muted">Amount (USDC on Base Sepolia)</div>
               <input
                 value={bondAmount}
                 onChange={(e) => setBondAmount(e.target.value.replace(/[^0-9.]/g, ''))}
@@ -172,11 +182,11 @@ export default function SellerDashboardPage() {
                   <span className="font-mono text-label-caps uppercase text-primary">Bond #{bond.id}</span>
                   <span className="font-mono text-label-caps uppercase text-muted">{BOND_STATUS_LABEL[bond.status]}</span>
                 </div>
-                <div className="mb-1 font-mono text-headline-md text-on-surface">{weiToGen(bond.bond_deposited_wei)} GEN</div>
-                <div className="text-body-sm text-muted">of {weiToGen(bond.bond_wei)} GEN total deposited</div>
+                <div className="mb-1 font-mono text-headline-md text-on-surface">{usdcBaseUnitsToDisplay(bond.bond_deposited_wei)} USDC</div>
+                <div className="text-body-sm text-muted">of {usdcBaseUnitsToDisplay(bond.bond_wei)} USDC deposited on Base Sepolia</div>
                 <div className="mt-2 text-body-sm text-muted">Linked investigations: {bond.linked_investigation_count}</div>
                 {Number(bond.slashed_total_wei) > 0 && (
-                  <div className="mt-1 text-body-sm text-danger">Slashed to date: {weiToGen(bond.slashed_total_wei)} GEN</div>
+                  <div className="mt-1 text-body-sm text-danger">Slashed to date: {usdcBaseUnitsToDisplay(bond.slashed_total_wei)} USDC</div>
                 )}
 
                 <div className="mt-4 border-t border-border-subtle pt-3">
@@ -212,7 +222,7 @@ export default function SellerDashboardPage() {
                               className="flex-1 rounded border border-border-subtle bg-bg-deep px-3 py-2 font-mono text-body-sm text-on-surface focus:border-primary focus:outline-none"
                             />
                             <Button
-                              onClick={() => handleLinkBond(bond.id, bond.listing_url)}
+                              onClick={() => handleLinkBond(bond.id, bond.listing_url, bond.base_bond_id)}
                               disabled={!linkInvestigationIdByBond[bond.id]?.trim()}
                               loading={
                                 linkingBondId === bond.id &&

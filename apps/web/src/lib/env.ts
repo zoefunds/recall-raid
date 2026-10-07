@@ -22,7 +22,7 @@ export const env = {
   apiBaseUrl: required(
     'NEXT_PUBLIC_API_BASE_URL',
     process.env.NEXT_PUBLIC_API_BASE_URL,
-    'https://recallraid-api.fly.dev',
+    'https://recallraid-usdc-api.fly.dev',
   ),
   genlayerChain: required(
     'NEXT_PUBLIC_GENLAYER_CHAIN',
@@ -35,6 +35,9 @@ export const env = {
     'https://studio.genlayer.com/api',
   ),
   contractAddress: process.env.NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS || '',
+  baseSepoliaRpcUrl: required('NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL', process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL, 'https://sepolia.base.org'),
+  baseSepoliaUsdcAddress: process.env.NEXT_PUBLIC_BASE_SEPOLIA_USDC_ADDRESS || '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+  baseSepoliaEscrowAddress: process.env.NEXT_PUBLIC_RECALLRAID_ESCROW_ADDRESS || '',
 };
 
 export const CONTRACT_ADDRESS_MISSING = !env.contractAddress;

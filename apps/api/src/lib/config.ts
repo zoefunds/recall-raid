@@ -23,6 +23,15 @@ export const config = {
     chain: process.env.NEXT_PUBLIC_GENLAYER_CHAIN ?? "studionet",
   },
 
+  baseSepolia: {
+    rpcUrl: process.env.BASE_SEPOLIA_RPC_URL ?? "https://sepolia.base.org",
+    chainId: Number(process.env.BASE_SEPOLIA_CHAIN_ID ?? 84532),
+    usdcAddress:
+      process.env.BASE_SEPOLIA_USDC_ADDRESS ?? "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    escrowAddress: process.env.RECALLRAID_ESCROW_ADDRESS ?? "",
+    relayerPrivateKey: process.env.BASE_SEPOLIA_RELAYER_PRIVATE_KEY ?? "",
+  },
+
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME ?? "",
     apiKey: process.env.CLOUDINARY_API_KEY ?? "",

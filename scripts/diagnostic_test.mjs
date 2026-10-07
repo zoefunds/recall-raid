@@ -3,7 +3,7 @@
 // contracts/diagnostics/nondet_consensus_diagnostic.py against a deployed
 // instance, and prints a compact evidence report (per-check
 // consensus_data.result_name plus every node's receipt) suitable for
-// pasting into a GenLayer support/Discord report or into memory.md.
+// pasting into a GenLayer support report.
 //
 // Usage: CONTRACT_ADDRESS=0x... node scripts/diagnostic_test.mjs
 // (defaults to the address below if the env var isn't set)

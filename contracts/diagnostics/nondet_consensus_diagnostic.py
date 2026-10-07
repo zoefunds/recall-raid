@@ -20,7 +20,7 @@
 # leader_fn/validator_fn -> gl.vm.run_nondet_unsafe pattern RecallRaid
 # uses, but stripped of every RecallRaid-specific concern (no storage
 # reads inside the nondet closure, no complex prompts, no multi-field
-# dicts — see RecallRaid's own memory.md for why each of those was
+# dicts — see RecallRaid's contract comments for why each of those was
 # suspected and ruled out as a contributing factor there).
 #
 # HOW TO USE: deploy this contract (same GenLayer Studio deploy flow as
@@ -145,7 +145,7 @@ class NondetConsensusDiagnostic(gl.Contract):
     # documented primitives that expose `.status_code`/`.body`, but both
     # came back "unreachable" for a trivially-reachable URL in
     # RecallRaid's own live testing on this exact runner pin — see
-    # memory.md. These two checks capture the actual exception type and
+    # prior diagnostic history. These two checks capture the actual exception type and
     # message (or success + response shape) as a STRING result, rather
     # than swallowing it into a bare bool, specifically so it can be read
     # back and diagnosed without needing another RecallRaid redeploy.

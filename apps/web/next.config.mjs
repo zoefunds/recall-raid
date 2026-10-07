@@ -3,10 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     remotePatterns: [
-      // Evidence photos are uploaded directly to Cloudinary (see
-      // memory.md's R2 -> Cloudinary swap) — this was still pointing at
-      // the old R2 domains, which silently blocks next/image from
-      // rendering any evidence photo (shows as a blank box, no error).
+      // Evidence photos are uploaded directly to Cloudinary.
       { protocol: 'https', hostname: 'res.cloudinary.com' },
     ],
   },
@@ -16,8 +13,8 @@ const nextConfig = {
     // feature), which in turn references @x402/* subpackages that are
     // *not* actual dependencies of this app and aren't published as
     // resolvable packages on their own. RecallRaid never uses Coinbase's
-    // x402 payment flow (memory.md: this app only ever moves money via
-    // GEN through the RecallRaid contract), so these are safe to stub out
+    // x402 payment flow (this app moves value through the Base Sepolia
+    // escrow), so these are safe to stub out
     // at bundle time rather than pulling in a real dependency for a
     // feature this app doesn't expose.
     config.resolve.alias = {

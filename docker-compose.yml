@@ -1,6 +1,6 @@
 # Local development Postgres for apps/api ONLY. This has nothing to do with
 # the GenLayer side of the stack — the contract runs against GenLayer
-# Studio's hosted StudioNet simulator, never in Docker (see memory.md).
+# Studio's hosted StudioNet simulator, never in Docker.
 #
 # Usage: docker compose up -d
 # Then, from apps/api: npm run migrate && npm run dev

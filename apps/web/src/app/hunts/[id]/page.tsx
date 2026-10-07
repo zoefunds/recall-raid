@@ -3,19 +3,21 @@
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchChallengesForInvestigation, fetchEvidenceForInvestigation, fetchInvestigation, syncChallenge, syncInvestigation } from '@/lib/api';
+import { fetchChallengesForInvestigation, fetchEvidenceForInvestigation, fetchInvestigation, relayInvestigation, syncChallenge, syncInvestigation } from '@/lib/api';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { Card, CardBody } from '@/components/ui/Card';
 import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip, VerdictChip } from '@/components/ui/StatusChip';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { Button } from '@/components/ui/Button';
-import { formatCountdown, formatDate, truncateAddress, weiToGen } from '@/lib/format';
+import { formatCountdown, formatDate, truncateAddress, usdcBaseUnitsToDisplay } from '@/lib/format';
 import { ChallengeStatus, InvestigationStatus, VERDICT_DESCRIPTION, VERDICT_LABEL } from '@/types/contract';
 import { useContractWrite } from '@/hooks/useContractWrite';
 import { TransactionStatusModal } from '@/components/TransactionStatusModal';
 import { computeRequiredChallengeStakeWei } from '@/lib/genlayer-client';
 import { useConnectedAddress } from '@/components/ConnectWalletButton';
 import { useState } from 'react';
+import { useAccount } from 'wagmi';
+import { fundChallenge } from '@/lib/base-sepolia';
 
 export default function InvestigationDetailPage() {
   const params = useParams<{ id: string }>();
@@ -40,6 +42,7 @@ export default function InvestigationDetailPage() {
   });
 
   const write = useContractWrite();
+  const { address, connector } = useAccount();
   const { isConnected } = useConnectedAddress();
   const { ensureSession } = useWalletSession();
   const [challengeReason, setChallengeReason] = useState('');
@@ -88,7 +91,10 @@ export default function InvestigationDetailPage() {
   async function handleOpenChallenge() {
     await ensureSession();
     const stake = computeRequiredChallengeStakeWei(BigInt(inv.bounty_wei));
-    const res = await write.send('open_challenge', [inv.id, challengeReason || 'Disputing verdict'], stake);
+    if (!address || !connector) return;
+    const provider = await connector.getProvider();
+    const baseTxHash = await fundChallenge(provider, address, inv.base_case_id as `0x${string}`, stake);
+    const res = await write.send('open_challenge', [inv.id, challengeReason || 'Disputing verdict', Number(stake), baseTxHash]);
     if (!res) return;
 
     // open_challenge creates a separate on-chain Challenge record. The
@@ -112,7 +118,11 @@ export default function InvestigationDetailPage() {
   async function handleSettle() {
     await ensureSession();
     const res = await write.send('settle_investigation', [inv.id]);
-    if (res) await refreshAfterTx(res.txHash);
+    if (res) {
+      await refreshAfterTx(res.txHash);
+      await relayInvestigation(inv.id);
+      await refreshAfterTx(res.txHash);
+    }
   }
 
   const openChallenge = challengesQuery.data?.challenges.find((c) => c.status === ChallengeStatus.OPEN);
@@ -391,8 +401,8 @@ function BountyPanel({
       <CardBody className="space-y-4">
         <div>
           <div className="mb-1 font-mono text-label-caps uppercase text-muted">Bounty</div>
-          <div className="font-mono text-[28px] font-bold text-primary">{weiToGen(inv.bounty_wei)} GEN</div>
-          <div className="font-mono text-body-sm text-muted">{weiToGen(inv.bounty_deposited_wei)} GEN currently escrowed</div>
+          <div className="font-mono text-[28px] font-bold text-primary">{usdcBaseUnitsToDisplay(inv.bounty_wei)} USDC</div>
+          <div className="font-mono text-body-sm text-muted">Escrowed on Base Sepolia</div>
         </div>
 
         {inv.challenge_deadline > 0 && (
@@ -418,7 +428,7 @@ function BountyPanel({
         {isConnected && canOpenChallenge && (
           <div className="space-y-2 rounded border border-secondary/30 bg-secondary/5 p-3">
             <div className="font-mono text-label-caps uppercase text-secondary">Open a Challenge</div>
-            <p className="text-body-sm text-muted">Requires a stake of {weiToGen(requiredStake.toString())} GEN (20% of bounty).</p>
+            <p className="text-body-sm text-muted">Requires {usdcBaseUnitsToDisplay(requiredStake)} USDC on Base Sepolia (20% of bounty).</p>
             <textarea
               value={challengeReason}
               onChange={(e) => setChallengeReason(e.target.value)}

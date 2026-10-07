@@ -8,7 +8,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip, VerdictChip } from '@/components/ui/StatusChip';
 import { VERDICT_DESCRIPTION } from '@/types/contract';
 import { CardSkeleton, EmptyState, ErrorState } from '@/components/ui/States';
-import { weiToGen, genToWei } from '@/lib/format';
+import { usdcBaseUnitsToDisplay, usdcToBaseUnits } from '@/lib/format';
 import { Sidebar, SidebarSection } from '@/components/nav/Sidebar';
 
 const HAZARD_OPTIONS = [
@@ -22,7 +22,7 @@ const PAGE_SIZE = 12;
 export default function HuntsPage() {
   const [hazardFilters, setHazardFilters] = useState<number[]>([]);
   const [category, setCategory] = useState('');
-  const [minBounty, setMinBounty] = useState(0); // GEN
+  const [minBounty, setMinBounty] = useState(0); // USDC
   const [page, setPage] = useState(0);
 
   const params = useMemo(
@@ -31,7 +31,7 @@ export default function HuntsPage() {
       limit: PAGE_SIZE,
       category: category || undefined,
       hazard_class: hazardFilters.length ? hazardFilters : undefined,
-      min_bounty_wei: minBounty > 0 ? genToWei(minBounty).toString() : undefined,
+      min_bounty_wei: minBounty > 0 ? usdcToBaseUnits(minBounty).toString() : undefined,
     }),
     [page, category, hazardFilters, minBounty],
   );
@@ -81,7 +81,7 @@ export default function HuntsPage() {
             ))}
           </div>
         </SidebarSection>
-        <SidebarSection title="Min bounty (GEN)">
+        <SidebarSection title="Min bounty (USDC)">
           <input
             type="range"
             min={0}
@@ -94,7 +94,7 @@ export default function HuntsPage() {
             }}
             className="w-full accent-primary"
           />
-          <div className="mt-1 font-mono text-data-mono text-primary">{minBounty} GEN+</div>
+          <div className="mt-1 font-mono text-data-mono text-primary">{minBounty} USDC+</div>
         </SidebarSection>
       </Sidebar>
 
@@ -136,7 +136,7 @@ export default function HuntsPage() {
                         <p className="mb-3 line-clamp-2 text-body-sm text-muted">{inv.description}</p>
                       )}
                       <div className="flex items-center justify-between">
-                        <span className="font-mono text-data-mono text-primary">{weiToGen(inv.bounty_wei)} GEN</span>
+                        <span className="font-mono text-data-mono text-primary">{usdcBaseUnitsToDisplay(inv.bounty_wei)} USDC</span>
                         <span className="font-mono text-body-sm text-muted">{inv.evidence_count} evidence</span>
                       </div>
                     </CardBody>

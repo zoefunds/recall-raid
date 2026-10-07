@@ -7,6 +7,7 @@
 import { createAppKit } from '@reown/appkit/react';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { defineChain } from 'viem';
+import { baseSepolia } from 'viem/chains';
 import { env } from './env';
 
 // GenLayer StudioNet does not ship as a built-in viem/wagmi chain preset,
@@ -20,7 +21,7 @@ import { env } from './env';
 export const genlayerStudioNet = defineChain({
   id: 61_999,
   name: 'GenLayer StudioNet',
-  nativeCurrency: { name: 'GEN', symbol: 'GEN', decimals: 18 },
+  nativeCurrency: { name: 'GenLayer Gas', symbol: 'GLGAS', decimals: 18 },
   rpcUrls: {
     default: { http: [env.genlayerRpcUrl] },
   },
@@ -28,7 +29,7 @@ export const genlayerStudioNet = defineChain({
 });
 
 export const wagmiAdapter = new WagmiAdapter({
-  networks: [genlayerStudioNet],
+  networks: [baseSepolia, genlayerStudioNet],
   projectId: env.reownProjectId,
   ssr: true,
 });
@@ -40,7 +41,7 @@ export function initAppKit() {
   initialized = true;
   createAppKit({
     adapters: [wagmiAdapter],
-    networks: [genlayerStudioNet],
+    networks: [baseSepolia, genlayerStudioNet],
     projectId: env.reownProjectId,
     metadata: {
       name: 'RecallRaid',
@@ -53,8 +54,7 @@ export function initAppKit() {
       socials: false,
       analytics: false,
     },
-    // MetaMask, WalletConnect, and Coinbase Wallet per the locked decision
-    // in memory.md — AppKit surfaces these automatically via the wagmi
+    // MetaMask, WalletConnect, and Coinbase Wallet — AppKit surfaces these automatically via the wagmi
     // adapter's default connector set; no extra config needed beyond the
     // project id.
   });

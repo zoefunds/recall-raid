@@ -84,6 +84,7 @@ export const HAZARD_DESCRIPTION: Record<number, string> = {
 export interface Investigation {
   id: number;
   submitter: string;
+  base_case_id: string;
   product_name: string;
   brand: string;
   model_number: string;
@@ -109,6 +110,7 @@ export interface Investigation {
   challenge_deadline: number;
   open_challenge_id: number;
   settled: boolean;
+  relay_tx_hash: string;
 }
 
 export interface Evidence {
@@ -134,6 +136,7 @@ export interface Challenge {
   reason: string;
   stake_wei: string;
   stake_deposited_wei: string;
+  base_tx_hash: string;
   status: number;
   created_at: number;
   resolution_deadline: number;
@@ -144,6 +147,7 @@ export interface Challenge {
 export interface SellerBond {
   id: number;
   seller: string;
+  base_bond_id: string;
   bond_wei: string;
   bond_deposited_wei: string;
   status: number;
@@ -188,6 +192,6 @@ export interface LeaderboardRow {
 
 export interface PlatformStats {
   verified_discoveries: number;
-  gen_distributed_wei: string;
+  usdc_distributed_base_units: string;
   active_threats: number;
 }

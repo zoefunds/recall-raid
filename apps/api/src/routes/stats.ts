@@ -20,15 +20,15 @@ export async function statsRoutes(app: FastifyInstance) {
             (bounty_wei::numeric * hunter_payout_bps::numeric / 10000)::numeric(78, 0)
           ) filter (where settled = true and hunter_payout_bps > 0),
           0
-        )::text as gen_distributed_wei
+        )::text as usdc_distributed_base_units
       from investigations_cache
     `);
 
-    const row = rows[0] ?? { verified_discoveries: 0, active_threats: 0, gen_distributed_wei: "0" };
+    const row = rows[0] ?? { verified_discoveries: 0, active_threats: 0, usdc_distributed_base_units: "0" };
     return reply.send({
       verified_discoveries: row.verified_discoveries,
       active_threats: row.active_threats,
-      gen_distributed_wei: row.gen_distributed_wei,
+      usdc_distributed_base_units: row.usdc_distributed_base_units,
     });
   });
 }

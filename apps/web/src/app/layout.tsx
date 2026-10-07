@@ -11,7 +11,7 @@ const jbMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jbmono', d
 export const metadata: Metadata = {
   title: 'RecallRaid — Find the Danger. Claim the Bounty.',
   description:
-    'A crowdsourced marketplace-safety bounty protocol. Stake GEN, submit evidence of recalled or defective listings, and let independent on-chain verification decide the verdict.',
+    'A crowdsourced marketplace-safety bounty protocol using Base Sepolia USDC escrow and GenLayer adjudication.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

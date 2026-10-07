@@ -7,6 +7,7 @@ const LINKS = [
   { href: '/submit', label: 'Submit Evidence' },
   { href: '/leaderboard', label: 'Leaderboard' },
   { href: '/seller', label: 'Sellers' },
+  { href: '/milestone', label: 'Live Proof' },
   { href: '/wallet', label: 'Wallet' },
 ];
 

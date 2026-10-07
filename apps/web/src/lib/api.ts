@@ -138,6 +138,10 @@ export function syncInvestigation(id: number | string, txHash?: string): Promise
   return apiFetch(`/investigations/${id}/sync`, { method: 'POST', body: JSON.stringify({ txHash }) });
 }
 
+export function relayInvestigation(id: number | string): Promise<{ relayed: boolean; relayTxHash?: string; decisionHash?: string }> {
+  return apiFetch(`/investigations/${id}/relay`, { method: 'POST', body: '{}' });
+}
+
 export function syncEvidenceForInvestigation(investigationId: number | string, txHash?: string): Promise<{ evidence: unknown[] }> {
   return apiFetch(`/evidence/${investigationId}/sync`, { method: 'POST', body: JSON.stringify({ txHash }) });
 }

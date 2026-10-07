@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { requestEvidenceUploadUrl, syncInvestigation, syncEvidenceForInvestigation } from '@/lib/api';
 import { sha256Hex } from '@/lib/hash';
-import { genToWei } from '@/lib/format';
+import { usdcToBaseUnits } from '@/lib/format';
+import { fundInvestigation, makeEscrowId } from '@/lib/base-sepolia';
 import { useContractWrite } from '@/hooks/useContractWrite';
 import { useConnectedAddress } from '@/components/ConnectWalletButton';
 import { useWalletSession } from '@/hooks/useWalletSession';
@@ -30,7 +32,7 @@ interface FormState {
   description: string;
   category: string;
   hazard_class: number;
-  stakeGen: string;
+  bountyUsdc: string;
 }
 
 const INITIAL: FormState = {
@@ -45,7 +47,7 @@ const INITIAL: FormState = {
   description: '',
   category: '',
   hazard_class: 2,
-  stakeGen: '',
+  bountyUsdc: '',
 };
 
 interface StagedFile {
@@ -65,6 +67,7 @@ export default function SubmitEvidencePage() {
   const router = useRouter();
 
   const write = useContractWrite();
+  const { address, connector } = useAccount();
   const { isConnected } = useConnectedAddress();
   const { ensureSession } = useWalletSession();
 
@@ -82,7 +85,7 @@ export default function SubmitEvidencePage() {
   const step1Valid = form.product_name && form.marketplace && form.marketplace_url;
   const step2Valid = form.description && [1, 2, 3].includes(form.hazard_class);
   const step3Valid = !!productPhoto && !!listingScreenshot;
-  const step4Valid = Number(form.stakeGen) > 0;
+  const step4Valid = Number(form.bountyUsdc) > 0;
 
   async function uploadEvidenceFile(investigationId: number, file: File, evidenceType: string) {
     const { upload_url, fields } = await requestEvidenceUploadUrl({
@@ -124,10 +127,16 @@ export default function SubmitEvidencePage() {
       // has already sat through the submit_investigation transaction.
       await ensureSession();
 
-      const stakeWei = genToWei(form.stakeGen);
+      if (!address || !connector) throw new Error('Connect your wallet first.');
+      const bountyUsdcBaseUnits = usdcToBaseUnits(form.bountyUsdc);
+      const baseCaseId = makeEscrowId('case', address);
+      const provider = await connector.getProvider();
+      await fundInvestigation(provider, address, baseCaseId, bountyUsdcBaseUnits);
       const submitRes = await write.send(
         'submit_investigation',
         [
+          baseCaseId,
+          Number(bountyUsdcBaseUnits),
           form.product_name,
           form.brand,
           form.model_number,
@@ -140,7 +149,6 @@ export default function SubmitEvidencePage() {
           form.category,
           form.hazard_class,
         ],
-        stakeWei,
       );
       if (!submitRes) {
         setUploading(false);
@@ -317,12 +325,12 @@ export default function SubmitEvidencePage() {
 
           {step === 4 && (
             <>
-              <Field label="Bounty stake (GEN) *">
-                <Input value={form.stakeGen} onChange={(v) => update('stakeGen', v.replace(/[^0-9.]/g, ''))} placeholder="e.g. 50" />
+              <Field label="Bounty escrow (USDC on Base Sepolia) *">
+                <Input value={form.bountyUsdc} onChange={(v) => update('bountyUsdc', v.replace(/[^0-9.]/g, ''))} placeholder="e.g. 50" />
               </Field>
               <p className="text-body-sm text-muted">
-                This GEN is escrowed by the contract and paid out to you if the investigation confirms a real issue, or
-                refunded if the verdict is NO_ISSUE.
+                Your wallet first deposits USDC into the RecallRaid escrow on Base Sepolia. GenLayer only adjudicates
+                the evidence; its final decision is relayed back to Base Sepolia for settlement.
               </p>
               {!isConnected && <p className="text-body-sm text-secondary">Connect your wallet to submit this investigation.</p>}
               {uploadError && <p className="text-body-sm text-danger">{uploadError}</p>}

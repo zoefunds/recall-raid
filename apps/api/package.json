@@ -2,7 +2,7 @@
   "name": "recallraid-api",
   "version": "0.1.0",
   "private": true,
-  "description": "RecallRaid backend API — read-only GenLayer mirror, Postgres cache, Cloudinary signed uploads, wallet auth. Never signs a transaction.",
+  "description": "RecallRaid API — GenLayer read cache, wallet auth, evidence uploads, and Base Sepolia adjudication relay.",
   "main": "dist/server.js",
   "type": "module",
   "scripts": {

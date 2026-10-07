@@ -2,25 +2,26 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useAccount } from 'wagmi';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { EmptyState, Skeleton } from '@/components/ui/States';
-import { formatBps, truncateAddress, weiToGen, genToWei } from '@/lib/format';
+import { formatBps, truncateAddress, usdcBaseUnitsToDisplay } from '@/lib/format';
 import { useConnectedAddress } from '@/components/ConnectWalletButton';
 import { callContractView } from '@/lib/genlayer-client';
-import { useContractWrite } from '@/hooks/useContractWrite';
-import { TransactionStatusModal } from '@/components/TransactionStatusModal';
+import { claimUsdc, readUsdcPosition } from '@/lib/base-sepolia';
 import type { Reputation } from '@/types/contract';
 
 export default function WalletPage() {
   const { address, isConnected } = useConnectedAddress();
+  const { connector } = useAccount();
   const qc = useQueryClient();
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const write = useContractWrite();
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState('');
 
   const balanceQuery = useQuery({
     queryKey: ['balance', address],
-    queryFn: () => callContractView<string>({ method: 'get_balance', args: [address] }),
+    queryFn: () => readUsdcPosition(address as `0x${string}`),
     enabled: !!address,
     refetchInterval: 20_000,
   });
@@ -31,23 +32,25 @@ export default function WalletPage() {
     enabled: !!address,
   });
 
-  async function handleWithdraw() {
-    const wei = genToWei(withdrawAmount);
-    // The deployed contract's withdraw(amount_wei: int) expects a native
-    // calldata int, not a decimal string — pass the bigint through as-is
-    // rather than stringifying it (genlayer-js's calldata encoder handles
-    // bigint natively for an `int`-typed parameter).
-    const res = await write.send('withdraw', [wei]);
-    if (res) {
-      setWithdrawAmount('');
+  async function handleClaim() {
+    if (!address || !connector) return;
+    setClaiming(true);
+    setClaimError('');
+    try {
+      const provider = await connector.getProvider();
+      await claimUsdc(provider, address);
       await qc.invalidateQueries({ queryKey: ['balance', address] });
+    } catch (error) {
+      setClaimError(error instanceof Error ? error.message : 'USDC claim failed.');
+    } finally {
+      setClaiming(false);
     }
   }
 
   if (!isConnected) {
     return (
       <div className="mx-auto max-w-container px-margin-mobile py-16 md:px-margin-desktop">
-        <EmptyState title="Connect your wallet" hint="Connect a wallet to view your GEN balance and earnings." />
+        <EmptyState title="Connect your wallet" hint="Connect a wallet to view and claim your Base Sepolia USDC." />
       </div>
     );
   }
@@ -64,24 +67,15 @@ export default function WalletPage() {
             <div className="mb-1 font-mono text-label-caps uppercase text-muted">Connected address</div>
             <div className="mb-4 font-mono text-data-mono text-on-surface">{truncateAddress(address, 6)}</div>
 
-            <div className="mb-1 font-mono text-label-caps uppercase text-muted">Withdrawable balance</div>
+            <div className="mb-1 font-mono text-label-caps uppercase text-muted">Claimable from RecallRaid escrow</div>
             {balanceQuery.isLoading ? (
               <Skeleton className="h-8 w-32" />
             ) : (
-              <div className="mb-4 font-mono text-[28px] font-bold text-primary">{weiToGen(balanceQuery.data ?? '0')} GEN</div>
+              <div className="mb-4 font-mono text-[28px] font-bold text-primary">{usdcBaseUnitsToDisplay(balanceQuery.data?.claimable ?? 0n)} USDC</div>
             )}
-
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                placeholder="Amount to withdraw"
-                className="flex-1 rounded border border-border-subtle bg-bg-deep px-3 py-2 font-mono text-data-mono text-on-surface focus:border-primary focus:outline-none"
-              />
-              <Button onClick={handleWithdraw} disabled={!Number(withdrawAmount)} loading={write.status !== 'idle' && !['confirmed', 'failed', 'rejected', 'timeout'].includes(write.status)}>
-                Withdraw
-              </Button>
-            </div>
+            <div className="mb-4 text-body-sm text-muted">Wallet balance: {usdcBaseUnitsToDisplay(balanceQuery.data?.walletBalance ?? 0n)} USDC</div>
+            <Button onClick={handleClaim} disabled={!balanceQuery.data?.claimable} loading={claiming}>Claim all USDC</Button>
+            {claimError && <p className="mt-2 text-body-sm text-danger">{claimError}</p>}
           </CardBody>
         </Card>
 
@@ -97,16 +91,13 @@ export default function WalletPage() {
                 <Stat label="Successful challenges" value={rep?.successful_challenges ?? 0} />
                 <Stat label="Failed challenges" value={rep?.failed_challenges ?? 0} />
                 <Stat label="Accuracy" value={formatBps(rep?.accuracy_bps ?? 0)} />
-                <Stat label="Total earned" value={`${weiToGen(rep?.total_earned_wei ?? '0')} GEN`} />
+                <Stat label="Recorded earnings" value={`${usdcBaseUnitsToDisplay(rep?.total_earned_wei ?? '0')} USDC`} />
               </div>
             )}
           </CardBody>
         </Card>
       </div>
 
-      {write.status !== 'idle' && (
-        <TransactionStatusModal status={write.status} message={write.message} txHash={write.txHash} onClose={write.reset} />
-      )}
     </div>
   );
 }

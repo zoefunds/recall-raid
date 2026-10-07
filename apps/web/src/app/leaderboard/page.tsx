@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchLeaderboard } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
-import { formatBps, truncateAddress, weiToGen } from '@/lib/format';
+import { formatBps, truncateAddress, usdcBaseUnitsToDisplay } from '@/lib/format';
 
 export default function LeaderboardPage() {
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ['leaderboard'], queryFn: () => fetchLeaderboard(50) });
@@ -62,7 +62,7 @@ export default function LeaderboardPage() {
                     </td>
                     <td className="px-4 py-3 font-mono text-data-mono">{row.valid_discoveries}</td>
                     <td className="px-4 py-3 font-mono text-data-mono text-status-safe">{formatBps(row.accuracy_bps)}</td>
-                    <td className="px-4 py-3 font-mono text-data-mono text-secondary">{weiToGen(row.total_earned_wei)} GEN</td>
+                    <td className="px-4 py-3 font-mono text-data-mono text-secondary">{usdcBaseUnitsToDisplay(row.total_earned_wei)} USDC</td>
                   </tr>
                 ))}
               </tbody>

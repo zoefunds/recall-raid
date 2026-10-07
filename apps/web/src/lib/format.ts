@@ -1,13 +1,13 @@
-/** Formatting helpers shared across pages — wei/GEN, addresses, time. */
+/** Formatting helpers shared across pages — 6-decimal USDC, addresses, time. */
 
-const WEI_PER_GEN = 1_000_000_000_000_000_000n;
+const USDC_SCALE = 1_000_000n;
 
-export function weiToGen(wei: string | bigint | number, decimals = 4): string {
+export function usdcBaseUnitsToDisplay(value: string | bigint | number, decimals = 2): string {
   try {
-    const v = typeof wei === 'bigint' ? wei : BigInt(String(wei || '0'));
-    const whole = v / WEI_PER_GEN;
-    const frac = v % WEI_PER_GEN;
-    const fracStr = frac.toString().padStart(18, '0').slice(0, decimals);
+    const v = typeof value === 'bigint' ? value : BigInt(String(value || '0'));
+    const whole = v / USDC_SCALE;
+    const frac = v % USDC_SCALE;
+    const fracStr = frac.toString().padStart(6, '0').slice(0, decimals);
     const trimmed = fracStr.replace(/0+$/, '');
     return trimmed ? `${whole}.${trimmed}` : whole.toString();
   } catch {
@@ -15,14 +15,14 @@ export function weiToGen(wei: string | bigint | number, decimals = 4): string {
   }
 }
 
-export function genToWei(gen: string | number): bigint {
-  const str = String(gen).trim();
+export function usdcToBaseUnits(usdc: string | number): bigint {
+  const str = String(usdc).trim();
   if (!str) return 0n;
   const [whole, frac = ''] = str.split('.');
-  const fracPadded = (frac + '0'.repeat(18)).slice(0, 18);
+  const fracPadded = (frac + '0'.repeat(6)).slice(0, 6);
   const wholeBig = BigInt(whole || '0');
   const fracBig = BigInt(fracPadded || '0');
-  return wholeBig * WEI_PER_GEN + fracBig;
+  return wholeBig * USDC_SCALE + fracBig;
 }
 
 export function truncateAddress(addr: string | undefined | null, chars = 4): string {

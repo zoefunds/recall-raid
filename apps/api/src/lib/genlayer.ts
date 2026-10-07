@@ -3,16 +3,13 @@ import { studionet } from "genlayer-js/chains";
 import { config, assertGenlayerConfigured } from "./config.js";
 
 /**
- * Read-only GenLayer StudioNet client. This is the ONLY place the API talks
- * to the chain, and it is read-only by construction: every exported helper
+ * Read-only GenLayer StudioNet client. This is the only place the API talks
+ * to GenLayer, and it is read-only by construction: every exported helper
  * here calls a `@gl.public.view` method or reads a transaction receipt.
  *
- * This module must never import a signer/account, never call
- * `client.writeContract`, and never hold a private key. All value-moving
- * calls (submit_investigation, add_evidence, open_challenge,
- * settle_investigation, withdraw, create_seller_bond, ...) are signed
- * client-side by the connected wallet directly against the GenLayer RPC
- * from apps/web — this backend is never in that path.
+ * This module never imports a signer or calls `client.writeContract`.
+ * User adjudication writes are signed in the browser. The separate
+ * base-sepolia module holds the testnet relayer used only after finality.
  */
 let client: ReturnType<typeof createClient> | null = null;
 
@@ -68,6 +65,7 @@ export async function getTransactionStatus(txHash: string) {
 export interface ChainInvestigation {
   id: number;
   submitter: string;
+  base_case_id: string;
   product_name: string;
   brand: string;
   model_number: string;
@@ -93,6 +91,7 @@ export interface ChainInvestigation {
   challenge_deadline: number;
   open_challenge_id: number;
   settled: boolean;
+  relay_tx_hash: string;
 }
 
 export interface ChainEvidence {
@@ -118,6 +117,7 @@ export interface ChainChallenge {
   reason: string;
   stake_wei: string;
   stake_deposited_wei: string;
+  base_tx_hash: string;
   status: number;
   created_at: number;
   resolution_deadline: number;
@@ -128,6 +128,7 @@ export interface ChainChallenge {
 export interface ChainSellerBond {
   id: number;
   seller: string;
+  base_bond_id: string;
   bond_wei: string;
   bond_deposited_wei: string;
   status: number;

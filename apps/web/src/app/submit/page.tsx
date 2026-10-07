@@ -63,6 +63,7 @@ export default function SubmitEvidencePage() {
   const [listingScreenshot, setListingScreenshot] = useState<File | null>(null);
   const [evidenceDoc, setEvidenceDoc] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [loadingExample, setLoadingExample] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -73,6 +74,52 @@ export default function SubmitEvidencePage() {
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  async function loadTestExample() {
+    setLoadingExample(true);
+    setUploadError(null);
+    try {
+      const suffix = new Date().toISOString().replace(/[:.]/g, '-');
+      const [productImage, listingImage] = await Promise.all([
+        createTestEvidenceImage({
+          filename: `fisher-price-rock-n-play-product-${suffix}.png`,
+          title: "Fisher-Price Rock 'n Play Sleeper",
+          subtitle: 'Test product evidence · CPSC Recall 19-105',
+          accent: '#00d4e5',
+        }),
+        createTestEvidenceImage({
+          filename: `fisher-price-rock-n-play-listing-${suffix}.png`,
+          title: 'RecallRaid Test Listing',
+          subtitle: "Fisher-Price Rock 'n Play Sleeper · CPSC Recall 19-105",
+          accent: '#ff9f1a',
+        }),
+      ]);
+
+      setForm({
+        product_name: "Fisher-Price Rock 'n Play Sleeper",
+        brand: 'Fisher-Price',
+        model_number: "Rock 'n Play Sleeper",
+        serial_number: `TEST-${suffix.slice(-8).toUpperCase()}`,
+        marketplace: 'RecallRaid test marketplace',
+        marketplace_url: 'https://recall-raid.vercel.app/e2e-evidence/fisher-price-rock-n-play',
+        manufacturer_url: '',
+        recall_source_url: 'https://www.cpsc.gov/Recalls/2019/Fisher-Price-Recalls-Rock-n-Play-Sleepers-Due-to-Reports-of-Deaths',
+        description:
+          "Test submission: Fisher-Price Rock 'n Play Sleeper is being checked against CPSC Recall 19-105. The product is recalled because of infant deaths when used without restraints or after an infant can roll over. The exact product model and official recall source are included for GenLayer verification.",
+        category: 'Baby products',
+        hazard_class: 1,
+        bountyUsdc: '0.50',
+      });
+      setProductPhoto(productImage);
+      setListingScreenshot(listingImage);
+      setEvidenceDoc(null);
+      setStep(1);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Could not create the test example files.');
+    } finally {
+      setLoadingExample(false);
+    }
   }
 
   function next() {
@@ -234,6 +281,16 @@ export default function SubmitEvidencePage() {
     <div className="mx-auto max-w-2xl px-margin-mobile py-10 md:px-margin-desktop">
       <h1 className="mb-2 font-sans text-headline-lg">Submit Evidence</h1>
       <p className="mb-6 text-body-sm text-muted">Report a hazardous or misrepresented marketplace listing and stake a bounty.</p>
+
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded border border-primary/30 bg-primary/5 p-4">
+        <div>
+          <div className="font-mono text-label-caps uppercase text-primary">Test the full flow</div>
+          <p className="mt-1 text-body-sm text-muted">Load a detailed CPSC Recall 19-105 example, including generated PNG evidence files and a 0.50 USDC test bounty.</p>
+        </div>
+        <Button type="button" variant="ghost" loading={loadingExample} onClick={loadTestExample}>
+          Load test example
+        </Button>
+      </div>
 
       <StepIndicator step={step} />
 
@@ -427,4 +484,58 @@ function FileField({ label, file, onChange }: { label: string; file: File | null
       </div>
     </label>
   );
+}
+
+async function createTestEvidenceImage({
+  filename,
+  title,
+  subtitle,
+  accent,
+}: {
+  filename: string;
+  title: string;
+  subtitle: string;
+  accent: string;
+}): Promise<File> {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1200;
+  canvas.height = 630;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Your browser could not generate the test evidence image.');
+
+  context.fillStyle = '#101418';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = accent;
+  context.fillRect(0, 0, canvas.width, 14);
+  context.fillStyle = '#e8edf2';
+  context.font = 'bold 52px Arial, sans-serif';
+  context.fillText(title, 70, 220);
+  context.fillStyle = '#9da8b3';
+  context.font = '32px Arial, sans-serif';
+  wrapCanvasText(context, subtitle, 70, 300, 1040, 46);
+  context.fillStyle = accent;
+  context.font = 'bold 24px monospace';
+  context.fillText('RECALLRAID TEST EVIDENCE · BASE SEPOLIA', 70, 510);
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((value) => (value ? resolve(value) : reject(new Error('Could not encode the test evidence image.'))), 'image/png');
+  });
+  return new File([blob], filename, { type: 'image/png' });
+}
+
+function wrapCanvasText(context: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) {
+  const words = text.split(' ');
+  let line = '';
+  let cursorY = y;
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (context.measureText(next).width > maxWidth && line) {
+      context.fillText(line, x, cursorY);
+      line = word;
+      cursorY += lineHeight;
+    } else {
+      line = next;
+    }
+  }
+  if (line) context.fillText(line, x, cursorY);
 }

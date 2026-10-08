@@ -1,11 +1,19 @@
 import "dotenv/config";
 
 function required(name: string, fallback?: string): string {
-  const value = process.env[name] ?? fallback;
-  if (value === undefined) {
+  const configured = process.env[name]?.trim();
+  if (configured) return configured;
+  // Development may use the explicitly documented local fallback. In
+  // production an unset *or empty* value must stop startup: jsonwebtoken
+  // otherwise throws only after a user has signed a wallet nonce, producing
+  // a misleading frontend authentication failure.
+  if (fallback !== undefined && process.env.NODE_ENV !== "production") {
+    return fallback;
+  }
+  if (!configured) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
-  return value;
+  return configured;
 }
 
 // Variable names below are copied verbatim from the repo-root .env.example —

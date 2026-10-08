@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { requestEvidenceUploadUrl, syncInvestigation, syncEvidenceForInvestigation } from '@/lib/api';
 import { sha256Hex } from '@/lib/hash';
 import { usdcToBaseUnits } from '@/lib/format';
-import { fundInvestigation, makeEscrowId } from '@/lib/base-sepolia';
+import { fundInvestigation, makeEscrowId, type BaseTransactionProgress } from '@/lib/base-sepolia';
 import { useContractWrite } from '@/hooks/useContractWrite';
+import type { TxLifecycleStatus } from '@/lib/genlayer-client';
 import { useConnectedAddress } from '@/components/ConnectWalletButton';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { TransactionStatusModal } from '@/components/TransactionStatusModal';
@@ -65,6 +66,8 @@ export default function SubmitEvidencePage() {
   const [uploading, setUploading] = useState(false);
   const [loadingExample, setLoadingExample] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [baseFunding, setBaseFunding] = useState<BaseTransactionProgress>({ status: 'idle' });
+  const [baseFundingHashes, setBaseFundingHashes] = useState<{ approvalHash: string; fundingHash: string } | null>(null);
   const router = useRouter();
 
   const write = useContractWrite();
@@ -178,7 +181,12 @@ export default function SubmitEvidencePage() {
       const bountyUsdcBaseUnits = usdcToBaseUnits(form.bountyUsdc);
       const baseCaseId = makeEscrowId('case', address);
       const provider = await connector.getProvider();
-      await fundInvestigation(provider, address, baseCaseId, bountyUsdcBaseUnits);
+      const baseFundingResult = await fundInvestigation(provider, address, baseCaseId, bountyUsdcBaseUnits, setBaseFunding);
+      setBaseFundingHashes(baseFundingResult);
+      // Base escrow is now independently confirmed. Clear its progress
+      // modal before opening the separate GenLayer signing flow, while
+      // retaining both Base transaction links below for auditability.
+      setBaseFunding({ status: 'idle' });
       const submitRes = await write.send(
         'submit_investigation',
         [
@@ -389,6 +397,27 @@ export default function SubmitEvidencePage() {
                 Your wallet first deposits USDC into the RecallRaid escrow on Base Sepolia. GenLayer only adjudicates
                 the evidence; its final decision is relayed back to Base Sepolia for settlement.
               </p>
+              {baseFundingHashes && (
+                <div className="rounded border border-status-safe/40 bg-status-safe/5 p-3 text-body-sm">
+                  <div className="mb-1 font-mono text-label-caps uppercase text-status-safe">USDC confirmed in Base Sepolia escrow</div>
+                  <a
+                    href={`https://sepolia.basescan.org/tx/${baseFundingHashes.approvalHash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block truncate font-mono text-primary underline"
+                  >
+                    Approval: {baseFundingHashes.approvalHash}
+                  </a>
+                  <a
+                    href={`https://sepolia.basescan.org/tx/${baseFundingHashes.fundingHash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block truncate font-mono text-primary underline"
+                  >
+                    Escrow funding: {baseFundingHashes.fundingHash}
+                  </a>
+                </div>
+              )}
               {!isConnected && <p className="text-body-sm text-secondary">Connect your wallet to submit this investigation.</p>}
               {uploadError && <p className="text-body-sm text-danger">{uploadError}</p>}
             </>
@@ -414,8 +443,13 @@ export default function SubmitEvidencePage() {
         </CardBody>
       </Card>
 
-      {write.status !== 'idle' && (
-        <TransactionStatusModal status={write.status} message={write.message} txHash={write.txHash} onClose={write.reset} />
+      {(baseFunding.status !== 'idle' || write.status !== 'idle') && (
+        <TransactionStatusModal
+          status={(baseFunding.status !== 'idle' ? baseFunding.status : write.status) as TxLifecycleStatus}
+          message={baseFunding.status !== 'idle' ? baseFunding.message : write.message}
+          txHash={baseFunding.status !== 'idle' ? baseFunding.txHash : write.txHash}
+          onClose={baseFunding.status !== 'idle' ? () => setBaseFunding({ status: 'idle' }) : write.reset}
+        />
       )}
     </div>
   );

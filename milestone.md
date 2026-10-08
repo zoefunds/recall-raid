@@ -122,6 +122,21 @@ The first attempt also exposed a public-RPC consistency race. The permanent E2E
 harness now waits for two confirmations before a dependent transaction, which
 prevents a second RPC backend from seeing a stale allowance or claimable value.
 
+## Post-milestone frontend funding safeguard
+
+Following an end-user submission test on 8 October 2026, the Base funding path
+was made explicit and fail-closed. Before the wallet is asked to sign, the
+frontend now verifies the live escrow's `usdc` token address, the connected
+account, the available Base Sepolia USDC balance, and the presence of Base
+Sepolia ETH for gas. It then switches (or adds and re-switches) Base Sepolia
+and re-reads the active chain before sending either transaction.
+
+Funding is a two-transaction sequence: USDC `approve` followed by escrow
+`fundInvestigation`. The UI now reports each stage, waits for a successful Base
+receipt, and keeps direct BaseScan links for both hashes after the escrow
+deposit completes. A GenLayer submission is not attempted until that Base
+deposit is confirmed.
+
 ## Verification commands
 
 - `npm run compile:base` — passed

@@ -27,3 +27,26 @@ export async function withTransaction<T>(fn: (client: import("pg").PoolClient) =
     client.release();
   }
 }
+
+/**
+ * Runs a cross-machine job once. PostgreSQL advisory locks are bound to the
+ * checked-out connection, so they are released automatically if a Fly
+ * machine dies. This is deliberately separate from row transactions: it
+ * protects a whole poll/sync sweep, including its network reads, rather than
+ * only a single SQL statement.
+ */
+export async function withAdvisoryLock<T>(lockKey: number, fn: () => Promise<T>): Promise<T | undefined> {
+  const client = await pool.connect();
+  let acquired = false;
+  try {
+    const result = await client.query<{ locked: boolean }>("select pg_try_advisory_lock($1) as locked", [lockKey]);
+    acquired = Boolean(result.rows[0]?.locked);
+    if (!acquired) return undefined;
+    return await fn();
+  } finally {
+    if (acquired) {
+      await client.query("select pg_advisory_unlock($1)", [lockKey]).catch(() => undefined);
+    }
+    client.release();
+  }
+}

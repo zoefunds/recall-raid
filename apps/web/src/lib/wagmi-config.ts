@@ -13,11 +13,9 @@ import { env } from './env';
 // GenLayer StudioNet does not ship as a built-in viem/wagmi chain preset,
 // so it is declared here as a custom EVM-compatible chain purely for
 // wallet-connection purposes (chain switching prompts, RPC display). The
-// numeric chain id is a placeholder pending the deployed network's real
-// id — JUDGMENT CALL: confirm the actual StudioNet chain id against
-// https://docs.genlayer.com/ before mainnet; using the wrong id only
-// affects the wallet's "switch network" UX, not genlayer-js's own RPC
-// calls, which target env.genlayerRpcUrl directly.
+// StudioNet's published chain id is 61999. This connection declaration is
+// used for wallet UX; every GenLayer write additionally re-checks and
+// switches the active wallet chain in lib/genlayer-client.ts.
 export const genlayerStudioNet = defineChain({
   id: 61_999,
   name: 'GenLayer StudioNet',

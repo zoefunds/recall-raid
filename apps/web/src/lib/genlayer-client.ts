@@ -62,6 +62,78 @@ export type TxProgressHandler = (event: TxLifecycleEvent) => void;
 
 let cachedClient: GenLayerClient<typeof studionet> | null = null;
 let cachedAccountKey: string | null = null;
+let cachedProvider: unknown = null;
+
+type Eip1193Provider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+};
+
+const STUDIO_CHAIN = {
+  ...studionet,
+  id: studionet.id,
+  rpcUrls: {
+    ...studionet.rpcUrls,
+    default: { http: [env.genlayerRpcUrl] },
+  },
+};
+const STUDIONET_CHAIN_ID_HEX = `0x${studionet.id.toString(16)}`;
+
+function asEip1193Provider(provider: unknown): Eip1193Provider {
+  if (!provider || typeof (provider as Eip1193Provider).request !== 'function') {
+    throw new Error('The connected wallet did not provide a GenLayer transaction signer. Disconnect and reconnect your wallet, then try again.');
+  }
+  return provider as Eip1193Provider;
+}
+
+/**
+ * AppKit keeps the wallet connected across network changes. That does not
+ * guarantee that a subsequent GenLayer write is signed on StudioNet, so
+ * assert the chain immediately before every write. This mirrors the Base
+ * funding guard and avoids a wallet accepting a signature for whichever
+ * network happened to be selected last.
+ */
+async function ensureStudioNet(provider: unknown): Promise<void> {
+  const wallet = asEip1193Provider(provider);
+  const currentChainId = async () => String(await wallet.request({ method: 'eth_chainId' })).toLowerCase();
+  if ((await currentChainId()) === STUDIONET_CHAIN_ID_HEX) return;
+
+  try {
+    await wallet.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: STUDIONET_CHAIN_ID_HEX }] });
+  } catch {
+    // Wallets use different error shapes for an unknown network. Re-read
+    // below and add the network only if the switch did not take effect.
+  }
+
+  if ((await currentChainId()) !== STUDIONET_CHAIN_ID_HEX) {
+    await wallet.request({
+      method: 'wallet_addEthereumChain',
+      params: [{
+        chainId: STUDIONET_CHAIN_ID_HEX,
+        chainName: STUDIO_CHAIN.name,
+        nativeCurrency: STUDIO_CHAIN.nativeCurrency,
+        rpcUrls: STUDIO_CHAIN.rpcUrls.default.http,
+        blockExplorerUrls: STUDIO_CHAIN.blockExplorers?.default ? [STUDIO_CHAIN.blockExplorers.default.url] : undefined,
+      }],
+    });
+    await wallet.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: STUDIONET_CHAIN_ID_HEX }] });
+  }
+
+  if ((await currentChainId()) !== STUDIONET_CHAIN_ID_HEX) {
+    throw new Error('Please switch your wallet to GenLayer StudioNet to continue.');
+  }
+}
+
+async function withRateLimitBackoff<T>(fn: () => Promise<T>, retries = 4, baseDelayMs = 1500): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (attempt >= retries || !/rate.?limit/i.test(message)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, baseDelayMs * 2 ** attempt));
+    }
+  }
+}
 
 /**
  * Builds (and caches) a genlayer-js client bound to the connected wallet's
@@ -69,19 +141,12 @@ let cachedAccountKey: string | null = null;
  * changes (wallet switch / account switch).
  */
 function getClient(walletAddress: `0x${string}`, provider: unknown): GenLayerClient<typeof studionet> {
-  if (cachedClient && cachedAccountKey === walletAddress) {
+  if (cachedClient && cachedAccountKey === walletAddress && cachedProvider === provider) {
     return cachedClient;
   }
 
   cachedClient = createClient({
-    chain: {
-      ...studionet,
-      id: studionet.id,
-      rpcUrls: {
-        ...studionet.rpcUrls,
-        default: { http: [env.genlayerRpcUrl] },
-      },
-    },
+    chain: STUDIO_CHAIN,
     // A plain address string — NOT createAccount() — so genlayer-js routes
     // signing requests through `provider` (the user's own connected
     // wallet) instead of expecting a raw private key. See file header.
@@ -89,12 +154,14 @@ function getClient(walletAddress: `0x${string}`, provider: unknown): GenLayerCli
     provider,
   } as never);
   cachedAccountKey = walletAddress;
+  cachedProvider = provider;
   return cachedClient;
 }
 
 export function resetGenlayerClientCache(): void {
   cachedClient = null;
   cachedAccountKey = null;
+  cachedProvider = null;
 }
 
 interface WriteCallArgs {
@@ -161,7 +228,8 @@ export async function callContractWrite({
   }
 
   try {
-    emit({ status: 'preparing' });
+    emit({ status: 'preparing', message: 'Switching your wallet to GenLayer StudioNet.' });
+    await ensureStudioNet(provider);
     const client = getClient(walletAddress, provider);
 
     emit({ status: 'awaiting-wallet', message: 'Confirm this transaction in your wallet.' });
@@ -169,12 +237,12 @@ export async function callContractWrite({
     // genlayer-js's write call: sends the transaction for the wallet to
     // sign, then returns a transaction hash once the wallet has signed and
     // broadcast it.
-    const txHash = await client.writeContract({
+    const txHash = await withRateLimitBackoff(() => client.writeContract({
       address: env.contractAddress as `0x${string}`,
       functionName: method,
       args,
       value,
-    } as never);
+    } as never));
 
     emit({ status: 'submitted', txHash, message: 'Transaction submitted to the network.' });
     emit({ status: 'pending', txHash, message: 'Waiting for consensus confirmation.' });
@@ -256,7 +324,7 @@ export async function callContractView<T = unknown>({ method, args = [] }: ReadC
     throw new Error('Missing NEXT_PUBLIC_GENLAYER_CONTRACT_ADDRESS');
   }
   const client = createClient({
-    chain: { ...studionet, rpcUrls: { ...studionet.rpcUrls, default: { http: [env.genlayerRpcUrl] } } },
+    chain: STUDIO_CHAIN,
   });
   const raw = await client.readContract({
     address: env.contractAddress as `0x${string}`,

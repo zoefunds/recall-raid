@@ -1,8 +1,9 @@
 import type { FastifyBaseLogger } from "fastify";
-import { pool } from "./db.js";
+import { pool, withAdvisoryLock } from "./db.js";
 import { getTransactionStatus, chain } from "./genlayer.js";
 import { canTransition, isTerminal, type TxStatus } from "./tx-status-machine.js";
 import { syncInvestigation, syncSellerBond } from "./sync.js";
+import { relayTerminalInvestigation } from "./adjudication-relay.js";
 
 // 20s default: tight enough that a third-party viewer's stale window is
 // barely noticeable, still cheap since these are read-only view calls
@@ -10,6 +11,9 @@ import { syncInvestigation, syncSellerBond } from "./sync.js";
 // Override via DEADLINE_WATCHER_INTERVAL_MS if the investigation count
 // grows enough that this needs to back off.
 const POLL_INTERVAL_MS = Number(process.env.DEADLINE_WATCHER_INTERVAL_MS ?? 20_000);
+// Stable, non-secret namespace key for the single RecallRaid watcher. This
+// must remain the same on every Fly machine so only one carries out a sweep.
+const DEADLINE_WATCHER_LOCK_KEY = 2_021_006;
 
 // Maps a GenVM transaction receipt status to our own tx_status_log enum.
 // GenVM statuses observed in sibling projects: PENDING, ACCEPTED, FINALIZED,
@@ -46,6 +50,7 @@ function mapChainStatusToTxStatus(chainStatus: string | undefined): TxStatus | n
  *     the actual claim_*_timeout call is still signed and sent by a wallet.
  */
 export function startDeadlineWatcher(logger: FastifyBaseLogger): void {
+  let tickRunning = false;
   async function pollPendingTransactions() {
     const { rows } = await pool.query(
       `select tx_hash, status from tx_status_log where status in ('submitted', 'pending')`,
@@ -158,6 +163,51 @@ export function startDeadlineWatcher(logger: FastifyBaseLogger): void {
     }
   }
 
+  /**
+   * GenLayer decides the result; Base controls the money. Once a terminal
+   * outcome has been mirrored into the cache, finish that bridge without
+   * requiring the user who settled it to keep a tab open. The advisory lock
+   * around the whole tick plus the Base contract's one-time finalization
+   * makes this safe across machines and retries.
+   */
+  async function relayTerminalOutcomes() {
+    const { rows } = await pool.query(
+      `select investigation_id from investigations_cache
+       where status in ('SETTLED', 'INVALID', 'CANCELLED')
+         and coalesce(relay_tx_hash, '') = ''
+       order by investigation_id asc
+       limit 25`,
+    );
+    for (const row of rows as { investigation_id: number }[]) {
+      try {
+        const result = await relayTerminalInvestigation(row.investigation_id);
+        logger.info({ investigationId: row.investigation_id, relayTxHash: result.relayTxHash, alreadyFinalized: result.alreadyFinalized }, "deadline-watcher: terminal adjudication relayed to Base");
+      } catch (err) {
+        // Leave relay_tx_hash empty so the next locked tick can safely retry.
+        logger.warn({ err, investigationId: row.investigation_id }, "deadline-watcher: Base relay failed; will retry");
+      }
+    }
+  }
+
+  async function runTick() {
+    // The interval is intentionally shorter than a worst-case chain sync.
+    // Never overlap a local run; a second machine is excluded by the
+    // database-backed advisory lock below.
+    if (tickRunning) return;
+    tickRunning = true;
+    try {
+      const completed = await withAdvisoryLock(DEADLINE_WATCHER_LOCK_KEY, async () => {
+        await tick();
+        return true;
+      });
+      if (!completed) logger.debug("deadline-watcher: another API machine owns this tick");
+    } catch (err) {
+      logger.warn({ err }, "deadline-watcher: could not acquire or complete tick");
+    } finally {
+      tickRunning = false;
+    }
+  }
+
   async function tick() {
     try {
       await pollPendingTransactions();
@@ -170,15 +220,20 @@ export function startDeadlineWatcher(logger: FastifyBaseLogger): void {
       logger.warn({ err }, "deadline-watcher: resyncActiveOnChainState failed this tick");
     }
     try {
+      await relayTerminalOutcomes();
+    } catch (err) {
+      logger.warn({ err }, "deadline-watcher: relayTerminalOutcomes failed this tick");
+    }
+    try {
       await sweepDeadlineNotifications();
     } catch (err) {
       logger.warn({ err }, "deadline-watcher: sweepDeadlineNotifications failed this tick");
     }
   }
 
-  logger.info({ intervalMs: POLL_INTERVAL_MS }, "deadline-watcher: starting (read-only, never signs transactions)");
-  void tick();
-  setInterval(() => void tick(), POLL_INTERVAL_MS);
+  logger.info({ intervalMs: POLL_INTERVAL_MS }, "deadline-watcher: starting (cross-machine locked; read-only, never signs transactions)");
+  void runTick();
+  setInterval(() => void runTick(), POLL_INTERVAL_MS);
 }
 
 // Re-exported for tests / lint clarity that this module never imports a

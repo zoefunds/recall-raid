@@ -137,6 +137,24 @@ receipt, and keeps direct BaseScan links for both hashes after the escrow
 deposit completes. A GenLayer submission is not attempted until that Base
 deposit is confirmed.
 
+## Meme Olympics reliability patterns adopted
+
+RecallRaid now applies the cross-chain production patterns validated in the
+Meme Olympics implementation, adapted to its investigation model:
+
+- Every GenLayer write explicitly switches and re-checks StudioNet (`61999`)
+  before asking the connected wallet to sign; changed wallets invalidate the
+  cached signing client.
+- Rate-limited GenLayer write submissions retry with bounded exponential
+  backoff instead of failing immediately.
+- The always-on deadline watcher is protected by a PostgreSQL advisory lock,
+  preventing overlapping local intervals and duplicate sweeps when the API is
+  scaled to more than one Fly machine.
+- A terminal GenLayer result now triggers an automatic, retry-safe Base
+  Sepolia relay. The relay reads the adjudication and challenge result directly
+  from GenLayer, checks the Base escrow first, and only then sends the relayer
+  transaction. A manual relay request remains a safe recovery path.
+
 ## Verification commands
 
 - `npm run compile:base` — passed

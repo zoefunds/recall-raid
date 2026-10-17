@@ -1195,7 +1195,21 @@ class RecallRaid(gl.Contract):
     # ==================================================================
 
     @gl.public.write
-    def open_challenge(self, investigation_id: int, reason: str, stake_usdc_base_units: int, base_tx_hash: str) -> str:
+    def open_challenge(
+        self,
+        investigation_id: int,
+        challenger_address: str,
+        reason: str,
+        stake_usdc_base_units: int,
+        base_tx_hash: str,
+    ) -> str:
+        # GenLayer cannot synchronously inspect Base Sepolia. Only the
+        # configured deployment admin may open a challenge after the API has
+        # authenticated the challenger wallet and independently verified the
+        # exact Base receipt, escrow call, case, amount, and depositor. A
+        # direct wallet call with a fabricated transaction hash must never
+        # occupy the investigation's one challenge slot.
+        self._require_admin()
         self._require_not_paused()
         inv = self._get_investigation(investigation_id)
         if int(inv.status) != int(INV_VERDICT_REACHED):
@@ -1214,13 +1228,19 @@ class RecallRaid(gl.Contract):
             raise gl.vm.UserError(
                 "[EXPECTED] Base Sepolia challenge stake must be exactly " + _u256_str(required_stake) + " USDC base units"
             )
+        try:
+            challenger = Address(challenger_address)
+        except Exception:
+            raise gl.vm.UserError("[EXPECTED] a valid funded challenger address is required")
+        if str(challenger).lower() == "0x0000000000000000000000000000000000000000":
+            raise gl.vm.UserError("[EXPECTED] zero address cannot challenge an investigation")
 
         challenge_id = self.next_challenge_id
         now = _now()
         challenge = Challenge(
             id=challenge_id,
             investigation_id=u32(investigation_id),
-            challenger=gl.message.sender_address,
+            challenger=challenger,
             reason=reason,
             stake_wei=u256(stake_usdc_base_units),
             stake_deposited_wei=u256(stake_usdc_base_units),

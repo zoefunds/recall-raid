@@ -73,11 +73,19 @@ rather than releasing funds.
 The Base challenge stake is exactly 20% of the bounty (minimum one USDC base
 unit for very small bounties). Challenge deposits are stored per case and
 challenger wallet so multiple deposits cannot be confused or consumed as one
-shared balance. Each investigation can open one GenLayer challenge. GenLayer
-retains that challenge id and final outcome for settlement. The API
-validates the originating Base `fundChallenge` receipt, case, challenger, and
-exact amount before authorizing settlement. Both the relay and independent
-decision signer apply the same rule: a verified Base-funded challenge may
+shared balance. Each investigation can open one GenLayer challenge. The browser
+first funds its own Base stake. The API then authenticates that wallet, checks
+the exact successful Base `fundChallenge` transaction and challenger-specific
+escrow deposit, and verifies registration, challenge deadline, slot availability,
+and exact 20% amount. Only then does the configured GenLayer admin relayer call
+`open_challenge` with the explicit challenger. The contract restricts this
+method to its admin, so direct wallet calls and fabricated transaction hashes
+cannot occupy the challenge slot. The admin key is therefore also a privileged
+GenLayer challenge-opening authority; it must match the API's Base relayer key
+and is checked against `get_protocol_info` at runtime. GenLayer retains that
+challenge id and final outcome for settlement. Before settlement, both the
+relay and independent decision signer validate the Base funding. A verified
+Base-funded challenge may
 affect the final payout and stake recipient; a confirmed mismatch is treated
 as unbacked, so the Base payout uses the challenge's snapshotted prior verdict
 and does not consume a challenge stake. Any unmatched Base deposit remains

@@ -218,6 +218,66 @@ export function assertChallengeFundingMatches(input: {
   }
 }
 
+/**
+ * Validate every cross-chain identity before the trusted GenLayer admin
+ * relayer opens the challenge. The contract rejects direct wallet calls, so
+ * this API check is the sole route from a funded Base deposit to an open
+ * GenLayer challenge slot.
+ */
+export function assertChallengeOpenAuthorized(input: {
+  caller: string;
+  challenger: string;
+  investigation: {
+    id: number;
+    submitter: string;
+    base_case_id: string;
+    status: number;
+    verdict: number;
+    bounty_wei: string;
+    challenge_deadline: number;
+    open_challenge_id: number;
+    last_challenge_id: number;
+    challenge_used: boolean;
+    settled: boolean;
+  };
+  baseCase: {
+    submitter: string;
+    bountyUsdcBaseUnits: string;
+    registered: boolean;
+    genlayerContract: string;
+    genlayerInvestigationId: number;
+  };
+  expectedGenlayerContract: string;
+  declaredStake: string;
+  depositedStake: string;
+  nowSeconds: number;
+}) {
+  const inv = input.investigation;
+  const base = input.baseCase;
+  if (input.caller.toLowerCase() !== input.challenger.toLowerCase()) {
+    throw new Error("Authenticated wallet does not match the funded challenger");
+  }
+  if (inv.status !== 3 || inv.settled || inv.verdict < 1 || inv.verdict > 3
+    || inv.open_challenge_id !== 0 || inv.last_challenge_id !== 0 || inv.challenge_used) {
+    throw new Error("Investigation is not eligible for its one challenge");
+  }
+  if (input.nowSeconds >= inv.challenge_deadline) throw new Error("The challenge window has closed");
+  if (base.submitter.toLowerCase() !== inv.submitter.toLowerCase()
+    || base.bountyUsdcBaseUnits !== inv.bounty_wei) {
+    throw new Error("Base case owner or bounty does not match the GenLayer investigation");
+  }
+  if (!base.registered || base.genlayerContract.toLowerCase() !== input.expectedGenlayerContract.toLowerCase()
+    || base.genlayerInvestigationId !== inv.id) {
+    throw new Error("Base case is not registered to this GenLayer investigation");
+  }
+  const bounty = BigInt(inv.bounty_wei);
+  const requiredStake = bounty * 2000n / 10000n || 1n;
+  if (BigInt(input.declaredStake) !== requiredStake || BigInt(input.depositedStake) !== requiredStake) {
+    throw new Error("Funded Base challenge stake does not equal the exact required amount");
+  }
+  return requiredStake.toString();
+}
+
 export function assertOrphanRecoveryEligible(input: {
   depositor: string;
   caller: string;

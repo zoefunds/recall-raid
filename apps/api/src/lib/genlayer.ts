@@ -3,13 +3,10 @@ import { studionet } from "genlayer-js/chains";
 import { config, assertGenlayerConfigured } from "./config.js";
 
 /**
- * Read-only GenLayer StudioNet client. This is the only place the API talks
- * to GenLayer, and it is read-only by construction: every exported helper
- * here calls a `@gl.public.view` method or reads a transaction receipt.
- *
- * This module never imports a signer or calls `client.writeContract`.
- * User adjudication writes are signed in the browser. The separate
- * base-sepolia module holds the testnet relayer used only after finality.
+ * Read-oriented GenLayer StudioNet helpers. This module does not hold a signer
+ * or submit writes. User adjudication transactions are browser-signed; the
+ * narrowly scoped genlayer-challenge-relay module submits only funded challenge
+ * openings after wallet authentication and Base receipt verification.
  */
 let client: ReturnType<typeof createClient> | null = null;
 

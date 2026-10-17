@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import {
   assertAdjudicationInstructionMatches,
   assertBaseRegistrationMatches,
+  assertChallengeOpenAuthorized,
   assertChallengeFundingMatches,
   assertGenLayerCall,
   assertGenLayerChallengeOutcome,
@@ -202,6 +203,45 @@ describe("settlement cross-chain validation", () => {
     expect(() => assertChallengeFundingMatches({ ...valid, transaction: { ...valid.transaction, to: payer } })).toThrow(/escrow/);
     expect(() => assertChallengeFundingMatches({ ...valid, receiptStatus: 0 })).toThrow(/successfully/);
     expect(() => assertChallengeFundingMatches({ ...valid, receiptStatus: null })).toThrow(/successfully/);
+  });
+
+  it("opens a GenLayer challenge only for the authenticated wallet's exact registered Base deposit", () => {
+    const genlayerContract = "0x00000000000000000000000000000000000000c3";
+    const valid = {
+      caller: challenger,
+      challenger,
+      investigation: {
+        id: 7,
+        submitter: payer,
+        base_case_id: caseId,
+        status: 3,
+        verdict: 1,
+        bounty_wei: "100000000",
+        challenge_deadline: 2_000,
+        open_challenge_id: 0,
+        last_challenge_id: 0,
+        challenge_used: false,
+        settled: false,
+      },
+      baseCase: {
+        submitter: payer,
+        bountyUsdcBaseUnits: "100000000",
+        registered: true,
+        genlayerContract,
+        genlayerInvestigationId: 7,
+      },
+      expectedGenlayerContract: genlayerContract,
+      declaredStake: "20000000",
+      depositedStake: "20000000",
+      nowSeconds: 1_000,
+    };
+    expect(assertChallengeOpenAuthorized(valid)).toBe("20000000");
+    expect(() => assertChallengeOpenAuthorized({ ...valid, caller: payer })).toThrow(/wallet does not match/);
+    expect(() => assertChallengeOpenAuthorized({ ...valid, declaredStake: "1" })).toThrow(/exact required amount/);
+    expect(() => assertChallengeOpenAuthorized({ ...valid, depositedStake: "1" })).toThrow(/exact required amount/);
+    expect(() => assertChallengeOpenAuthorized({ ...valid, nowSeconds: 2_000 })).toThrow(/window has closed/);
+    expect(() => assertChallengeOpenAuthorized({ ...valid, baseCase: { ...valid.baseCase, registered: false } })).toThrow(/not registered/);
+    expect(() => assertChallengeOpenAuthorized({ ...valid, investigation: { ...valid.investigation, open_challenge_id: 9 } })).toThrow(/not eligible/);
   });
 
   it("allows orphan recovery only for the depositor after seven days with no GenLayer registration", () => {

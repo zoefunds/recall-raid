@@ -395,7 +395,8 @@ if (existingOpenChallengeId > 0) {
   }
 }
 
-// The challenger funds its own Base position and signs its own StudioNet call.
+// The challenger funds its own Base position and asks the authenticated API
+// to verify the receipt before the GenLayer admin relay opens the slot.
 const challengerUsdc = usdc.connect(challenger);
 let challengeDepositBefore = await escrow.getChallengeDeposit(activeCaseId, challenger.address);
 if (challengeDepositBefore.amount === 0n) {
@@ -424,11 +425,30 @@ const reason = "The product name identifies the recalled Rock 'n Play Sleeper fa
 let currentInvestigation = await glRead(challengerClient, "get_investigation", [investigationId]);
 let challengeOpened = null;
 let challengeId = Number(currentInvestigation.open_challenge_id || 0);
+const challengerCookie = await authenticate(challenger);
 if (!challengeId) {
-  challengeOpened = await glWrite(challengerClient, "open_challenge", [
-    investigationId, reason, Number(challengeStake), results.base.challengeFundingTx,
-  ]);
-  challengeId = Number(challengeOpened.result?.challenge_id);
+  const request = {
+    reason,
+    stakeUsdcBaseUnits: challengeStake.toString(),
+    baseTxHash: results.base.challengeFundingTx,
+  };
+  challengeOpened = await apiPost(`/investigations/${investigationId}/challenges/open`, request, challengerCookie);
+  if (challengeOpened.status === "confirmed") {
+    challengeId = Number(challengeOpened.challengeId);
+  } else {
+    if (!/^0x[a-fA-F0-9]{64}$/.test(challengeOpened.txHash ?? "")) throw new Error("The authenticated challenge relay did not return a GenLayer transaction hash");
+    for (let attempt = 0; attempt < 180; attempt++) {
+      const confirmation = await apiPost(`/investigations/${investigationId}/challenges/open-status`, {
+        ...request,
+        txHash: challengeOpened.txHash,
+      }, challengerCookie);
+      if (confirmation.status === "confirmed") {
+        challengeId = Number(confirmation.challengeId);
+        break;
+      }
+      await new Promise((resolveWait) => setTimeout(resolveWait, 5000));
+    }
+  }
 }
 if (!Number.isInteger(challengeId) || challengeId <= 0) throw new Error("Could not decode the challenge id");
 const recordedChallenge = await glRead(challengerClient, "get_challenge", [challengeId]);
@@ -439,8 +459,6 @@ if (recordedChallenge.base_tx_hash?.toLowerCase() !== results.base.challengeFund
   throw new Error("Finalized GenLayer challenge does not bind the exact Base funding receipt, challenger, and stake");
 }
 results.genlayer.challenge = { id: challengeId, openTx: challengeOpened?.txHash ?? process.env.RECALLRAID_E2E_OPEN_CHALLENGE_TX ?? null, challenger: challenger.address, stakeBaseUnits: challengeStake.toString(), reason };
-const challengerCookie = await authenticate(challenger);
-if (challengeOpened?.txHash) await apiPostBestEffort(`/challenges/${challengeId}/sync`, { txHash: challengeOpened.txHash }, challengerCookie);
 checkpoint("genlayer-challenge-open");
 
 // Attach the CPSC primary-source notice as regulator-only rebuttal evidence.

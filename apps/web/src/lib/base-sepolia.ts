@@ -127,9 +127,9 @@ export async function fundInvestigation(provider: unknown, account: Address, cas
   return { approvalHash, fundingHash };
 }
 
-export async function fundChallenge(provider: unknown, account: Address, caseId: Hex, amount: bigint) {
-  await approve(provider, account, amount);
-  return send(provider, account, env.baseSepoliaEscrowAddress as Address, ESCROW_ABI, 'fundChallenge', [caseId, amount]);
+export async function fundChallenge(provider: unknown, account: Address, caseId: Hex, amount: bigint, onProgress?: BaseTransactionProgressHandler) {
+  await approve(provider, account, amount, onProgress);
+  return send(provider, account, env.baseSepoliaEscrowAddress as Address, ESCROW_ABI, 'fundChallenge', [caseId, amount], onProgress, 'challenge stake');
 }
 
 export async function fundSellerBond(provider: unknown, account: Address, bondId: Hex, amount: bigint) {

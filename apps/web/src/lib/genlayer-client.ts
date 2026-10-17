@@ -172,8 +172,8 @@ interface WriteCallArgs {
 /**
  * Contract write return values are nested in the leader receipt rather than
  * at `receipt.result`. Decode the same payload shape used by the integration
- * scripts so callers can reliably use IDs returned by write methods such as
- * submit_investigation, add_evidence, open_challenge, and create_seller_bond.
+ * scripts so callers can reliably use IDs returned by client-signed writes
+ * such as submit_investigation, add_evidence, and create_seller_bond.
  */
 function decodeContractWriteResult(receipt: unknown): unknown {
   const consensusData = (receipt as { consensus_data?: { leader_receipt?: unknown[] } } | undefined)?.consensus_data;
@@ -204,7 +204,7 @@ function decodeContractWriteResult(receipt: unknown): unknown {
  * Generic wrapper around a payable/non-payable contract write, driving the
  * shared transaction lifecycle states used by <TransactionStatusModal />.
  * Every write action in the app (submit_investigation, add_evidence,
- * request_verdict, open_challenge, settle_investigation, withdraw,
+ * request_verdict, settle_investigation, withdraw,
  * create_seller_bond, etc.) goes through this single function so error
  * handling and lifecycle reporting stay consistent.
  */

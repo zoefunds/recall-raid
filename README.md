@@ -7,12 +7,7 @@ and claims live in a Base Sepolia escrow. The API mirrors chain state in
 PostgreSQL, authenticates wallet sessions, issues signed evidence-upload
 parameters, and coordinates explicitly attested cross-chain operations.
 
-This repository contains a working testnet implementation. The live Base
-security-branch evidence is contract-level validation using synthetic
-GenLayer outcomes. A separate CLI test used the earlier adjudicator and upheld
-a challenge; the latest adjudicator still needs a full end-to-end overturned
-settlement and withdrawal before that branch can be considered verified. See [the validation record](docs/e2e-evidence/live-base-security-branches.json)
-and [deployment notes](docs/DEPLOYMENT.md) for the precise scope and addresses.
+This repository contains a testnet implementation with a live StudioNet-to-Base Sepolia overturned challenge. The case is finalized on GenLayer and its Base-funded stake is verified, but Base settlement and wallet withdrawals are deliberately pending until the seven-day challenge period expires at `2026-10-24T10:31:44Z`. Local Base branch tests use synthetic GenLayer instructions and do not substitute for that final live payout. See [the validation record](docs/e2e-evidence/studionet-base-valid-challenge-e2e.json), [security model](docs/SECURITY.md), and [deployment notes](docs/DEPLOYMENT.md) for exact scope and limitations.
 
 ## Repository map
 
@@ -44,7 +39,11 @@ and [deployment notes](docs/DEPLOYMENT.md) for the precise scope and addresses.
    deposits keyed by each challenger's wallet. Unmatched direct deposits are
    recoverable by their depositor after the case is finalized.
 5. The API reads terminal GenLayer state and Base funding, registration,
-   challenge, and seller-bond records. A distinct decision signer validates
+   challenge, and seller-bond records. For challenge creation, the API
+   authenticates the funded challenger and verifies the exact Base receipt
+   before the configured GenLayer admin relays `open_challenge`; direct wallet
+   calls cannot occupy the challenge slot in the current source. A distinct
+   decision signer validates
    those records and signs the exact settlement instruction with EIP-712. The
    relayer submits it; Base checks the signer authorization and stored case
    constraints before crediting claimable balances. Base does not independently

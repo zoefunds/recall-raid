@@ -101,6 +101,33 @@ export function fetchChallengesForInvestigation(investigationId: number | string
   return apiFetch(`/investigations/${investigationId}/challenges`);
 }
 
+export interface OpenChallengeRequest {
+  reason: string;
+  stakeUsdcBaseUnits: string;
+  baseTxHash: string;
+}
+
+export function openFundedChallenge(investigationId: number | string, payload: OpenChallengeRequest): Promise<{
+  status: 'pending' | 'confirmed';
+  txHash: string | null;
+  challengeId: number | null;
+}> {
+  return apiFetch(`/investigations/${investigationId}/challenges/open`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function checkFundedChallenge(investigationId: number | string, payload: OpenChallengeRequest & { txHash: string }): Promise<{
+  status: 'pending' | 'confirmed';
+  challengeId: number | null;
+}> {
+  return apiFetch(`/investigations/${investigationId}/challenges/open-status`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function fetchLeaderboard(limit = 50): Promise<LeaderboardRow[]> {
   return apiFetch(`/leaderboard?limit=${limit}`);
 }

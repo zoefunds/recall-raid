@@ -261,9 +261,13 @@ not prove a working remote integration.
 
 ## Current limitations
 
-The live `EDFF...` exercise now proves browser-equivalent Base funding,
+The live `EDFF...` exercise proves browser-equivalent Base funding,
 authenticated Fly registration, finalized GenLayer evidence verification and
-adjudication, and a real Base-backed challenge that validators overturned.
+adjudication, and a real Base-backed challenge that validators overturned. The
+current checkout additionally gates `open_challenge` behind an authenticated
+API relay that verifies the actual Base receipt. That hardened challenge
+opening path is not yet deployed to the live `EDFF...` pair; see the source
+parity and migration notes below.
 The production API cache reflects the same challenge and final verdict. The
 settlement signer and Base payout have not yet been exercised against that
 live finalized case: the seven-day post-resolution window expires at
@@ -287,12 +291,13 @@ At 11:12Z the deployment checks were refreshed: the Base Sepolia verifier
 again matched checked-out Solidity source to the deployed runtime bytecode and
 confirmed the USDC, relayer, and decision-signer addresses. The production
 `/submit` page returned HTTP 200; all 16 JavaScript assets loaded and contained
-the current GenLayer contract, Base escrow, and Fly API configuration, with no
-legacy A239 address. The StudioNet source was retrieved again and still differs
-from checkout only in the authoritative-URL validator (deployed accepts any
-scheme; checkout requires HTTPS and rejects credentials). The live E2E uses
-HTTPS, but exact StudioNet source parity remains an outstanding deployment
-item. API tests (46), Foundry tests (9), and API/web production builds pass.
+the then-current GenLayer contract, Base escrow, and Fly API configuration,
+with no legacy A239 address. The StudioNet source comparison at that time found
+the authoritative-URL validator difference (deployed accepts any scheme; that
+checkout required HTTPS and rejected credentials). The current checkout has
+since added admin-only challenge opening and authenticated API verification;
+those changes also require a successor deployment and hosted rollout. The current checkout passes 47 API tests, 9 Foundry tests, API and web production
+builds, GenLayer contract lint, and both Solidity and Python compilation.
 
 A successor deployment of the checked-out HTTPS-only source was attempted on
 StudioNet. RPC rate limiting returned errors during gas estimation and
@@ -315,9 +320,11 @@ transactions and no successor deployment transaction.
 At 11:47Z the deployed `EDFF...` source was retrieved once more from the
 canonical StudioNet RPC. Its normalized SHA-256 remains
 `d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5`; the
-only semantic difference remains URL validation (the deployed source accepts
-any scheme while checkout requires HTTPS and rejects credentials). No
-successor deployment or hosted cutover is recorded. The same-time Base verifier
+point-in-time difference remained URL validation (the deployed source accepts
+any scheme while that checkout required HTTPS and rejected credentials). The
+current checkout also adds admin-only challenge opening and an API relay with
+actual Base-receipt verification; those changes are not in the deployed source.
+No successor deployment or hosted cutover is recorded. The same-time Base verifier
 again matched the escrow runtime to the checked-out Solidity source: runtime
 hash `0xa7919e068cf4d9a0172ad8d8b888ff3770f3c45da94c6b195cb2009e5c20b370`,
 source hash `0x90e7562eeb84dcd0738b61d3dba8ff406761e8d4f8581caf2b3800909aac0fc6`,

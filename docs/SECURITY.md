@@ -34,9 +34,20 @@ attested relay design, not a trustless bridge.
   recipient, challenge id and wallet, overturn result, and decision hash. A
   case can finalize only once; the stored registration must match.
 - A challenge requires exactly 20% of the bounty (minimum one token base unit)
-  and is recorded under the individual challenger address. API validation
-  checks the successful Base receipt, `fundChallenge` calldata, case id,
-  challenger, and amount against GenLayer state before signing settlement.
+  and is recorded under the individual challenger address. In the current
+  source, the API authenticates the challenger and checks the successful Base
+  receipt, `fundChallenge` calldata, case id, challenger, exact amount,
+  registration, and challenge window before it relays `open_challenge` as the
+  GenLayer admin. GenLayer rejects direct wallet calls to that method, removing
+  the path for an unrelated wallet to occupy the one challenge slot with a
+  fabricated transaction hash. The API is the intended challenge-opening
+  path, but the contract cannot constrain its admin to that path: the admin key
+  can call the write directly. A compromised admin can therefore bypass API
+  checks. Keep it
+  server-side, match it to the deployed GenLayer admin, monitor its use, and
+  rotate it if exposed. The separate EIP-712 signer still independently
+  reconstructs the finalized challenge and checks Base funding before it signs
+  settlement.
   GenLayer permits one challenge per investigation. If another wallet makes a
   direct Base challenge deposit, that unmatched deposit cannot occupy the
   GenLayer challenge record and is recoverable by its depositor after terminal
@@ -127,10 +138,13 @@ It documents Base Sepolia funding, registration, EIP-712 settlement, and USDC
 claims for refund, recall/bond-slash, and overturned-challenge branches. The
 attestations used test inputs, including a synthetic GenLayer reference; they
 validate Base accounting and signature binding, not the authenticity of a
-GenLayer verdict. The corrected GenLayer source was subsequently deployed to
-StudioNet with an accepted consensus receipt, and its schema and protocol
-windows were queried. The Base branch transactions still did not consume that
-deployment's consensus result.
+GenLayer verdict. The deployed `EDFF...` source was subsequently queried and its
+schema and protocol windows were inspected. The current checkout now additionally
+makes challenge opening admin-only, with API-side Base receipt verification.
+That challenge-opening change is **not present in the deployed `EDFF...` source**;
+it requires a successor deployment and hosted API rollout after the current
+registered case is safely settled or reconciled. The Base branch transactions
+also did not consume that deployment's consensus result.
 
 Local API tests, Foundry tests, compilation, and web builds are useful checks,
 not substitutes for independent contract review, key management review,
@@ -148,8 +162,9 @@ funding, a valid challenger-owned stake receipt, a StudioNet-finalized
 evidence. The hosted API cache independently reports challenge 3 as
 `OVERTURNED` and retains `last_challenge_id = 3` with `open_challenge_id = 0`.
 
-The final Base relay and wallet withdrawals are not complete. The seven-day
-post-resolution challenge period expires at `2026-10-24T10:31:44Z`; the escrow
+The final Base relay and wallet withdrawals are not complete and must remain
+deferred until the user-approved seven-day period expires. Do not settle early.
+The seven-day post-resolution challenge period expires at `2026-10-24T10:31:44Z`; the escrow
 still holds the 100,000-unit bounty and 20,000-unit stake. No settlement write
 or withdrawal is claimed before that deadline. An authenticated production
 relay attempt returned HTTP 400 `GenLayer adjudication is not terminal` and
@@ -160,14 +175,16 @@ and hosted cache reads succeeded. A separate failed test record,
 documents a placeholder challenge transaction hash and is explicitly not
 valid payout evidence.
 
-The deployed `EDFF...` source was retrieved again with `genlayer code` on
-2026-10-17 and compared with the checkout. After removing the CLI's `Result:`
-wrapper, the deployed source SHA-256 is
+The deployed `EDFF...` source was retrieved with `genlayer code` on
+2026-10-17 at 11:47Z and compared with the checkout as it existed at that
+time. After removing the CLI's `Result:` wrapper, the deployed source SHA-256 is
 `d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5`. The
-only semantic source difference found is URL validation: the checkout requires
-HTTPS and rejects URL credentials, while deployed `EDFF...` checks only the
-authoritative hostname. The live test used HTTPS, so this difference did not
-affect its evidence. Exact source parity still requires a successor deployment.
+that point-in-time comparison found the URL validator difference: checkout
+required HTTPS and rejected URL credentials, while deployed `EDFF...` checked
+only the authoritative hostname. The current checkout also now makes challenge
+opening admin-only and adds an API-verified relay, which is another source
+difference and is not live on `EDFF...`. Exact source parity still requires a
+successor deployment.
 Keep the current deployment configured through settlement of its registered
 cases; on-chain registrations cannot be moved. The historical `A239...`
 deployment remains incompatible with the current hosted decision signer and
@@ -181,7 +198,7 @@ the on-chain record. See
 [`e2e-evidence/legacy-cache-cleanup.json`](e2e-evidence/legacy-cache-cleanup.json).
 
 The current source also contains an independent challenge-backing check in
-both the relay path and decision signer. The API suite has 46 passing tests,
+both the relay path and decision signer. The API suite has 47 passing tests,
 including explicit decision-signer rejection of modified verdict, hunter,
 challenge id/challenger/overturn flag, seller-bond id/slash, and decision hash.
 The Foundry suite has 9 passing tests covering registration ownership, exact

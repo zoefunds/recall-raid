@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchChallengeSourceDigest, fetchChallengesForInvestigation, fetchEvidenceForInvestigation, fetchInvestigation, relayInvestigation, syncChallenge, syncEvidenceForInvestigation, syncInvestigation } from '@/lib/api';
+import { checkFundedChallenge, fetchChallengeSourceDigest, fetchChallengesForInvestigation, fetchEvidenceForInvestigation, fetchInvestigation, openFundedChallenge, relayInvestigation, syncChallenge, syncEvidenceForInvestigation, syncInvestigation } from '@/lib/api';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { Card, CardBody } from '@/components/ui/Card';
 import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip, VerdictChip } from '@/components/ui/StatusChip';
@@ -13,11 +13,11 @@ import { formatCountdown, formatDate, truncateAddress, usdcBaseUnitsToDisplay } 
 import { ChallengeStatus, InvestigationStatus, VERDICT_DESCRIPTION, VERDICT_LABEL } from '@/types/contract';
 import { useContractWrite } from '@/hooks/useContractWrite';
 import { TransactionStatusModal } from '@/components/TransactionStatusModal';
-import { computeRequiredChallengeStakeWei } from '@/lib/genlayer-client';
+import { computeRequiredChallengeStakeWei, type TxLifecycleStatus } from '@/lib/genlayer-client';
 import { useConnectedAddress } from '@/components/ConnectWalletButton';
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
-import { fundChallenge } from '@/lib/base-sepolia';
+import { fundChallenge, type BaseTransactionProgress } from '@/lib/base-sepolia';
 
 export default function InvestigationDetailPage() {
   const params = useParams<{ id: string }>();
@@ -48,6 +48,10 @@ export default function InvestigationDetailPage() {
   const [challengeReason, setChallengeReason] = useState('');
   const [challengeEvidenceUrl, setChallengeEvidenceUrl] = useState('');
   const [challengeEvidenceError, setChallengeEvidenceError] = useState<string | null>(null);
+  const [challengeOpenError, setChallengeOpenError] = useState<string | null>(null);
+  const [challengeTxStatus, setChallengeTxStatus] = useState<TxLifecycleStatus>('idle');
+  const [challengeTxMessage, setChallengeTxMessage] = useState<string | undefined>();
+  const [challengeTxHash, setChallengeTxHash] = useState<string | undefined>();
 
   if (invQuery.isLoading) {
     return (
@@ -94,27 +98,58 @@ export default function InvestigationDetailPage() {
     await ensureSession();
     const stake = computeRequiredChallengeStakeWei(BigInt(inv.bounty_wei));
     if (!address || !connector) return;
-    const provider = await connector.getProvider();
-    const baseTxHash = await fundChallenge(provider, address, inv.base_case_id as `0x${string}`, stake);
-    const res = await write.send('open_challenge', [inv.id, challengeReason || 'Disputing verdict', Number(stake), baseTxHash]);
-    if (!res) return;
+    setChallengeOpenError(null);
+    setChallengeTxStatus('preparing');
+    setChallengeTxMessage('Fund the exact Base Sepolia stake. The API will verify the receipt before the GenLayer admin opens the challenge.');
+    setChallengeTxHash(undefined);
+    try {
+      const provider = await connector.getProvider();
+      const onBaseProgress = (event: BaseTransactionProgress) => {
+        setChallengeTxStatus(event.status);
+        setChallengeTxMessage(event.message);
+        if (event.txHash) setChallengeTxHash(event.txHash);
+      };
+      const baseTxHash = await fundChallenge(provider, address, inv.base_case_id as `0x${string}`, stake, onBaseProgress);
+      const payload = {
+        reason: challengeReason || 'Disputing verdict',
+        stakeUsdcBaseUnits: stake.toString(),
+        baseTxHash,
+      };
+      setChallengeTxStatus('submitted');
+      setChallengeTxHash(baseTxHash);
+      setChallengeTxMessage('Base funding is confirmed. The API is verifying the depositor and exact escrow call.');
+      const submitted = await openFundedChallenge(inv.id, payload);
+      if (submitted.status === 'confirmed' && submitted.challengeId) {
+        setChallengeTxStatus('confirmed');
+        setChallengeTxMessage('The funded challenge is already recorded on GenLayer.');
+        await refreshChallengeAfterTx(submitted.challengeId);
+        await qc.invalidateQueries({ queryKey: ['evidence', id] });
+        return;
+      }
+      if (!submitted.txHash) throw new Error('The GenLayer relayer did not return a transaction hash.');
+      setChallengeTxHash(submitted.txHash);
+      setChallengeTxStatus('pending');
+      setChallengeTxMessage('The verified challenge is waiting for GenLayer consensus.');
 
-    // open_challenge creates a separate on-chain Challenge record. The
-    // resolve/timeout controls read that record from challenges_cache, so
-    // syncing only the parent investigation leaves those controls with no
-    // data. Decode the returned id and seed the challenge cache first.
-    const result = res.result as { challenge_id?: unknown } | null;
-    const challengeId = Number(result?.challenge_id);
-    if (Number.isInteger(challengeId) && challengeId > 0) {
-      await refreshChallengeAfterTx(challengeId, res.txHash);
-      await qc.invalidateQueries({ queryKey: ['evidence', id] });
-      return;
+      for (let attempt = 0; attempt < 24; attempt++) {
+        const result = await checkFundedChallenge(inv.id, { ...payload, txHash: submitted.txHash });
+        if (result.status === 'confirmed' && result.challengeId) {
+          setChallengeTxStatus('confirmed');
+          setChallengeTxMessage('The Base-backed challenge is finalized and synchronized.');
+          await refreshChallengeAfterTx(result.challengeId, submitted.txHash);
+          await qc.invalidateQueries({ queryKey: ['evidence', id] });
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 15_000));
+      }
+      setChallengeTxStatus('timeout');
+      setChallengeTxMessage('GenLayer is still finalizing the challenge. Keep this transaction hash and refresh the investigation before trying again.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not open the funded challenge.';
+      setChallengeOpenError(message);
+      setChallengeTxStatus('failed');
+      setChallengeTxMessage(message);
     }
-
-    // Preserve the investigation refresh if a future client/RPC response
-    // lacks a decodable return payload; the normal decoded path above is
-    // required to make challenge completion actions available immediately.
-    await refreshAfterTx(res.txHash);
   }
 
   async function handleSettle() {
@@ -192,6 +227,9 @@ export default function InvestigationDetailPage() {
   // project's "never force a deadline-gated call early" rule.
   const canResolveChallenge = !!openChallenge;
   const canClaimChallengeTimeout = !!openChallenge && now >= openChallenge.resolution_deadline;
+  const currentTxStatus = challengeTxStatus !== 'idle' ? challengeTxStatus : write.status;
+  const currentTxMessage = challengeTxStatus !== 'idle' ? challengeTxMessage : write.message;
+  const currentTxHash = challengeTxStatus !== 'idle' ? challengeTxHash : write.txHash;
 
   return (
     <div className="mx-auto max-w-container px-margin-mobile py-8 md:px-margin-desktop">
@@ -219,14 +257,25 @@ export default function InvestigationDetailPage() {
           challengeEvidenceUrl={challengeEvidenceUrl}
           setChallengeEvidenceUrl={setChallengeEvidenceUrl}
           challengeEvidenceError={challengeEvidenceError}
+          challengeOpenError={challengeOpenError}
           onAddChallengeEvidence={handleAddChallengeEvidence}
           onClaimChallengeTimeout={handleClaimChallengeTimeout}
-          txStatus={write.status}
+          txStatus={currentTxStatus}
         />
       </div>
 
-      {write.status !== 'idle' && (
-        <TransactionStatusModal status={write.status} message={write.message} txHash={write.txHash} onClose={write.reset} />
+      {currentTxStatus !== 'idle' && (
+        <TransactionStatusModal
+          status={currentTxStatus}
+          message={currentTxMessage}
+          txHash={currentTxHash}
+          onClose={() => {
+            setChallengeTxStatus('idle');
+            setChallengeTxMessage(undefined);
+            setChallengeTxHash(undefined);
+            write.reset();
+          }}
+        />
       )}
     </div>
   );
@@ -421,6 +470,7 @@ function BountyPanel({
   challengeEvidenceUrl,
   setChallengeEvidenceUrl,
   challengeEvidenceError,
+  challengeOpenError,
   onAddChallengeEvidence,
   onClaimChallengeTimeout,
   txStatus,
@@ -443,6 +493,7 @@ function BountyPanel({
   challengeEvidenceUrl: string;
   setChallengeEvidenceUrl: (url: string) => void;
   challengeEvidenceError: string | null;
+  challengeOpenError: string | null;
   onAddChallengeEvidence: () => void;
   onClaimChallengeTimeout: () => void;
   txStatus: string;
@@ -493,6 +544,7 @@ function BountyPanel({
             <Button variant="tactical" className="w-full" onClick={onOpenChallenge} loading={busy} disabled={!challengeReason.trim()}>
               Open Challenge
             </Button>
+            {challengeOpenError && <p role="alert" className="text-body-sm text-danger">{challengeOpenError}</p>}
           </div>
         )}
 

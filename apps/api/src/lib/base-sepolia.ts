@@ -168,6 +168,42 @@ export async function assertChallengeDeposit(caseId: string, challenger: string,
 }
 
 /**
+ * Verify a challenger-owned Base deposit before the GenLayer admin relay may
+ * open the challenge slot. All identity fields are derived from the actual
+ * transaction and escrow mapping, not from request claims.
+ */
+export async function verifyChallengeFundingTx(input: {
+  caseId: string;
+  challenger: string;
+  amount: string;
+  txHash: string;
+}) {
+  if (!config.baseSepolia.escrowAddress) throw new Error("RECALLRAID_ESCROW_ADDRESS is not configured");
+  if (!/^0x[a-fA-F0-9]{64}$/.test(input.txHash)) throw new Error("A valid Base challenge funding transaction hash is required");
+  const provider = getProvider();
+  const network = await provider.getNetwork();
+  if (network.chainId !== BigInt(config.baseSepolia.chainId)) throw new Error("Challenge funding verifier is not connected to the configured Base Sepolia chain");
+  const [transaction, receipt, deposit] = await Promise.all([
+    provider.getTransaction(input.txHash),
+    provider.getTransactionReceipt(input.txHash),
+    getChallengeDeposit(input.caseId, input.challenger),
+  ]);
+  if (!transaction || !receipt) throw new Error("Base challenge funding transaction or receipt is not yet available");
+  if (receipt.status !== 1) throw new Error("Base challenge funding transaction did not succeed");
+  if (transaction.chainId !== BigInt(config.baseSepolia.chainId)) throw new Error("Challenge funding transaction was signed for a different chain");
+  assertChallengeFundingMatches({
+    escrowAddress: config.baseSepolia.escrowAddress,
+    caseId: input.caseId,
+    challenger: input.challenger,
+    amount: input.amount,
+    transaction: { to: transaction.to, from: transaction.from, data: transaction.data },
+    receiptStatus: receipt.status,
+  });
+  if (deposit.amount !== input.amount) throw new Error("Base escrow's challenger-specific deposit does not match the funded transaction amount");
+  return { blockNumber: receipt.blockNumber, txHash: receipt.hash, amount: deposit.amount };
+}
+
+/**
  * A GenLayer challenge record alone cannot authorize Base stake movement. Verify
  * the actual receipt and calldata independently before allowing the challenge
  * to affect settlement. A missing transaction/receipt is an RPC/finality

@@ -18,11 +18,35 @@ const usdcAddress = process.env.BASE_SEPOLIA_USDC_ADDRESS || "0x036CbD53842c5426
 const apiBase = process.env.RECALLRAID_API_BASE_URL || "http://localhost:8081";
 const testOrigin = process.env.RECALLRAID_E2E_ORIGIN || "http://localhost:3001";
 const challengerKeyFile = process.env.RECALLRAID_CHALLENGER_KEY_FILE || "/private/tmp/recallraid-challenger-key.json";
-const reportPath = process.env.RECALLRAID_E2E_REPORT || "docs/e2e-evidence/studionet-base-challenge-e2e.json";
 const submitterKey = process.env.BASE_SEPOLIA_RELAYER_PRIVATE_KEY;
 const decisionSignerKey = process.env.BASE_SEPOLIA_DECISION_SIGNER_PRIVATE_KEY;
 if (!genlayerAddress || !escrowAddress || !submitterKey || !decisionSignerKey) {
   throw new Error("GenLayer/Base contract addresses and the configured testnet keys are required");
+}
+
+const hardenedResume = process.env.RECALLRAID_HARDENED_SUCCESSOR_RESUME === "1";
+const hardenedExpected = {
+  contract: "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+  caseId: "0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987",
+  submitTx: "0x5c7081620580dcac4f430a8a1f6d519ab9072a219b767007f685296ec9c8e1a5",
+  fundingTx: "0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf",
+};
+const reportPath = process.env.RECALLRAID_E2E_REPORT || "docs/e2e-evidence/studionet-base-challenge-e2e.json";
+const resumeInvestigationId = Number(process.env.RECALLRAID_E2E_INVESTIGATION_ID || 0);
+const activeCaseId = process.env.RECALLRAID_E2E_CASE_ID || "";
+const activeSubmitTx = process.env.RECALLRAID_E2E_SUBMIT_TX || "";
+let checkpointReport = null;
+if (hardenedResume) {
+  if (genlayerAddress.toLowerCase() !== hardenedExpected.contract.toLowerCase()
+    || activeCaseId.toLowerCase() !== hardenedExpected.caseId
+    || activeSubmitTx.toLowerCase() !== hardenedExpected.submitTx
+    || process.env.RECALLRAID_E2E_BASE_FUNDING_TX?.toLowerCase() !== hardenedExpected.fundingTx
+    || resumeInvestigationId !== 1
+    || reportPath !== "docs/e2e-evidence/hardened-successor-live-challenge.json") {
+    throw new Error("Hardened successor resume requires its exact successor contract, case, submit and funding tx, investigation 1, and dedicated report path");
+  }
+} else if (process.env.RECALLRAID_E2E_INVESTIGATION_ID && (!activeCaseId || !activeSubmitTx)) {
+  throw new Error("Generic resume mode requires explicit case ID and finalized submit transaction hash");
 }
 
 const challengerSecret = JSON.parse(readFileSync(challengerKeyFile, "utf8")).privateKey;
@@ -46,6 +70,16 @@ const escrow = new ethers.Contract(escrowAddress, [
 const genlayerChain = { ...studionet, rpcUrls: { default: { http: [genlayerRpc] } } };
 const submitterClient = createClient({ chain: genlayerChain, account: createAccount(submitterKey) });
 const challengerClient = createClient({ chain: genlayerChain, account: createAccount(challengerSecret) });
+if (hardenedResume) {
+  checkpointReport = JSON.parse(readFileSync(resolve(reportPath), "utf8"));
+  if (checkpointReport?.case?.caseId?.toLowerCase() !== hardenedExpected.caseId
+    || checkpointReport?.case?.baseFundingTx?.toLowerCase() !== hardenedExpected.fundingTx
+    || checkpointReport?.genlayer?.submit?.txHash?.toLowerCase() !== hardenedExpected.submitTx
+    || !(checkpointReport?.api?.authenticatedRegistrationSync === true
+      || checkpointReport?.api?.registrationAlreadyRecordedOnBase === true)) {
+    throw new Error("Hardened successor checkpoint does not prove its existing funding, finalized submit, and registration");
+  }
+}
 
 const officialRecallUrl = process.env.RECALLRAID_E2E_OFFICIAL_SOURCE_URL
   || "https://www.cpsc.gov/s3fs-public/010922-FP-and-Kids2-reannouncement.pdf?VersionId=rjCj6OORidUHu8aueBwkLh3zxvzha_Xl";
@@ -53,24 +87,30 @@ const neutralEvidenceUrl = "https://www.example.com/";
 const bounty = 100_000n; // 0.10 USDC
 const challengeStake = bounty / 5n;
 const startedAt = new Date().toISOString();
-const caseId = ethers.id(`recallraid:challenge-e2e:${randomUUID()}`);
-const resumeInvestigationId = Number(process.env.RECALLRAID_E2E_INVESTIGATION_ID || 0);
-const activeCaseId = process.env.RECALLRAID_E2E_CASE_ID || caseId;
-const activeSubmitTx = process.env.RECALLRAID_E2E_SUBMIT_TX || "";
+const reportStartedAt = checkpointReport?.startedAt ?? startedAt;
+const generatedCaseId = ethers.id(`recallraid:challenge-e2e:${randomUUID()}`);
+const executionCaseId = activeCaseId || generatedCaseId;
 let reportInvestigationId = resumeInvestigationId || null;
 let reportProgress = "initialized";
 const results = { base: {}, genlayer: {}, api: {}, adjudication: {}, settlement: {} };
+if (checkpointReport) {
+  Object.assign(results.base, checkpointReport.base ?? {});
+  Object.assign(results.genlayer, checkpointReport.genlayer ?? {});
+  Object.assign(results.api, checkpointReport.api ?? {});
+  Object.assign(results.adjudication, checkpointReport.adjudication ?? {});
+  Object.assign(results.settlement, checkpointReport.settlement ?? {});
+}
 
 function checkpoint(stage) {
   reportProgress = stage;
   const report = {
     schema: "recallraid-studionet-base-challenge-e2e/v1",
-    startedAt,
+    startedAt: reportStartedAt,
     updatedAt: new Date().toISOString(),
     networks: { genlayer: "StudioNet/61999", base: "Base Sepolia/84532" },
     contracts: { genlayer: genlayerAddress, escrow: escrowAddress, usdc: usdcAddress },
     wallets: { submitter: submitter.address, challenger: challenger.address },
-    case: { caseId: activeCaseId, investigationId: reportInvestigationId, bountyUsdcBaseUnits: bounty.toString(), baseFundingTx: results.base.bountyFundingTx },
+    case: { caseId: executionCaseId, investigationId: reportInvestigationId, bountyUsdcBaseUnits: bounty.toString(), baseFundingTx: results.base.bountyFundingTx },
     progress: { stage: reportProgress, complete: false },
     ...results,
   };
@@ -268,16 +308,16 @@ if ((await baseProvider.getBalance(challenger.address)) < ethers.parseEther("0.0
   results.base.challengerGasTransferTx = gasTx.hash;
 }
 
-if (resumeInvestigationId && (!/^0x[a-fA-F0-9]{64}$/.test(activeCaseId) || !/^0x[a-fA-F0-9]{64}$/.test(activeSubmitTx))) {
+if (resumeInvestigationId && (!/^0x[a-fA-F0-9]{64}$/.test(executionCaseId) || !/^0x[a-fA-F0-9]{64}$/.test(activeSubmitTx))) {
   throw new Error("Resume mode requires valid RECALLRAID_E2E_CASE_ID and RECALLRAID_E2E_SUBMIT_TX values");
 }
 
 if (!resumeInvestigationId) {
   // Browser-equivalent Base USDC funding by the eventual GenLayer submitter.
-  const existingCase = await escrow.getCase(activeCaseId);
+  const existingCase = await escrow.getCase(executionCaseId);
   if (existingCase.submitter === ethers.ZeroAddress) {
     results.base.bountyApprovalTx = await baseConfirmed(usdc.approve(escrowAddress, bounty));
-    results.base.bountyFundingTx = await baseConfirmed(escrow.fundInvestigation(activeCaseId, bounty));
+    results.base.bountyFundingTx = await baseConfirmed(escrow.fundInvestigation(executionCaseId, bounty));
   } else if (existingCase.submitter.toLowerCase() === submitter.address.toLowerCase()
     && existingCase.bounty === bounty && !existingCase.finalized && !existingCase.registered) {
     results.base.bountyFundingTx = requireTxHash(process.env.RECALLRAID_E2E_BASE_FUNDING_TX, "Existing bounty funding transaction");
@@ -288,9 +328,9 @@ if (!resumeInvestigationId) {
   results.base.bountyFundingTx = requireTxHash(process.env.RECALLRAID_E2E_BASE_FUNDING_TX, "Resumed bounty funding transaction");
 }
 results.base.bountyFunding = await verifyFundingTx(results.base.bountyFundingTx, {
-  caseId: activeCaseId, payer: submitter.address, amount: bounty, kind: "bounty",
+  caseId: executionCaseId, payer: submitter.address, amount: bounty, kind: "bounty",
 });
-const fundedCase = await escrow.getCase(activeCaseId);
+const fundedCase = await escrow.getCase(executionCaseId);
 if (fundedCase.submitter.toLowerCase() !== submitter.address.toLowerCase() || fundedCase.bounty !== bounty) {
   throw new Error("Base escrow funding does not match the intended submitter and bounty");
 }
@@ -306,13 +346,13 @@ let investigationId;
 if (resumeInvestigationId) {
   investigationId = resumeInvestigationId;
   const stored = await glRead(submitterClient, "get_investigation", [investigationId]);
-  if (stored.base_case_id.toLowerCase() !== activeCaseId.toLowerCase() || stored.submitter.toLowerCase() !== submitter.address.toLowerCase()) {
+  if (stored.base_case_id.toLowerCase() !== executionCaseId.toLowerCase() || stored.submitter.toLowerCase() !== submitter.address.toLowerCase()) {
     throw new Error("Resume case identity does not match the connected submitter and on-chain investigation");
   }
   submitted = { txHash: activeSubmitTx, result: { investigation_id: investigationId }, status: "FINALIZED", consensus: "MAJORITY_AGREE", execution: "FINISHED_WITH_RETURN" };
 } else {
   submitted = await glWrite(submitterClient, "submit_investigation", [
-    activeCaseId, Number(bounty), "Fisher-Price Rock 'n Play Sleeper", "Fisher-Price", "RNP-TEST-UNIT", "",
+    executionCaseId, Number(bounty), "Fisher-Price Rock 'n Play Sleeper", "Fisher-Price", "RNP-TEST-UNIT", "",
     "RecallRaid cross-chain test fixture", "https://www.walmart.com/search?q=Fisher-Price+Rock+Play+Sleeper",
     "https://www.fisher-price.com/", "https://www.cpsc.gov/",
     "Testnet fixture; exact production model and serial are intentionally unavailable.", "Baby products", 1,
@@ -323,16 +363,16 @@ if (resumeInvestigationId) {
 reportInvestigationId = investigationId;
 results.genlayer.submit = submitted;
 results.genlayer.investigationId = investigationId;
-results.genlayer.caseId = activeCaseId;
+results.genlayer.caseId = executionCaseId;
 results.genlayer.initialEvidenceUrl = neutralEvidenceUrl;
 results.genlayer.initialEvidenceSha256 = neutral.hash;
 
 const submitterCookie = await authenticate(submitter);
-let baseAfterRegistration = await escrow.getCase(activeCaseId);
+let baseAfterRegistration = await escrow.getCase(executionCaseId);
 if (!baseAfterRegistration.registered) {
   await apiPost(`/investigations/${investigationId}/sync`, { txHash: submitted.txHash }, submitterCookie);
   for (let attempt = 0; attempt < 10; attempt++) {
-    baseAfterRegistration = await escrow.getCase(activeCaseId);
+    baseAfterRegistration = await escrow.getCase(executionCaseId);
     if (baseAfterRegistration.registered) break;
     await new Promise((resolveWait) => setTimeout(resolveWait, 2000));
   }
@@ -418,7 +458,7 @@ if (existingOpenChallengeId > 0) {
 // The challenger funds its own Base position and asks the authenticated API
 // to verify the receipt before the GenLayer admin relay opens the slot.
 const challengerUsdc = usdc.connect(challenger);
-let challengeDepositBefore = await escrow.getChallengeDeposit(activeCaseId, challenger.address);
+let challengeDepositBefore = await escrow.getChallengeDeposit(executionCaseId, challenger.address);
 if (challengeDepositBefore.amount === 0n) {
   if (existingOpenChallengeId > 0) throw new Error("Open GenLayer challenge exists without its matching Base challenge stake");
   const currentAllowance = await challengerUsdc.allowance(challenger.address, escrowAddress);
@@ -427,7 +467,7 @@ if (challengeDepositBefore.amount === 0n) {
   }
   const confirmedAllowance = await challengerUsdc.allowance(challenger.address, escrowAddress);
   if (confirmedAllowance < challengeStake) throw new Error("Confirmed USDC approval is below the required challenge stake");
-  results.base.challengeFundingTx = await baseConfirmed(escrow.connect(challenger).fundChallenge(activeCaseId, challengeStake));
+  results.base.challengeFundingTx = await baseConfirmed(escrow.connect(challenger).fundChallenge(executionCaseId, challengeStake));
 } else if (challengeDepositBefore.amount === challengeStake) {
   const fundedTxHash = process.env.RECALLRAID_E2E_CHALLENGE_FUNDING_TX;
   if (!/^0x[a-fA-F0-9]{64}$/.test(fundedTxHash ?? "")) {
@@ -438,7 +478,7 @@ if (challengeDepositBefore.amount === 0n) {
   throw new Error(`Unexpected pre-existing challenge deposit: ${challengeDepositBefore.amount}`);
 }
 results.base.challengeFunding = await verifyFundingTx(results.base.challengeFundingTx, {
-  caseId: activeCaseId, payer: challenger.address, amount: challengeStake, kind: "challenge",
+  caseId: executionCaseId, payer: challenger.address, amount: challengeStake, kind: "challenge",
 });
 checkpoint("base-challenge-funded");
 const reason = "The product name identifies the recalled Rock 'n Play Sleeper family. The CPSC notice states the recall covers all models; the initial record had no production model or serial to match. Re-evaluate as a potential issue without claiming an exact-model confirmation.";
@@ -549,9 +589,9 @@ if (resolved?.txHash) await apiPostBestEffort(`/challenges/${challengeId}/sync`,
 if (resolved?.txHash) await apiPostBestEffort(`/investigations/${investigationId}/sync`, { txHash: resolved.txHash }, submitterCookie);
 checkpoint("challenge-resolution-finalized");
 
-const challengeDeposit = await escrow.getChallengeDeposit(activeCaseId, challenger.address);
+const challengeDeposit = await escrow.getChallengeDeposit(executionCaseId, challenger.address);
 if (challengeDeposit.amount !== challengeStake) throw new Error("Base escrow does not retain the exact challenger stake for this wallet");
-const currentEscrow = await escrow.getCase(activeCaseId);
+const currentEscrow = await escrow.getCase(executionCaseId);
 if (currentEscrow.finalized) throw new Error("Case finalized before the seven-day post-challenge period");
 results.base.challengeDeposit = { challenger: challenger.address, amount: challengeDeposit.amount.toString(), unchangedBeforeSettlement: true };
 results.settlement = {
@@ -563,13 +603,13 @@ results.settlement = {
 
 const report = {
   schema: "recallraid-studionet-base-challenge-e2e/v1",
-  startedAt,
+  startedAt: reportStartedAt,
   completedAt: new Date().toISOString(),
   progress: { stage: "settlement-wait", complete: false },
   networks: { genlayer: "StudioNet/61999", base: "Base Sepolia/84532" },
   contracts: { genlayer: genlayerAddress, escrow: escrowAddress, usdc: usdcAddress },
   wallets: { submitter: submitter.address, challenger: challenger.address },
-  case: { caseId: activeCaseId, investigationId, bountyUsdcBaseUnits: bounty.toString(), baseFundingTx: results.base.bountyFundingTx },
+  case: { caseId: executionCaseId, investigationId, bountyUsdcBaseUnits: bounty.toString(), baseFundingTx: results.base.bountyFundingTx },
   ...results,
 };
 writeFileSync(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`);

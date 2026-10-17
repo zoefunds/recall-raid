@@ -164,10 +164,13 @@ the on-chain record. See
 [`e2e-evidence/legacy-cache-cleanup.json`](e2e-evidence/legacy-cache-cleanup.json).
 
 The current source also contains an independent challenge-backing check in
-both the relay path and decision signer. The API and Foundry suites cover
-registration ownership, exact Base challenge receipt binding, finalized
-challenge outcome retention, signature tampering, seller-bond slashing,
+both the relay path and decision signer. The API suite has 46 passing tests,
+including explicit decision-signer rejection of modified verdict, hunter,
+challenge id/challenger/overturn flag, seller-bond id/slash, and decision hash.
+The Foundry suite has 9 passing tests covering registration ownership, exact
+Base challenge receipt binding, signature tampering, seller-bond slashing,
 orphan recovery, and successful Base-backed challenger stake allocation. The
-live `EDFF...` run now verifies the real finalized GenLayer outcome and hosted
-cache; settlement and wallet withdrawal remain pending until the recorded
-deadline.
+tested signer comparison is deployed to Fly; its health and live case-3 cache
+were verified after rollout. The live `EDFF...` run verifies the real
+finalized GenLayer outcome and hosted cache; settlement and wallet withdrawal
+remain pending until the recorded deadline.

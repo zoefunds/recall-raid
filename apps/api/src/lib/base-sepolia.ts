@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 import { config } from "./config.js";
 import { ERC20_ABI, RECALLRAID_ESCROW_ABI } from "./escrow-abi.js";
 import { chain, getTransactionStatus } from "./genlayer.js";
-import { assertBaseRegistrationMatches, assertChallengeFundingMatches, assertChallengeUsageConsistent, assertGenLayerCall, assertGenLayerChallengeOutcome, assertGenLayerTransactionIdentity, assertOrphanRecoveryEligible, assertSuccessfulFinalizedGenVmExecution, deriveBaseSettlementChallenge } from "./settlement-validation.js";
+import { assertAdjudicationInstructionMatches, assertBaseRegistrationMatches, assertChallengeFundingMatches, assertChallengeUsageConsistent, assertGenLayerCall, assertGenLayerChallengeOutcome, assertGenLayerTransactionIdentity, assertOrphanRecoveryEligible, assertSuccessfulFinalizedGenVmExecution, deriveBaseSettlementChallenge } from "./settlement-validation.js";
 
 let provider: ethers.JsonRpcProvider | undefined;
 let relayerContract: ethers.Contract | undefined;
@@ -275,8 +275,6 @@ async function assertAdjudicationMatchesFinalizedGenLayer(input: {
   const firstEvidence = evidenceIds.length ? await chain.getEvidence(evidenceIds[0]) : null;
   const expectedHunter = expectedVerdict === 1 ? ethers.ZeroAddress : firstEvidence?.submitter;
   if (!expectedHunter) throw new Error("Finalized payout verdict has no first evidence submitter");
-  if (input.verdict !== expectedVerdict) throw new Error("Decision signer rejected a verdict that is not backed by the finalized Base challenge state");
-
   let expectedBondSlash = 0n;
   if (expectedVerdict === 3 && escrowCase.sellerBondId !== ethers.ZeroHash) {
     const bond = await getReadContract().getSellerBond(escrowCase.sellerBondId);
@@ -298,15 +296,25 @@ async function assertAdjudicationMatchesFinalizedGenLayer(input: {
     sellerBondId: escrowCase.sellerBondId,
     sellerBondSlash: expectedBondSlash.toString(),
   }));
-  if (input.hunter.toLowerCase() !== expectedHunter.toLowerCase()
-    || input.challengeId !== expectedChallengeId
-    || input.challenger.toLowerCase() !== expectedChallenger.toLowerCase()
-    || input.challengeOverturned !== expectedChallengeOverturned
-    || input.sellerBondId.toLowerCase() !== escrowCase.sellerBondId.toLowerCase()
-    || BigInt(input.sellerBondSlash) !== expectedBondSlash
-    || input.decisionHash !== expectedDecisionHash) {
-    throw new Error("Decision signer rejected an instruction that differs from GenLayer and Base finalized state");
-  }
+  assertAdjudicationInstructionMatches({
+    verdict: input.verdict,
+    hunter: input.hunter,
+    challengeId: input.challengeId,
+    challenger: input.challenger,
+    challengeOverturned: input.challengeOverturned,
+    sellerBondId: input.sellerBondId,
+    sellerBondSlash: input.sellerBondSlash,
+    decisionHash: input.decisionHash,
+  }, {
+    verdict: expectedVerdict,
+    hunter: expectedHunter,
+    challengeId: expectedChallengeId,
+    challenger: expectedChallenger,
+    challengeOverturned: expectedChallengeOverturned,
+    sellerBondId: escrowCase.sellerBondId,
+    sellerBondSlash: expectedBondSlash.toString(),
+    decisionHash: expectedDecisionHash,
+  });
 }
 
 export async function getClaimable(address: string) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ethers } from "ethers";
 import {
+  assertAdjudicationInstructionMatches,
   assertBaseRegistrationMatches,
   assertChallengeFundingMatches,
   assertGenLayerCall,
@@ -114,6 +115,28 @@ describe("settlement cross-chain validation", () => {
       verdict: 1, challengeId: 0, challenger: ethers.ZeroAddress, overturned: false,
     });
     expect(() => deriveBaseSettlementChallenge({ finalizedVerdict: 2, challenge: null, baseFundingVerified: true })).toThrow(/without a finalized GenLayer challenge/);
+  });
+
+  it("makes the decision signer reject every altered settlement instruction field", () => {
+    const expected = {
+      verdict: 2,
+      hunter: payer,
+      challengeId: 9,
+      challenger,
+      challengeOverturned: true,
+      sellerBondId: ethers.id("seller bond"),
+      sellerBondSlash: amount,
+      decisionHash: ethers.id("final decision"),
+    };
+    expect(() => assertAdjudicationInstructionMatches(expected, expected)).not.toThrow();
+    expect(() => assertAdjudicationInstructionMatches({ ...expected, verdict: 1 }, expected)).toThrow(/verdict/);
+    expect(() => assertAdjudicationInstructionMatches({ ...expected, hunter: challenger }, expected)).toThrow(/hunter/);
+    expect(() => assertAdjudicationInstructionMatches({ ...expected, challengeId: 10 }, expected)).toThrow(/challenge fields/);
+    expect(() => assertAdjudicationInstructionMatches({ ...expected, challenger: payer }, expected)).toThrow(/challenge fields/);
+    expect(() => assertAdjudicationInstructionMatches({ ...expected, challengeOverturned: false }, expected)).toThrow(/challenge fields/);
+    expect(() => assertAdjudicationInstructionMatches({ ...expected, sellerBondId: ethers.id("other bond") }, expected)).toThrow(/seller-bond fields/);
+    expect(() => assertAdjudicationInstructionMatches({ ...expected, sellerBondSlash: "1" }, expected)).toThrow(/seller-bond fields/);
+    expect(() => assertAdjudicationInstructionMatches({ ...expected, decisionHash: ethers.id("modified") }, expected)).toThrow(/decision hash/);
   });
 
   it("requires the GenLayer submitter and bounty to equal the Base deposit", () => {

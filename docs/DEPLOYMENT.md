@@ -171,7 +171,7 @@ committing an `.env` file. Keep one machine available because the watcher
 maintains cache freshness and retry behavior.
 
 ```bash
-flyctl deploy --config apps/api/fly.toml
+flyctl deploy apps/api --config fly.toml
 flyctl ssh console -a recallraid-usdc-api -C 'node /app/dist/db/migrate.js'
 curl https://recallraid-usdc-api.fly.dev/health
 ```

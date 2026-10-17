@@ -138,6 +138,46 @@ export function deriveBaseSettlementChallenge(input: {
   };
 }
 
+export type AdjudicationInstruction = {
+  verdict: number;
+  hunter: string;
+  challengeId: number;
+  challenger: string;
+  challengeOverturned: boolean;
+  sellerBondId: string;
+  sellerBondSlash: string;
+  decisionHash: string;
+};
+
+/**
+ * The decision signer must only sign the instruction derived from finalized
+ * GenLayer state and the verified Base funding record. Keep this comparison
+ * pure so every authorization field can be adversarially tested.
+ */
+export function assertAdjudicationInstructionMatches(
+  actual: AdjudicationInstruction,
+  expected: AdjudicationInstruction,
+) {
+  if (actual.verdict !== expected.verdict) {
+    throw new Error("Decision signer rejected a verdict that differs from finalized state");
+  }
+  if (actual.hunter.toLowerCase() !== expected.hunter.toLowerCase()) {
+    throw new Error("Decision signer rejected a hunter that differs from finalized evidence");
+  }
+  if (actual.challengeId !== expected.challengeId
+    || actual.challenger.toLowerCase() !== expected.challenger.toLowerCase()
+    || actual.challengeOverturned !== expected.challengeOverturned) {
+    throw new Error("Decision signer rejected challenge fields that differ from finalized state");
+  }
+  if (actual.sellerBondId.toLowerCase() !== expected.sellerBondId.toLowerCase()
+    || BigInt(actual.sellerBondSlash) !== BigInt(expected.sellerBondSlash)) {
+    throw new Error("Decision signer rejected seller-bond fields that differ from finalized state");
+  }
+  if (actual.decisionHash !== expected.decisionHash) {
+    throw new Error("Decision signer rejected a decision hash that differs from finalized state");
+  }
+}
+
 export function assertBaseRegistrationMatches(input: {
   baseSubmitter: string;
   genlayerSubmitter: string;

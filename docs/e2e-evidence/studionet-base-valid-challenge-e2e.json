@@ -192,7 +192,8 @@
       "flyApp": "recallraid-usdc-api",
       "image": "recallraid-usdc-api:deployment-01M54QJ6JVBCQVTT8NYVQN3C26",
       "machineVersion": 14,
-      "sourceCommit": "3c77c28",
+      "sourceCommit": "3c77c28ae3fbf0753c9503db57b54b6afe40e9c1",
+      "sourceCommitAfterHistoryScrub": "aaa442e10bf6a19e2fddd44bfc1cb19370ac53b7",
       "machinesHealthy": 2,
       "postDeployChecks": {
         "health": 200,
@@ -294,6 +295,30 @@
       "apiBuild": "passed",
       "webBuild": "passed"
     },
-    "settlementWasAttempted": false
+    "settlementWasAttempted": false,
+    "successorDeploymentAttempt": {
+      "source": "checked-out contracts/recallraid_contract.py",
+      "rpc": "https://studio.genlayer.com/api",
+      "outcome": "RPC rate limit returned errors during gas estimation and transaction submission",
+      "transactionHash": null,
+      "contractAddress": null,
+      "sourceParityResolved": false,
+      "hostedCutoverPerformed": false
+    }
+  },
+  "credentialRemediation": {
+    "verifiedAt": "2026-10-17T11:28:05Z",
+    "diagnosticScriptRequiresEnvironmentKey": true,
+    "exposedDiagnosticWallet": "0x551f5b8b2c517bfd780f2e005be2dd2754b7aa85",
+    "matchesFlyRelayer": false,
+    "matchesFlyDecisionSigner": false,
+    "baseSepoliaNativeBalance": "0",
+    "baseSepoliaUsdcBalanceBaseUnits": "0",
+    "studioNetBalanceAtCheckWei": "998795000000000001000",
+    "historyScrubbed": true,
+    "githubMainReachableBlobsContainingKey": 0,
+    "localGitObjectsContainingKey": 0,
+    "studioNetAssetTransfer": "unconfirmed; RPC rate limiting prevented obtaining a transaction hash or receipt",
+    "freshReceiverKeyPath": "/private/tmp/recallraid-rotated-diagnostic-wallet.json"
   }
 }

@@ -88,6 +88,7 @@
     "apiGenlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
     "decisionSignerConfigured": true,
     "apiDeploymentCommit": "17492f1b9f41a07ec847c2eaeefdc74f86c6cdcf",
+    "apiDeploymentCommitAfterHistoryScrub": "3a7f30665cbeecf92a1de43f3ddb640461386be8",
     "apiDeploymentImageDigest": "sha256:b4daea688da58139541ea82a5a2efd3547ac645c72d10807a0a4eb32152b486e",
     "authenticatedRegistrationSync": true,
     "preDeadlineRelayRefused": true,

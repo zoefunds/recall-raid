@@ -91,9 +91,27 @@ in [`e2e-evidence/legacy-cache-cleanup.json`](e2e-evidence/legacy-cache-cleanup.
 
 At 2026-10-17 10:48Z, the Fly API was rolled to image
 `recallraid-usdc-api:deployment-01M54QJ6JVBCQVTT8NYVQN3C26`, built from API
-source commit `3c77c28`. Both version-14 machines passed health checks.
+source commit `3c77c28ae3fbf0753c9503db57b54b6afe40e9c1` before the key-history
+scrub; its sanitized equivalent is now
+`aaa442e10bf6a19e2fddd44bfc1cb19370ac53b7`. The API source tree is unchanged
+by that redaction. Both version-14 machines passed health checks.
 After rollout, `/health`, `/challenges/3`, and `/investigations/3` returned
 HTTP 200 with the expected finalized challenge and case-3 cache state.
+
+On 2026-10-17 the exposed diagnostic test key was removed from all Git blobs,
+including local Codex checkpoint refs, and `main` was force-updated with an
+exact lease. GitHub now exposes only the sanitized `main` branch; scanning its
+reachable blobs found no copy of that exact key. Commit IDs changed because
+history was rewritten. For deployment records, API source commit
+`3c77c28ae3fbf0753c9503db57b54b6afe40e9c1` now has sanitized equivalent
+`aaa442e10bf6a19e2fddd44bfc1cb19370ac53b7`, and API source commit
+`4f998ad4c91454ea384aee47e7b620447fffbf5e` now has sanitized equivalent
+`622fa5383407acbfea4edf5609c179a6e2f6a707`. Tree content was unchanged by the
+redaction. History rewriting cannot invalidate copies in forks or clones; the
+key remains compromised. Its StudioNet test wallet held 998.795 GEN and no
+Base Sepolia ETH or USDC. A transfer to a fresh key has not been confirmed;
+StudioNet RPC rate limiting interrupted the recovery attempt before a
+transaction hash or receipt could be verified.
 
 The Base escrow verifier compiled the checked-out Solidity with solc
 `0.8.37+commit.f401782d`, optimizer runs `200`, and `viaIR: true`. It verified
@@ -116,8 +134,9 @@ verify current address configuration and fail-closed behavior; they do not
 prove final payout or withdrawal.
 
 After the CLI run below exposed an SDK receipt-shape mismatch, API commit
-`4f998ad4c91454ea384aee47e7b620447fffbf5e` was deployed to Fly on 2026-10-17
-and migration `20261017000001_terminal_genvm_tx.sql` was applied. An
+`4f998ad4c91454ea384aee47e7b620447fffbf5e` was deployed to Fly on 2026-10-17;
+its sanitized history equivalent is `622fa5383407acbfea4edf5609c179a6e2f6a707`.
+Migration `20261017000001_terminal_genvm_tx.sql` was applied. An
 authenticated production sync consumed the real finalized `resolve_challenge`
 receipt and retained the verdict, last challenge id, and challenge-used state
 in the investigation cache. The hosted relay returned HTTP 400
@@ -243,6 +262,16 @@ from checkout only in the authoritative-URL validator (deployed accepts any
 scheme; checkout requires HTTPS and rejects credentials). The live E2E uses
 HTTPS, but exact StudioNet source parity remains an outstanding deployment
 item. API tests (46), Foundry tests (9), and API/web production builds pass.
+
+A successor deployment of the checked-out HTTPS-only source was attempted on
+StudioNet. RPC rate limiting returned errors during gas estimation and
+transaction submission; the CLI returned no transaction hash or contract
+address. Do not treat source parity as resolved, and do not change Fly/Vercel
+from `EDFF...` until the successor deployment is accepted, its source/schema/
+protocol info are verified, and cases registered on `EDFF...` have been
+settled or otherwise safely reconciled. `genvm-lint` static lint passed, but
+SDK validation could not load the pinned archive (`py-genlayer/...tar`
+missing), so full local schema validation also remains pending.
 
 To finish the recorded case after its deadline, run the settlement runner from
 the repository root with the API key material in ignored `apps/api/.env` and

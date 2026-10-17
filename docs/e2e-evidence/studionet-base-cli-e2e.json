@@ -77,6 +77,7 @@
   "hostedApiCheck": {
     "api": "https://recallraid-usdc-api.fly.dev",
     "deployedCommit": "4f998ad4c91454ea384aee47e7b620447fffbf5e",
+    "deployedCommitAfterHistoryScrub": "622fa5383407acbfea4edf5609c179a6e2f6a707",
     "health": "ok",
     "database": "ok",
     "migration": "20261017000001_terminal_genvm_tx.sql applied",

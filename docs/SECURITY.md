@@ -104,8 +104,16 @@ attested relay design, not a trustless bridge.
   exact value; the rewritten remote `main` was scanned and contains no matching
   blob. The key must still be treated as compromised: history rewriting does
   not revoke it or erase clones, forks, caches, or copies made before cleanup.
-  Do not reuse its wallet; rotate any service configuration and move any
-  remaining test assets to a fresh wallet controlled by the project owner.
+  The derived wallet is `0x551f5b8b2c517bfd780f2e005be2dd2754b7aa85`; checks
+  confirmed it is not either configured Fly Base signer and held zero Base
+  Sepolia native token or USDC. It held 998.795 GEN on StudioNet at the time of
+  the check. Recovery to a fresh wallet is pending because StudioNet RPC
+  returned its 500-requests-per-hour limit before transfer submission. Do not
+  reuse the exposed wallet; the generated receiver key is held locally at
+  `/private/tmp/recallraid-rotated-diagnostic-wallet.json` with mode 0600 and is
+  not committed. Confirm the transfer receipt and balances after StudioNet
+  rate limiting clears. Rotate any service configuration if further checks
+  identify use of this key.
 - PostgreSQL is a derived cache, not a ledger. The API watcher serializes its
   sweep with a database advisory lock and retries terminal relays. Base
   idempotency makes duplicate relay attempts safe.

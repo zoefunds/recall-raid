@@ -142,7 +142,8 @@ GenLayer verdict. The deployed `EDFF...` source was subsequently queried and its
 schema and protocol windows were inspected. The current checkout now additionally
 makes challenge opening admin-only, with API-side Base receipt verification.
 That challenge-opening change is **not present in the deployed `EDFF...` source**;
-it requires a successor deployment and hosted API rollout. Existing Base
+the hardened successor is now deployed, and the isolated API/frontend preview
+is ready. Production hosted rollout remains a separate step. Existing Base
 registrations must continue to route to `EDFF...` until safely settled or
 reconciled, because the escrow permanently binds each case to its registered
 GenLayer contract. The Base branch transactions also did not consume that
@@ -156,9 +157,29 @@ that an unrelated caller is rejected before it can occupy the challenge slot
 and that an authorized admin call records the explicit challenger. Direct mode
 does not simulate Base receipts or StudioNet consensus; those properties remain
 covered separately by API/escrow tests and live deployment evidence.
-The latest hosted source/configuration check and failed successor-deployment
-attempt are captured in
+The hosted source/configuration check and successor rollout findings are captured in
 [`e2e-evidence/hardened-challenge-rollout-check.json`](e2e-evidence/hardened-challenge-rollout-check.json).
+
+Update at 2026-10-17 12:33Z: the hardened source was deployed to StudioNet at
+`0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA` in transaction
+`0xfc7aceb0a2d8eea60db169363bdb711b81fac216f0008c4452ac227bc58fa25c`.
+The receipt is `FINALIZED` with `MAJORITY_AGREE`; the deployed source hash
+matches the checked-in contract, and a read-only protocol-info call reports
+604800 seconds for the challenge window and 172800 seconds for challenge
+resolution. This deployment has no investigations or seller bonds yet. The
+schema query hit the StudioNet 500-requests/hour limit and remains unverified.
+Fly and Vercel still point to `EDFF...`, and its funded records were preserved.
+The existing 100,000-unit bounty and 20,000-unit challenge stake remain in Base
+escrow until the recorded deadline `2026-10-24T10:31:44Z`; settlement and wallet
+withdrawals are documented follow-up steps and were not executed early.
+
+Update at 2026-10-17 12:44Z: an isolated Fly candidate API and protected Vercel
+preview were deployed against the successor. The candidate API has its own
+database and JWT secret; migrations and health checks passed. The preview build
+used the candidate API URL and successor address, and candidate CORS allows its
+exact origin. The preview is ready but was not opened through the user's
+authenticated browser session for wallet interaction testing. The production
+Fly/Vercel pair remains on `EDFF...`, preserving three indexed unsettled cases.
 
 On 2026-10-17 the hosted Fly API and Vercel frontend were configured to the
 `EDFF...` adjudicator and verified Base escrow. The hosted web bundle contains
@@ -193,8 +214,8 @@ that point-in-time comparison found the URL validator difference: checkout
 required HTTPS and rejected URL credentials, while deployed `EDFF...` checked
 only the authoritative hostname. The current checkout also now makes challenge
 opening admin-only and adds an API-verified relay, which is another source
-difference and is not live on `EDFF...`. Exact source parity still requires a
-successor deployment.
+difference and is not live on `EDFF...`. The successor is now deployed with
+source parity; its schema query is still pending due to StudioNet rate limiting.
 Keep the current deployment configured through settlement of its registered
 cases; on-chain registrations cannot be moved. The historical `A239...`
 deployment remains incompatible with the current hosted decision signer and

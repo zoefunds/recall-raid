@@ -24,13 +24,30 @@
     "hostedSourceSha256": "d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5",
     "hostedChallengeMethod": "open_challenge(investigation_id, reason, stake_usdc_base_units, base_tx_hash)",
     "hostedSourceHasAdminOnlyChallengeOpening": false,
-    "successorAddress": null,
+    "successorAddress": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+    "successorDeployment": {
+      "checkedAt": "2026-10-17T12:33:50Z",
+      "transactionHash": "0xfc7aceb0a2d8eea60db169363bdb711b81fac216f0008c4452ac227bc58fa25c",
+      "receiptStatus": "FINALIZED",
+      "consensus": "MAJORITY_AGREE",
+      "deployedSourceSha256": "e7ca95221338bd213448be1cd18e0483eccd97312a8ba81a5c3fac94ef4daee0",
+      "matchesCheckedOutSource": true,
+      "protocolInfo": {
+        "admin": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+        "paused": false,
+        "investigationCount": 0,
+        "sellerBondCount": 0,
+        "challengeWindowSeconds": 604800,
+        "challengeResolutionSeconds": 172800
+      },
+      "schema": "not freshly verified: StudioNet returned the 500-requests/hour limit during this check"
+    },
     "latestDeploymentAttempt": {
       "attemptedAt": "2026-10-17T12:20:00Z",
-      "result": "rate_limited",
-      "error": "Rate limit exceeded: 500 requests per hour",
-      "retryAfterSeconds": 56,
-      "transactionHash": null
+      "result": "accepted_after_rate_limit_cleared",
+      "error": null,
+      "retryAfterSeconds": null,
+      "transactionHash": "0xfc7aceb0a2d8eea60db169363bdb711b81fac216f0008c4452ac227bc58fa25c"
     }
   },
   "hostedApplication": {
@@ -57,6 +74,33 @@
       "huntDetailUsesHardenedOpenStatusApi": false
     }
   },
+  "isolatedPreviewRollout": {
+    "checkedAt": "2026-10-17T12:44:22Z",
+    "fly": {
+      "app": "recallraid-candidate-api",
+      "hostname": "recallraid-candidate-api.fly.dev",
+      "image": "recallraid-candidate-api:deployment-01M54XW5YXX0VV4R39YQZCE1E5",
+      "machineCount": 2,
+      "health": {"httpStatus": 200, "api": "ok", "database": "ok"},
+      "migrations": "all repository migrations applied to the isolated candidate database",
+      "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+      "corsOrigin": "https://recall-raid-nhv1p5dax-adebiyi2002gmailcoms-projects.vercel.app",
+      "productionChanged": false
+    },
+    "vercel": {
+      "target": "preview",
+      "deploymentId": "dpl_51ACa4Mrd2qWwnNCsLrpek7Vxw1e",
+      "url": "https://recall-raid-nhv1p5dax-adebiyi2002gmailcoms-projects.vercel.app",
+      "readyState": "READY",
+      "build": "passed",
+      "buildEnvironment": {
+        "apiBaseUrl": "https://recallraid-candidate-api.fly.dev",
+        "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA"
+      },
+      "deploymentProtection": "enabled; anonymous fetch redirected to Vercel SSO",
+      "productionChanged": false
+    }
+  },
   "localVerification": {
     "apiTests": 47,
     "directModeGenVmTests": 2,
@@ -76,9 +120,10 @@
     "writesSentDuringObservedWindow": false
   },
   "limitations": [
-    "The deployed EDFF contract and hosted frontend/backend do not yet include the hardened challenge-opening path.",
-    "No StudioNet successor deployment transaction was accepted; the RPC rate limit remains active.",
+    "The new successor contains the hardened challenge-opening path. Production Fly/Vercel still serve EDFF; a separate candidate Fly API and Vercel preview have been deployed for the successor.",
+    "Successor source and protocol info were verified; a fresh schema query was rate-limited and remains pending.",
     "The hosted EDFF investigation records were preserved because their Base registrations cannot be reassigned.",
-    "The seven-day settlement remains intentionally pending until its deadline."
+    "No investigations, bonds, or hunts have been created on the successor yet.",
+    "The seven-day settlement remains intentionally pending until its deadline; settlement and withdrawals are documented follow-up work."
   ]
 }

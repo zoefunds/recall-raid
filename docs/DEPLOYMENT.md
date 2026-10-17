@@ -5,15 +5,15 @@ Base Sepolia. The contracts are test deployments, not production contracts.
 The Base escrow deployment is verified below. The currently hosted pair uses
 the accepted `EDFF...` StudioNet adjudicator and the verified Base escrow.
 The repository now adds both a stricter HTTPS check for official regulator URLs
-and admin-relayed, Base-receipt-verified challenge opening. These source changes
-are not on the hosted `EDFF...` adjudicator. A successor deployment must not
-replace the hosted default until the application can continue to route existing
-Base registrations to `EDFF...`; Base registration is immutable. The current
+and admin-relayed, Base-receipt-verified challenge opening. The hardened source
+is deployed as a fresh successor, documented below, but Fly and Vercel still
+serve the earlier `EDFF...` adjudicator. Existing Base registrations remain
+bound to `EDFF...`; do not switch those records to the successor. The current
 seven-day settlement is intentionally documented as pending, not executed early.
 The deployed `EDFF...` source was retrieved with `genlayer code` on
 2026-10-17. Its normalized source hash is
-`d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5`; the sole
-semantic differences from the current source are that the deployed URL
+`d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5`; known
+differences from the hardened successor include that the deployed URL
 validator does not require HTTPS or reject URL credentials, and it accepts
 direct wallet `open_challenge` calls with a caller-declared challenger. The
 checked-out source closes the latter path by requiring the admin relay; the API
@@ -34,7 +34,27 @@ here is StudioNet (`61999`), served through `https://studio.genlayer.com/api`.
 | Corrected escrow | Base Sepolia | `0x861d5D4E903805cbE283A86f08E10D031601774E` | `0xf50fe9f4af945ab79208eaf3895347ea1d0b85b7fb4f641bfa0be7f499d460c7`; source verified 2026-10-17 |
 | Earlier corrected adjudicator | StudioNet | `0xa239189c2921b592dBa1eccde830977edbfD1CB5` | `0x2bb98b6e3897235a7ae96790b565e5fa38c269e493a209a2595485e42474ecb0`; accepted; superseded by next row |
 | Latest source with challenge rebuttal controls | StudioNet | `0xEDFFB4B4999D65A248441438233c18717515973d` | `0xe457b81502a2a9f66ab4f620f7d0ad738e27cac3f07ff23696ff61fef52ab350`; accepted; `get_protocol_info` reports 604800s challenge / 172800s resolution |
-| Hardened challenge-opening successor | StudioNet | Not deployed | Repeated deployment attempts on 2026-10-17 were rejected by StudioNet's 500-requests/hour RPC limit; no attempt returned a transaction hash |
+| Hardened challenge-opening successor | StudioNet | `0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA` | `0xfc7aceb0a2d8eea60db169363bdb711b81fac216f0008c4452ac227bc58fa25c`; finalized `MAJORITY_AGREE`; retrieved source matches checked-in SHA-256 `e7ca95221338bd213448be1cd18e0483eccd97312a8ba81a5c3fac94ef4daee0`; protocol info reports 604800s challenge / 172800s resolution |
+
+The successor is a fresh deployment with zero investigations and zero seller
+bonds at verification time. It is not the hosted application default: Fly and
+Vercel still use `EDFF...`, which owns the existing Base registrations. A
+read-only `get_protocol_info` call verified the successor admin, unpaused
+state, and protocol windows. The schema query was rate-limited by StudioNet at
+the 500-requests/hour ceiling and remains a documented verification item; do
+not spend further StudioNet requests on retries while that limit is exhausted.
+
+An isolated hosted preview is now available for the successor. Fly app
+`recallraid-candidate-api` runs the candidate API image with the successor
+address, a candidate-only database, and a separate JWT secret; all repository
+migrations were applied, and its health endpoint returned API/database `ok`.
+Vercel preview deployment `dpl_51ACa4Mrd2qWwnNCsLrpek7Vxw1e` is READY at
+`https://recall-raid-nhv1p5dax-adebiyi2002gmailcoms-projects.vercel.app`, built
+with the candidate API URL and successor contract address. Its preview access
+protection remains enabled (anonymous requests redirect to Vercel SSO). The
+candidate API CORS allowlist is set to this exact preview origin. Neither
+production service nor its database was changed. See
+[`e2e-evidence/hardened-challenge-rollout-check.json`](e2e-evidence/hardened-challenge-rollout-check.json).
 
 The live Base accounting branch checks and limitations are recorded in
 [`e2e-evidence/live-base-security-branches.json`](e2e-evidence/live-base-security-branches.json).
@@ -56,11 +76,12 @@ The version-pinned CPSC PDF's exact SHA-256 was verified by GenLayer validators.
 Fly's API cache independently retains challenge 3's exact Base transaction,
 challenger, stake, prior/final verdicts, and the closed challenge identifier.
 
-Settlement and withdrawals remain pending: the seven-day post-resolution
-window ends at `2026-10-24T10:31:44Z`. The API and contracts have not claimed
-or transferred these balances yet. An authenticated relay request against this
-case returned HTTP 400 `GenLayer adjudication is not terminal` and sent no Base
-transaction. The separate record
+Settlement and withdrawals are intentionally deferred: the seven-day
+post-resolution window ends at `2026-10-24T10:31:44Z`. This task records the
+deadline and required follow-up checks; it does not execute settlement early.
+The API and contracts have not claimed or transferred these balances yet. An
+authenticated relay request against this case returned HTTP 400 `GenLayer
+adjudication is not terminal` and sent no Base transaction. The separate record
 [`e2e-evidence/studionet-base-clean-challenge-e2e.json`](e2e-evidence/studionet-base-clean-challenge-e2e.json)
 captures a failed attempt whose GenLayer challenge contains a placeholder Base
 transaction string; do not use it as settlement evidence. StudioNet's hosted
@@ -302,19 +323,18 @@ with no legacy A239 address. The StudioNet source comparison at that time found
 the authoritative-URL validator difference (deployed accepts any scheme; that
 checkout required HTTPS and rejected credentials). The current checkout has
 since added admin-only challenge opening and authenticated API verification;
-those changes also require a successor deployment and hosted rollout. The
+the successor is now deployed and has an isolated hosted preview, while
+production still serves the earlier pair. The
 current checkout passes 47 API tests, 2 direct-mode GenVM tests, 9 Foundry
 tests, API and web production builds, GenLayer contract lint, and both Solidity
 and Python compilation. `npm run test:genlayer` uses local direct mode; it does
 not consume StudioNet RPC quota or prove StudioNet consensus.
 
-A successor deployment of the checked-out HTTPS-only source was attempted on
-StudioNet. RPC rate limiting returned errors during gas estimation and
-transaction submission; the CLI returned no transaction hash or contract
-address. Do not treat source parity as resolved, and do not change Fly/Vercel
-from `EDFF...` until the successor deployment is accepted, its source/schema/
-protocol info are verified, and cases registered on `EDFF...` have been
-settled or otherwise safely reconciled. `genvm-lint` static lint passed, but
+The successor deployment attempt described in this timestamped historical
+entry was later accepted after rate limits cleared. See the deployment table
+and rollout evidence for its address and source verification. Fly/Vercel still
+serve `EDFF...`; preserve its cases because Base registration is immutable.
+`genvm-lint` static lint passed, but
 SDK validation passes when pinned to the cached compatible `v0.3.0-rc7` runner
 bundle with `GENVM_VERSION=v0.3.0-rc7`; it reports 32 methods (13 views and 19
 writes) and zero constructor parameters. The default linter selection picks
@@ -333,7 +353,8 @@ point-in-time difference remained URL validation (the deployed source accepts
 any scheme while that checkout required HTTPS and rejected credentials). The
 current checkout also adds admin-only challenge opening and an API relay with
 actual Base-receipt verification; those changes are not in the deployed source.
-No successor deployment or hosted cutover is recorded. The same-time Base verifier
+No successor deployment or hosted cutover had been recorded at that check.
+The same-time Base verifier
 again matched the escrow runtime to the checked-out Solidity source: runtime
 hash `0xa7919e068cf4d9a0172ad8d8b888ff3770f3c45da94c6b195cb2009e5c20b370`,
 source hash `0x90e7562eeb84dcd0738b61d3dba8ff406761e8d4f8581caf2b3800909aac0fc6`,

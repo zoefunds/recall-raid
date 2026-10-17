@@ -7,7 +7,9 @@ and claims live in a Base Sepolia escrow. The API mirrors chain state in
 PostgreSQL, authenticates wallet sessions, issues signed evidence-upload
 parameters, and coordinates explicitly attested cross-chain operations.
 
-This repository contains a testnet implementation with a live StudioNet-to-Base Sepolia overturned challenge. The case is finalized on GenLayer and its Base-funded stake is verified, but Base settlement and wallet withdrawals are deliberately pending until the seven-day challenge period expires at `2026-10-24T10:31:44Z`. Local Base branch tests use synthetic GenLayer instructions and do not substitute for that final live payout. See [the validation record](docs/e2e-evidence/studionet-base-valid-challenge-e2e.json), [security model](docs/SECURITY.md), and [deployment notes](docs/DEPLOYMENT.md) for exact scope and limitations.
+This repository contains a testnet implementation with a live StudioNet-to-Base Sepolia overturned challenge. The seven-day Base settlement and wallet withdrawals are documented as pending until `2026-10-24T10:31:44Z`; they are not being attempted early. The hardened successor is deployed at `0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA` and matches the checked-in source, while hosted Fly/Vercel still use the earlier `EDFF...` contract so existing Base registrations remain associated with their original investigation. Local Base branch tests use synthetic GenLayer instructions and do not substitute for the final live payout. See [the validation record](docs/e2e-evidence/studionet-base-valid-challenge-e2e.json), [security model](docs/SECURITY.md), and [deployment notes](docs/DEPLOYMENT.md) for exact scope and limitations.
+
+The isolated successor preview is [available on Vercel](https://recall-raid-nhv1p5dax-adebiyi2002gmailcoms-projects.vercel.app) to project members; it uses a separate candidate API and database. Production remains on `EDFF...` until its existing registrations are safely resolved.
 
 ## Repository map
 

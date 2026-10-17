@@ -97,17 +97,27 @@ both the legacy page and the new production page returned HTTP 200. The legacy
 immutable URL is project-member protected; its origin was added to the EDFF
 API's explicit CORS allowlist. No existing Base registration was rewritten.
 The candidate Fly API is image
-`deployment-01M556DD7858ADZ91NADTMMP17`; the EDFF Fly API is
-`deployment-01M556G07KBTF9Q9CS9XWPETHC`. Both service health endpoints report
+`deployment-01M556PJJBDPR2DWAP3WR1MD7Y`; the EDFF Fly API is
+`deployment-01M556T7X34PPRT529WW611ENF`. Both service health endpoints report
 API and database `ok`. Read-only investigation endpoints return successor case
 1 as status 4 with `open_challenge_id = 1`, and EDFF case 3 as status 3 with
 `last_challenge_id = 3`; both remain unsettled.
 
-Both Fly APIs now run commit `77a7df1`, including the explicit confirmation
+Both Fly APIs now run commit `7cb64e0`, including the explicit confirmation
 validator and regression test for a finalized challenge transaction submitted
 by the previous admin before role rotation. The API build passes and the suite
-has 50 passing tests. Candidate `/open-status` still awaits StudioNet RPC quota
-recovery; no new Base or GenLayer transaction is needed to resume it.
+has 50 passing tests. `GENLAYER_CHALLENGE_OPEN_ADMIN_GATED=true` is enabled only
+on the candidate API, whose address is the verified hardened successor. It
+remains unset on the legacy EDFF API, which therefore continues to require the
+current relay sender when confirming an opening. Candidate `/open-status` still
+awaits StudioNet RPC quota recovery; no new Base or GenLayer transaction is
+needed to resume it.
+
+A direct Base Sepolia read at 15:15Z reconfirmed escrow owner and relayer
+`0xE3F1A34307349be94f3657276ebcF51eaB810730`, with the separate decision
+signer `0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C`. The successor case remains
+registered to investigation 1 with 100,000 bounty units and the exact 20,000
+challenger deposit; `finalized` is false.
 
 ### Hardened successor live challenge
 

@@ -501,8 +501,8 @@
     "legacyProjectMemberFetchStatus": 200,
     "legacyApi": "https://recallraid-usdc-api.fly.dev",
     "legacyCaseRegistrationPreserved": true,
-    "candidateApiImage": "deployment-01M556DD7858ADZ91NADTMMP17",
-    "legacyApiImage": "deployment-01M556G07KBTF9Q9CS9XWPETHC",
+    "candidateApiImage": "deployment-01M556PJJBDPR2DWAP3WR1MD7Y",
+    "legacyApiImage": "deployment-01M556T7X34PPRT529WW611ENF",
     "candidateApiHealth": {
       "status": "ok",
       "db": "ok"
@@ -511,7 +511,24 @@
       "status": "ok",
       "db": "ok"
     },
-    "candidateApiConfirmationFixCommit": "77a7df1",
-    "apiTestsPassed": 50
+    "candidateApiConfirmationFixCommit": "7cb64e0",
+    "apiTestsPassed": 50,
+    "candidateChallengeOpenAdminGate": true
+  },
+  "liveBaseRoleAndCaseRecheck": {
+    "verifiedAt": "2026-10-17T15:15:42Z",
+    "chainId": 84532,
+    "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+    "owner": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+    "relayer": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+    "decisionSigner": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C",
+    "caseId": "0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987",
+    "registered": true,
+    "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+    "investigationId": 1,
+    "bountyBaseUnits": "100000",
+    "challengeStakeBaseUnits": "20000",
+    "challengerDepositBaseUnits": "20000",
+    "finalized": false
   }
 }

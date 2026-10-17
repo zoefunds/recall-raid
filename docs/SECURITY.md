@@ -204,12 +204,18 @@ exact-origin lists; candidate production/preview and legacy preflight checks
 returned 204 with credentials enabled. The candidate challenge confirmation
 is still waiting on StudioNet's `500 requests/hour` limit.
 
-Update at 2026-10-17 15:10Z: both Fly APIs now run commit `77a7df1`. API build
+Update at 2026-10-17 15:14Z: both Fly APIs now run commit `7cb64e0`. API build
 passes and 50 API tests pass, including a regression that accepts the exact
 successful admin-gated challenge transaction submitted before the admin
 rotation while rejecting altered target, challenger, stake, or failed GenVM
-execution. Candidate and legacy APIs both report healthy. Challenge sync remains
-waiting on StudioNet quota.
+execution. `GENLAYER_CHALLENGE_OPEN_ADMIN_GATED=true` is enabled only on the
+candidate API for the verified successor; the legacy EDFF API leaves it false
+and requires the configured relay sender. Candidate and legacy APIs both
+report healthy. Challenge sync remains waiting on StudioNet quota.
+
+Direct Base Sepolia reads at 15:15Z confirmed the rotated owner/relayer, the
+separate decision signer, and the still-unsettled successor escrow case with
+its exact bounty and challenger deposit. No settlement or withdrawal was sent.
 
 On 2026-10-17 the hosted Fly API and Vercel frontend were configured to the
 `EDFF...` adjudicator and verified Base escrow. The hosted web bundle contains

@@ -1,7 +1,7 @@
 {
   "schema": "recallraid-studionet-base-challenge-e2e/v1",
   "startedAt": "2026-10-17T13:05:06.747Z",
-  "updatedAt": "2026-10-17T15:08:45Z",
+  "updatedAt": "2026-10-17T15:15:42Z",
   "networks": {
     "genlayer": "StudioNet/61999",
     "base": "Base Sepolia/84532"
@@ -97,6 +97,22 @@
       "blockNumber": 48239578,
       "from": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
       "amount": "20000"
+    },
+    "postRotationRoleAndCaseRecheck": {
+      "verifiedAt": "2026-10-17T15:15:42Z",
+      "chainId": 84532,
+      "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+      "owner": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+      "relayer": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+      "decisionSigner": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C",
+      "caseId": "0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987",
+      "registered": true,
+      "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+      "investigationId": 1,
+      "bountyBaseUnits": "100000",
+      "challengeStakeBaseUnits": "20000",
+      "challengerDepositBaseUnits": "20000",
+      "finalized": false
     }
   },
   "genlayer": {
@@ -176,7 +192,7 @@
         "httpStatus": 500,
         "error": "Rate limit exceeded: 500 requests per hour"
       },
-      "codeCommit": "77a7df1"
+      "codeCommit": "7cb64e0"
     },
     "liveStateRecheck": {
       "checkedAt": "2026-10-17T15:03:41Z",
@@ -196,7 +212,7 @@
   "adjudication": {},
   "settlement": {},
   "deployment": {
-    "candidateApiImage": "deployment-01M556DD7858ADZ91NADTMMP17",
+    "candidateApiImage": "deployment-01M556PJJBDPR2DWAP3WR1MD7Y",
     "candidateApiHealth": {
       "status": "ok",
       "db": "ok"
@@ -249,10 +265,16 @@
       }
     ],
     "productionApiImage": "deployment-01M555RGD3ZER0AKYG9WFG0ENT",
-    "legacyApiImage": "deployment-01M556G07KBTF9Q9CS9XWPETHC",
+    "legacyApiImage": "deployment-01M556T7X34PPRT529WW611ENF",
     "legacyApiHealth": {
       "status": "ok",
       "db": "ok"
+    },
+    "challengeOpenAdminGated": {
+      "candidateApi": true,
+      "legacyEdffApi": false,
+      "flagName": "GENLAYER_CHALLENGE_OPEN_ADMIN_GATED",
+      "verifiedBy": "Fly secret-name inventory only; secret values were not read"
     }
   },
   "tests": {

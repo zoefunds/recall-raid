@@ -273,6 +273,23 @@ async function apiPost(path, body, cookie) {
   throw new Error(`API ${path} failed after retrying`);
 }
 
+async function apiPostAfterQuotaReset(path, body, cookie) {
+  const startedAt = Date.now();
+  const maxWaitMs = Number(process.env.RECALLRAID_RPC_QUOTA_MAX_WAIT_MS || 60 * 60 * 1000);
+  for (;;) {
+    try {
+      return await apiPost(path, body, cookie);
+    } catch (error) {
+      if (!String(error).includes("Rate limit exceeded")) throw error;
+      const elapsedMs = Date.now() - startedAt;
+      if (elapsedMs >= maxWaitMs) throw new Error(`StudioNet API quota did not recover within ${Math.round(maxWaitMs / 1000)} seconds (${path})`);
+      const delayMs = Math.min(30_000, maxWaitMs - elapsedMs);
+      console.error(`StudioNet quota still exhausted; retrying this exact read-only confirmation in ${Math.round(delayMs / 1000)}s`);
+      await new Promise((resolveWait) => setTimeout(resolveWait, delayMs));
+    }
+  }
+}
+
 async function apiPostBestEffort(path, body, cookie) {
   try {
     await apiPost(path, body, cookie);
@@ -471,7 +488,7 @@ if (existingOpenChallengeId > 0) {
       baseTxHash: results.base.challengeFundingTx,
       txHash: existingOpenTx,
     };
-    const confirmation = await apiPost(`/investigations/${investigationId}/challenges/open-status`, request, await authenticate(challenger));
+    const confirmation = await apiPostAfterQuotaReset(`/investigations/${investigationId}/challenges/open-status`, request, await authenticate(challenger));
     if (confirmation.status !== "confirmed" || Number(confirmation.challengeId) !== existingOpenChallengeId) {
       throw new Error("Hosted API did not confirm the exact already-open funded challenge");
     }
@@ -523,7 +540,7 @@ if (!challengeId) {
   } else {
     if (!/^0x[a-fA-F0-9]{64}$/.test(challengeOpened.txHash ?? "")) throw new Error("The authenticated challenge relay did not return a GenLayer transaction hash");
     for (let attempt = 0; attempt < 180; attempt++) {
-      const confirmation = await apiPost(`/investigations/${investigationId}/challenges/open-status`, {
+      const confirmation = await apiPostAfterQuotaReset(`/investigations/${investigationId}/challenges/open-status`, {
         ...request,
         txHash: challengeOpened.txHash,
       }, challengerCookie);

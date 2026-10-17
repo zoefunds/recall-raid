@@ -188,9 +188,10 @@ those roles, and both Fly relayer secrets were rotated to it. The distinct
 decision signer remains unchanged. The old account is still the depositor on
 funded historical cases, so it remains available only for those claim rights
 in a local mode-0600 E2E environment. The candidate API historical challenge
-confirmation fix was deployed as `deployment-01M5556ME6W83FHBGTXV3C7J6Q` and
-its health check passes. The subsequent challenge sync retry was rate-limited
-by StudioNet. The separate exposed 551f diagnostic key has not been recovered;
+confirmation fix was deployed as `deployment-01M555BTMXRNNNSND406M6W0JK` and
+both machines pass health checks. A direct HTTPS `/health` check returned API
+and database `ok`; Fly's final public DNS probe timed out. The subsequent
+challenge sync retry was rate-limited by StudioNet. The separate exposed 551f diagnostic key has not been recovered;
 its transfer to the fresh wallet is still pending.
 
 On 2026-10-17 the hosted Fly API and Vercel frontend were configured to the

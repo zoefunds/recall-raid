@@ -95,10 +95,12 @@ admin. The source now validates finalized execution, exact call arguments, and
 the funded on-chain challenge record without requiring the current admin to
 equal the historical sender. This is safe because `open_challenge` itself is
 admin-gated at execution. The corrected candidate API image
-`deployment-01M5556ME6W83FHBGTXV3C7J6Q` is deployed; both Fly machines are
-healthy and `/health` reports API and database `ok`. A single confirmation
-retry reached StudioNet but was rejected by its `500 requests per hour` rate
-limit, so the challenge is not yet confirmed in the candidate cache. Resume
+`deployment-01M555BTMXRNNNSND406M6W0JK` is deployed; both Fly machines are
+healthy and `/health` reports API and database `ok`. The deploy's final DNS
+probe timed out at 8.8.8.8, but Fly had completed both machine health checks
+and direct HTTPS health returned `ok`. A single confirmation retry reached
+StudioNet but was rejected by its `500 requests per hour` rate limit, so the
+challenge is not yet confirmed in the candidate cache. Resume
 this case using the checkpoint in
 [`e2e-evidence/hardened-successor-live-challenge.json`](e2e-evidence/hardened-successor-live-challenge.json)
 after StudioNet read access returns. Do not repeat funding, registration,

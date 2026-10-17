@@ -1,7 +1,7 @@
 {
   "schema": "recallraid-studionet-base-challenge-e2e/v1",
   "startedAt": "2026-10-17T13:05:06.747Z",
-  "updatedAt": "2026-10-17T14:47:21Z",
+  "updatedAt": "2026-10-17T14:50:25Z",
   "networks": {
     "genlayer": "StudioNet/61999",
     "base": "Base Sepolia/84532"
@@ -26,7 +26,7 @@
     "complete": false
   },
   "pause": {
-    "checkedAt": "2026-10-17T14:47:21Z",
+    "checkedAt": "2026-10-17T14:50:25Z",
     "reason": "The candidate API confirmation fix was deployed and health checks pass. One authenticated retry reached StudioNet and was stopped by its 500-requests/hour quota. The challenge record has not yet synchronized into the candidate API cache; no additional funding or challenge-opening transaction is needed.",
     "blockers": [
       "StudioNet RPC quota for transaction/challenge verification and subsequent rebuttal evidence and resolution"
@@ -165,7 +165,7 @@
           "status": "pending StudioNet quota recovery"
         }
       ],
-      "candidateApiDeployment": "deployment-01M5556ME6W83FHBGTXV3C7J6Q",
+      "candidateApiDeployment": "deployment-01M555BTMXRNNNSND406M6W0JK",
       "health": {
         "status": "ok",
         "db": "ok"
@@ -176,11 +176,16 @@
   "adjudication": {},
   "settlement": {},
   "deployment": {
-    "candidateApiImage": "deployment-01M5556ME6W83FHBGTXV3C7J6Q",
+    "candidateApiImage": "deployment-01M555BTMXRNNNSND406M6W0JK",
     "candidateApiHealth": {
       "status": "ok",
       "db": "ok"
     },
-    "preview": "https://recall-raid-2k364g3a6-adebiyi2002gmailcoms-projects.vercel.app"
+    "preview": "https://recall-raid-2k364g3a6-adebiyi2002gmailcoms-projects.vercel.app",
+    "candidateApiMachines": {
+      "count": 2,
+      "healthy": true,
+      "note": "Fly deploy completed; final DNS check timed out against 8.8.8.8, but service health is confirmed directly."
+    }
   }
 }

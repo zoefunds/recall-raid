@@ -1,7 +1,11 @@
 {
   "schema": "recallraid-studionet-base-challenge-e2e/v1",
   "startedAt": "2026-10-17T13:05:06.747Z",
-  "updatedAt": "2026-10-17T15:15:42Z",
+  "completedAt": "2026-10-17T15:23:35.421Z",
+  "progress": {
+    "stage": "settlement-wait",
+    "complete": false
+  },
   "networks": {
     "genlayer": "StudioNet/61999",
     "base": "Base Sepolia/84532"
@@ -20,18 +24,6 @@
     "investigationId": 1,
     "bountyUsdcBaseUnits": "100000",
     "baseFundingTx": "0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf"
-  },
-  "progress": {
-    "stage": "genlayer-challenge-open",
-    "complete": false
-  },
-  "pause": {
-    "checkedAt": "2026-10-17T14:50:25Z",
-    "reason": "Successor public production cutover is complete and both APIs are healthy. The candidate challenge confirmation, challenge evidence, and challenge resolution remain blocked by StudioNet 500-requests/hour quota; no duplicate funding or opening was sent.",
-    "blockers": [
-      "StudioNet RPC quota for exact challenge confirmation and subsequent rebuttal evidence and resolution"
-    ],
-    "nextAction": "After StudioNet quota recovers, resume with the recorded challenge stake/open transaction hashes and complete API confirmation, rebuttal evidence, and resolution."
   },
   "base": {
     "bountyFundingTx": "0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf",
@@ -113,6 +105,39 @@
       "challengeStakeBaseUnits": "20000",
       "challengerDepositBaseUnits": "20000",
       "finalized": false
+    },
+    "challengerUsdcTransferTx": "0x02dd5e4da4b98578b74a48043bddf32f32e66a6b8a5261731ade8a144c31154c",
+    "challengeDeposit": {
+      "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+      "amount": "20000",
+      "unchangedBeforeSettlement": true
+    },
+    "postResolutionRecheck": {
+      "checkedAt": "2026-10-17T15:26:06Z",
+      "chainId": 84532,
+      "blockNumber": 48241239,
+      "blockTimestampUtc": "2026-10-17T15:26:06Z",
+      "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+      "owner": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+      "relayer": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+      "decisionSigner": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C",
+      "case": {
+        "caseId": "0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987",
+        "submitter": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+        "registered": true,
+        "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+        "investigationId": 1,
+        "bountyBaseUnits": "100000",
+        "challengeStakeBaseUnits": "20000",
+        "challengeDepositor": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+        "finalized": false
+      },
+      "challengeDepositBaseUnits": "20000",
+      "claimableBaseUnits": {
+        "submitter": "0",
+        "challenger": "0"
+      },
+      "result": "Settlement is intentionally deferred; no Base settlement or withdrawal was sent."
     }
   },
   "genlayer": {
@@ -131,30 +156,48 @@
     "initialEvidenceSha256": "25ddf2c883e0d1958ea971d279a7e4f0fd446724ee3db7db19dadabd4a62e484",
     "initialEvidence": {
       "id": 1,
-      "addTx": "0xde9959bb34fac31a9f7fe84371599f232fd11a4cfa878788e66ca0e77877def4",
-      "verifyTx": "0xf54a753321c5b9d9fe65595bda5591c3f32c0bae3b5a4892859eca55ea04c5e8",
+      "addTx": null,
+      "verifyTx": null,
       "hashVerified": true
     },
     "initialAdjudication": {
-      "txHash": "0xebcf8ce730fac66e3ec309ea9caac326c50046124a90a963196c468cf37a46ca",
-      "status": "FINALIZED",
-      "consensus": "MAJORITY_AGREE",
-      "execution": "FINISHED_WITH_RETURN",
+      "txHash": null,
+      "status": "already finalized",
+      "consensus": "verified from finalized contract state",
+      "execution": "verified from finalized contract state",
       "verdict": 1,
-      "verdictLabel": "NO_ISSUE",
       "confidenceBps": 7800,
       "challengeDeadline": 1792852094
     },
     "challenge": {
       "id": 1,
       "openTx": "0x916f5c93bab7da2d35cf2acd7d3b953c49c7f47353d63a92f717051f6cd8352a",
+      "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+      "stakeBaseUnits": "20000",
+      "reason": "The product name identifies the recalled Rock 'n Play Sleeper family. The CPSC notice states the recall covers all models; the initial record had no production model or serial to match. Re-evaluate as a potential issue without claiming an exact-model confirmation."
+    },
+    "challengeEvidence": {
+      "id": 2,
+      "url": "https://www.cpsc.gov/s3fs-public/010922-FP-and-Kids2-reannouncement.pdf?VersionId=rjCj6OORidUHu8aueBwkLh3zxvzha_Xl",
+      "sha256": "4b6f0a522cd082583bb6f6381ae78aec36ba6ce1b02e8c1bb56228da455e6e8e",
+      "byteLength": 151580,
+      "addTx": "0x07b1a1ce6772d51dc7b70ce3d849ba603e760e58a0e7389094c6c96e63a61949",
+      "verifyTx": "0x775217e0c45d08fb0c44de1653919f9752f4b12e05e0eab884ada4acc631a4aa",
+      "reachable": true,
+      "hashVerified": true
+    },
+    "challengeResolution": {
+      "txHash": "0x39247ac7480615388c4c1437aaeadefd6a7185072572dd1690fceea69fb0c62c",
       "status": "FINALIZED",
       "consensus": "MAJORITY_AGREE",
       "execution": "FINISHED_WITH_RETURN",
-      "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
-      "stakeBaseUnits": "20000",
-      "baseFundingTx": "0xa4689db52e8b97353e70f72eff30f96845a9c91cab1cfd5a3221bd9299dc68d0",
-      "confirmation": "The candidate API challenge-opening request returned HTTP 202. Its open-status confirmation returned HTTP 500 due to a current-admin versus historical-sender comparison; chain record synchronization awaits deployment of the confirmation fix."
+      "originalVerdict": 1,
+      "finalVerdict": 2,
+      "challengeStatus": 3,
+      "overturned": true,
+      "openChallengeId": 0,
+      "lastChallengeId": 1,
+      "settlementChallengeDeadline": 1792855332
     }
   },
   "api": {
@@ -169,117 +212,120 @@
       "txHash": "0x916f5c93bab7da2d35cf2acd7d3b953c49c7f47353d63a92f717051f6cd8352a"
     },
     "challengeConfirmation": {
-      "attempts": [
-        {
-          "httpStatus": 500,
-          "error": "GenVM transaction sender does not match the investigation submitter",
-          "status": "resolved by deployed source change"
-        },
-        {
-          "httpStatus": 500,
-          "error": "Rate limit exceeded: 500 requests per hour",
-          "status": "pending StudioNet quota recovery"
-        }
-      ],
-      "candidateApiDeployment": "deployment-01M555BTMXRNNNSND406M6W0JK",
+      "status": "confirmed",
+      "challengeId": 1
+    },
+    "liveStateRecheck": {
+      "checkedAt": "2026-10-17T15:24:23Z",
+      "method": "Read-only candidate API GET /investigations/1, /investigations/1/challenges, /evidence?investigation_id=1, and /health",
+      "httpStatus": 200,
       "health": {
         "status": "ok",
         "db": "ok"
       },
-      "status": "pending StudioNet RPC quota recovery",
-      "latestRetry": {
-        "checkedAt": "2026-10-17T15:02:29Z",
-        "httpStatus": 500,
-        "error": "Rate limit exceeded: 500 requests per hour"
+      "investigation": {
+        "id": 1,
+        "status": 3,
+        "verdict": 2,
+        "hunterPayoutBps": 10000,
+        "openChallengeId": 0,
+        "lastChallengeId": 1,
+        "challengeUsed": true,
+        "settled": false,
+        "challengeDeadlineUnix": 1792855332
       },
-      "codeCommit": "7cb64e0"
+      "challenge": {
+        "id": 1,
+        "status": 3,
+        "challenger": "0xa0e30f264f4db37cddcfed0c93a6bcdff5c70f8d",
+        "stakeBaseUnits": "20000",
+        "baseFundingTx": "0xa4689db52e8b97353e70f72eff30f96845a9c91cab1cfd5a3221bd9299dc68d0",
+        "priorVerdict": 1,
+        "newVerdict": 2
+      },
+      "evidence": {
+        "firstEvidenceSubmitter": "0x7401c129edfc26e68fe19309fe461eb3db1058eb",
+        "rebuttalSubmitter": "0xa0e30f264f4db37cddcfed0c93a6bcdff5c70f8d",
+        "rebuttalReachable": true,
+        "rebuttalHashVerified": true
+      },
+      "meaning": "The hosted candidate API reflects the finalized overturn and retains the settlement-relevant challenge record."
     },
-    "liveStateRecheck": {
-      "checkedAt": "2026-10-17T15:03:41Z",
-      "method": "Read-only GET /investigations/1 on candidate API",
-      "httpStatus": 200,
-      "investigationId": 1,
-      "status": 4,
-      "verdict": 1,
-      "openChallengeId": 1,
-      "lastChallengeId": 0,
-      "challengeUsed": true,
-      "settled": false,
-      "caseId": "0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987",
-      "meaning": "The candidate cache sees the open challenge id, but exact finalized transaction and challenge-record confirmation is still pending StudioNet RPC quota recovery."
+    "postResolutionSync": {
+      "challengeSync": "confirmed by API challenge list",
+      "investigationSync": "confirmed by API investigation read",
+      "cachedLastChallengeId": 1,
+      "cachedOpenChallengeId": 0
     }
   },
   "adjudication": {},
-  "settlement": {},
-  "deployment": {
-    "candidateApiImage": "deployment-01M556PJJBDPR2DWAP3WR1MD7Y",
-    "candidateApiHealth": {
-      "status": "ok",
-      "db": "ok"
-    },
-    "preview": "https://recall-raid-2k364g3a6-adebiyi2002gmailcoms-projects.vercel.app",
-    "candidateApiMachines": {
-      "count": 2,
-      "healthy": true,
-      "note": "Fly deploy completed; final DNS check timed out against 8.8.8.8, but service health is confirmed directly."
-    },
-    "publicProduction": {
-      "deploymentId": "dpl_DQtVdvHcoMXoZujc27p3Ye9NB3ye",
-      "deploymentUrl": "https://recall-raid-94mftnf29-adebiyi2002gmailcoms-projects.vercel.app",
-      "alias": "https://recall-raid.vercel.app",
-      "httpStatus": 200,
-      "compiledAssets": 16,
-      "successorAddressPresent": true,
-      "candidateApiPresent": true,
-      "edffAddressAbsent": true,
-      "persistentProductionVariablesUpdated": true
-    },
-    "legacyFrontend": {
-      "immutableUrl": "https://recall-raid-ou77oyqjz-adebiyi2002gmailcoms-projects.vercel.app",
-      "projectMemberFetchStatus": 200,
-      "genlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
-      "api": "https://recallraid-usdc-api.fly.dev",
-      "productionApiHealth": {
-        "status": "ok",
-        "db": "ok"
-      }
-    },
-    "corsPreflight": [
-      {
-        "api": "https://recallraid-candidate-api.fly.dev",
-        "origin": "https://recall-raid.vercel.app",
-        "status": 204,
-        "credentials": true
-      },
-      {
-        "api": "https://recallraid-candidate-api.fly.dev",
-        "origin": "https://recall-raid-2k364g3a6-adebiyi2002gmailcoms-projects.vercel.app",
-        "status": 204,
-        "credentials": true
-      },
-      {
-        "api": "https://recallraid-usdc-api.fly.dev",
-        "origin": "https://recall-raid-ou77oyqjz-adebiyi2002gmailcoms-projects.vercel.app",
-        "status": 204,
-        "credentials": true
-      }
-    ],
-    "productionApiImage": "deployment-01M555RGD3ZER0AKYG9WFG0ENT",
-    "legacyApiImage": "deployment-01M556T7X34PPRT529WW611ENF",
-    "legacyApiHealth": {
-      "status": "ok",
-      "db": "ok"
-    },
-    "challengeOpenAdminGated": {
-      "candidateApi": true,
-      "legacyEdffApi": false,
-      "flagName": "GENLAYER_CHALLENGE_OPEN_ADMIN_GATED",
-      "verifiedBy": "Fly secret-name inventory only; secret values were not read"
-    }
+  "settlement": {
+    "relaySent": false,
+    "withdrawalsVerified": false,
+    "readyAfterUnix": 1792855332,
+    "readyAfterUtc": "2026-10-24T15:22:12Z",
+    "expectedBountyRecipient": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+    "expectedBountyBaseUnits": "100000",
+    "bountyPolicy": "The deployed settlement policy assigns a positive-verdict bounty to the first evidence submitter; the first evidence is from the submitter wallet.",
+    "expectedOverturnedChallenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+    "expectedChallengeStakeBaseUnits": "20000",
+    "reason": "The seven-day post-resolution window has not elapsed. No settlement or withdrawal is sent before 2026-10-24T15:22:12Z."
   },
-  "tests": {
-    "apiBuild": "passed",
-    "apiTests": 50,
-    "genlayerDirectModeTests": 2
+  "updatedAt": "2026-10-17T15:35:01Z",
+  "latestEnvironmentCheck": {
+    "checkedAt": "2026-10-17T15:35:01Z",
+    "productionFrontend": {
+      "url": "https://recall-raid.vercel.app/submit",
+      "httpStatus": 200,
+      "scriptAssets": 16,
+      "successorPresent": true,
+      "candidateApiPresent": true,
+      "edffPresent": false
+    },
+    "candidateApi": {
+      "url": "https://recallraid-candidate-api.fly.dev/health",
+      "httpStatus": 200,
+      "status": "ok",
+      "database": "ok",
+      "corsPreflightStatus": 204,
+      "corsAllowOrigin": "https://recall-raid.vercel.app",
+      "corsAllowCredentials": true
+    },
+    "studioNetSource": {
+      "address": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+      "retrieval": "genlayer code and schema succeeded",
+      "normalizedSourceSha256": "e7ca95221338bd213448be1cd18e0483eccd97312a8ba81a5c3fac94ef4daee0",
+      "byteForByteParityWithCheckedInSource": true
+    },
+    "interpretation": "Hosted production configuration and deployed successor source/schema were freshly verified after the transient local DNS failure."
+  },
+  "deployment": {
+    "liveProductionRecheck": {
+      "checkedAt": "2026-10-17T15:35:01Z",
+      "productionFrontend": {
+        "url": "https://recall-raid.vercel.app/submit",
+        "httpStatus": 200,
+        "scriptAssets": 16,
+        "successorPresent": true,
+        "candidateApiPresent": true,
+        "edffPresent": false
+      },
+      "candidateApi": {
+        "url": "https://recallraid-candidate-api.fly.dev/health",
+        "httpStatus": 200,
+        "status": "ok",
+        "database": "ok",
+        "corsPreflightStatus": 204,
+        "corsAllowOrigin": "https://recall-raid.vercel.app",
+        "corsAllowCredentials": true
+      },
+      "studioNetSource": {
+        "address": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+        "retrieval": "genlayer code and schema succeeded",
+        "normalizedSourceSha256": "e7ca95221338bd213448be1cd18e0483eccd97312a8ba81a5c3fac94ef4daee0",
+        "byteForByteParityWithCheckedInSource": true
+      },
+      "interpretation": "Hosted production configuration and deployed successor source/schema were freshly verified after the transient local DNS failure."
+    }
   }
 }

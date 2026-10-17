@@ -17,11 +17,14 @@ const usdcAddress = process.env.BASE_SEPOLIA_USDC_ADDRESS || "0x036CbD53842c5426
 const apiBase = process.env.RECALLRAID_API_BASE_URL || "https://recallraid-usdc-api.fly.dev";
 const origin = process.env.RECALLRAID_E2E_ORIGIN || "https://recall-raid.vercel.app";
 const submitterKey = process.env.RECALLRAID_E2E_SUBMITTER_PRIVATE_KEY || process.env.BASE_SEPOLIA_RELAYER_PRIVATE_KEY;
+const genlayerAdminKey = process.env.GENLAYER_ADMIN_PRIVATE_KEY || process.env.BASE_SEPOLIA_RELAYER_PRIVATE_KEY;
 const challengerKeyFile = process.env.RECALLRAID_CHALLENGER_KEY_FILE || "/private/tmp/recallraid-challenger-key.json";
 const reportPath = process.env.RECALLRAID_E2E_REPORT || "docs/e2e-evidence/studionet-base-valid-challenge-e2e.json";
 const caseId = process.env.RECALLRAID_E2E_CASE_ID || "0x010e6a1d581e35182fc4385350d449c2c34e068d36bc63fa8deb8bd5c483a51c";
 const investigationId = Number(process.env.RECALLRAID_E2E_INVESTIGATION_ID || 3);
-if (!genlayerAddress || !escrowAddress || !submitterKey) throw new Error("Deployment addresses and submitter key are required");
+if (!genlayerAddress || !escrowAddress || !submitterKey || !genlayerAdminKey) {
+  throw new Error("Deployment addresses, submitter key, and GenLayer administrator key are required");
+}
 
 const challengerKey = JSON.parse(readFileSync(challengerKeyFile, "utf8")).privateKey;
 const provider = new ethers.JsonRpcProvider(baseRpc);
@@ -37,7 +40,10 @@ const escrow = new ethers.Contract(escrowAddress, [
   "event Claimed(address indexed account,uint256 amount)",
 ], submitter);
 const glChain = { ...studionet, rpcUrls: { default: { http: [genlayerRpc] } } };
-const glClient = createClient({ chain: glChain, account: createAccount(submitterKey) });
+// Settlement is an admin-only GenLayer write. Keep the claimant/API session
+// wallet separate from the protocol administrator used for this transaction.
+const glAdminAddress = new ethers.Wallet(genlayerAdminKey).address;
+const glClient = createClient({ chain: glChain, account: createAccount(genlayerAdminKey) });
 
 async function glRead(method, args) {
   const value = await glClient.readContract({ address: genlayerAddress, functionName: method, args });
@@ -160,6 +166,11 @@ if (!Number.isFinite(reportedDeadline) || reportedDeadline <= 0) {
 }
 if (Math.floor(Date.now() / 1000) < reportedDeadline) {
   throw new Error(`Seven-day challenge window is open until ${new Date(reportedDeadline * 1000).toISOString()}`);
+}
+
+const protocolInfo = await glRead("get_protocol_info", []);
+if (String(protocolInfo.admin).toLowerCase() !== glAdminAddress.toLowerCase()) {
+  throw new Error("Configured GenLayer settlement key is not the deployed contract administrator");
 }
 
 const investigation = await glRead("get_investigation", [investigationId]);

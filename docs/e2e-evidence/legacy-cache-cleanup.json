@@ -59,7 +59,10 @@
   "verification": {
     "productionHuntsEndpointTotal": 1,
     "remainingInvestigationId": 1,
-    "currentEvidenceIds": [1, 2],
+    "currentEvidenceIds": [
+      1,
+      2
+    ],
     "currentOpenChallengeId": 1
   },
   "liveReverification": {
@@ -68,7 +71,11 @@
     "apiHealth": "ok",
     "databaseHealth": "ok",
     "configuredGenlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
-    "productionInvestigationIds": [1, 2, 3],
+    "productionInvestigationIds": [
+      1,
+      2,
+      3
+    ],
     "productionInvestigationCount": 3,
     "previousContractOrUnmatchedRows": {
       "investigations": 0,
@@ -85,5 +92,60 @@
     "The cache schema did not store the source GenLayer contract address, so stale investigations were identified by pre-EDFF creation records and cross-checked against Base escrow registrations. The active investigation was protected by exact case ID and state guards.",
     "Deleting cache rows does not delete or settle any on-chain Base or GenLayer state.",
     "The legacy investigation 2 Base registration and its 100,000 USDC base-unit bounty remain on-chain and require a separately supported legacy recovery or settlement path."
-  ]
+  ],
+  "historicalLiabilityRecheck": {
+    "checkedAt": "2026-10-17T15:26:06Z",
+    "method": "Read-only StudioNet get_investigation/get_challenge/get_protocol_info/get_evidence and Base Sepolia getCase/getChallengeDeposit reads",
+    "genlayer": {
+      "network": "StudioNet/61999",
+      "contract": "0xa239189c2921b592dBa1eccde830977edbfD1CB5",
+      "investigationId": 2,
+      "admin": "0x7452084E1Cf767bf19C743051cFf27D9F7A87a4D",
+      "localAccountName": "eventweaver",
+      "localAccountUnlocked": true,
+      "status": 3,
+      "verdict": 3,
+      "verdictLabel": "RECALL_CONFIRMED",
+      "settled": false,
+      "openChallengeId": 0,
+      "lastChallengeId": 1,
+      "challengeDeadlineUnix": 1792829289,
+      "challengeDeadlineUtc": "2026-10-24T08:08:09Z",
+      "challenge": {
+        "id": 1,
+        "status": 2,
+        "statusLabel": "UPHELD",
+        "challenger": "0x90d5ECeFc77889569931AaD7EdeF2C8E557ED065",
+        "stakeBaseUnits": "20000",
+        "baseFundingTx": "0xd39c0644d1bdd956b6eaf4b9ccf399737620d85d13b5c917fe5e19b96144430f",
+        "priorVerdict": 3,
+        "newVerdict": 3
+      },
+      "firstEvidenceSubmitter": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A"
+    },
+    "base": {
+      "network": "Base Sepolia/84532",
+      "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+      "caseId": "0xf10b16b005e9f6fe5b0a433d0dfb042e7086e880bb6bb15cb0c9ac41ec72f864",
+      "submitter": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+      "bountyBaseUnits": "100000",
+      "registered": true,
+      "genlayerContract": "0xa239189c2921b592dBa1eccde830977edbfD1CB5",
+      "investigationId": 2,
+      "challenger": "0x90d5ECeFc77889569931AaD7EdeF2C8E557ED065",
+      "challengeStakeBaseUnits": "20000",
+      "challengeDepositBaseUnits": "20000",
+      "finalized": false
+    },
+    "settlementPathStatus": "The case remains bound to A239; active hosted APIs are configured to EDFF or the hardened successor and fail closed on this contract mismatch. Do not delete/recreate the Base registration or settle through the wrong GenLayer contract. A contract-version-scoped settlement/claim procedure is still required after the recorded deadline.",
+    "result": "This is a funded registered historical liability, not an orphan deposit. No transaction was sent.",
+    "procedurePreflight": {
+      "checkedAt": "2026-10-17T15:35:58Z",
+      "script": "scripts/settle_legacy_a239_case.mjs",
+      "defaultReadOnlyPreflight": "passed again after hardening: Base registration, exact challenger stake and funding receipt, resolved GenLayer challenge, first-evidence recipient, and deployment administrator all match",
+      "earlyRelayGuard": "passed: --relay stopped at the 2026-10-24T08:08:09Z guard before signature generation or Base transaction submission",
+      "baseWritesSent": false,
+      "note": "A successful post-deadline settle_investigation transaction is still required before the version-bound Base relay."
+    }
+  }
 }

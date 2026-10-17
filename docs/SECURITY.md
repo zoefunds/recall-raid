@@ -142,14 +142,15 @@ GenLayer verdict. The deployed `EDFF...` source was subsequently queried and its
 schema and protocol windows were inspected. The current checkout now additionally
 makes challenge opening admin-only, with API-side Base receipt verification.
 That challenge-opening change is **not present in the deployed `EDFF...` source**;
-the hardened successor is now deployed, and the isolated API/frontend preview
-is ready. Production hosted rollout remains a separate step. Existing Base
+the hardened successor is deployed and the public frontend has since been cut
+over to its candidate API. The status notes below are timestamped snapshots, so
+earlier production and preview descriptions are historical. Existing Base
 registrations must continue to route to `EDFF...` until safely settled or
 reconciled, because the escrow permanently binds each case to its registered
-GenLayer contract. The Base branch transactions also did not consume that
-deployment's consensus result.
+GenLayer contract. The synthetic Base branch transactions did not consume the
+EDFF deployment's consensus result.
 
-Local API tests (47), direct-mode GenVM tests (2), Foundry tests (9),
+Local API tests (50), direct-mode GenVM tests (2), Foundry tests (9),
 compilation, and web builds are useful checks, not substitutes for independent
 contract review, key management review, production deployment validation, or a
 complete wallet-driven cross-chain exercise. The GenVM direct-mode tests verify
@@ -160,7 +161,7 @@ covered separately by API/escrow tests and live deployment evidence.
 The hosted source/configuration check and successor rollout findings are captured in
 [`e2e-evidence/hardened-challenge-rollout-check.json`](e2e-evidence/hardened-challenge-rollout-check.json).
 
-Update at 2026-10-17 12:33Z: the hardened source was deployed to StudioNet at
+Historical snapshot at 2026-10-17 12:33Z: the hardened source was deployed to StudioNet at
 `0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA` in transaction
 `0xfc7aceb0a2d8eea60db169363bdb711b81fac216f0008c4452ac227bc58fa25c`.
 The receipt is `FINALIZED` with `MAJORITY_AGREE`; the deployed source hash
@@ -173,7 +174,7 @@ The existing 100,000-unit bounty and 20,000-unit challenge stake remain in Base
 escrow until the recorded deadline `2026-10-24T10:31:44Z`; settlement and wallet
 withdrawals are documented follow-up steps and were not executed early.
 
-Update at 2026-10-17 12:44Z: an isolated Fly candidate API and protected Vercel
+Historical snapshot at 2026-10-17 12:44Z: an isolated Fly candidate API and protected Vercel
 preview were deployed against the successor. The candidate API has its own
 database and JWT secret; migrations and health checks passed. The preview build
 used the candidate API URL and successor address, and candidate CORS allows its
@@ -181,7 +182,7 @@ exact origin. The preview is ready but was not opened through the user's
 authenticated browser session for wallet interaction testing. The production
 Fly/Vercel pair remains on `EDFF...`, preserving three indexed unsettled cases.
 
-Update at 2026-10-17 14:47Z: the former `0x7401...` account is no longer a
+Historical snapshot at 2026-10-17 14:47Z: the former `0x7401...` account is no longer a
 GenLayer administrator on EDFF or the successor, nor the Base escrow owner or
 relayer. A fresh wallet `0xE3F1A34307349be94f3657276ebcF51eaB810730` now holds
 those roles, and both Fly relayer secrets were rotated to it. The distinct
@@ -195,7 +196,7 @@ challenge sync retry was rate-limited by StudioNet. The separate exposed 551f
 diagnostic key has not been recovered; its transfer to the fresh wallet is
 still pending.
 
-Update at 2026-10-17 15:00Z: public Vercel production now serves the hardened
+Snapshot at 2026-10-17 15:00Z: public Vercel production now serves the hardened
 successor and isolated candidate API. Its assets were fetched and checked for
 the successor address and candidate API; EDFF is absent. The former production
 deployment remains available to project members at its immutable URL, backed
@@ -204,7 +205,7 @@ exact-origin lists; candidate production/preview and legacy preflight checks
 returned 204 with credentials enabled. The candidate challenge confirmation
 is still waiting on StudioNet's `500 requests/hour` limit.
 
-Update at 2026-10-17 15:14Z: both Fly APIs now run commit `7cb64e0`. API build
+Snapshot at 2026-10-17 15:14Z: both Fly APIs now run commit `7cb64e0`. API build
 passes and 50 API tests pass, including a regression that accepts the exact
 successful admin-gated challenge transaction submitted before the admin
 rotation while rejecting altered target, challenger, stake, or failed GenVM
@@ -217,8 +218,8 @@ Direct Base Sepolia reads at 15:15Z confirmed the rotated owner/relayer, the
 separate decision signer, and the still-unsettled successor escrow case with
 its exact bounty and challenger deposit. No settlement or withdrawal was sent.
 
-On 2026-10-17 the hosted Fly API and Vercel frontend were configured to the
-`EDFF...` adjudicator and verified Base escrow. The hosted web bundle contains
+Earlier on 2026-10-17 the hosted Fly API and Vercel frontend were configured to the
+`EDFF...` adjudicator and verified Base escrow. The historic web bundle contains
 `EDFF...` and no longer contains `a239...`; Fly health reports both API and
 database healthy. The E2E record
 [`e2e-evidence/studionet-base-valid-challenge-e2e.json`](e2e-evidence/studionet-base-valid-challenge-e2e.json)
@@ -250,22 +251,33 @@ that point-in-time comparison found the URL validator difference: checkout
 required HTTPS and rejected URL credentials, while deployed `EDFF...` checked
 only the authoritative hostname. The current checkout also now makes challenge
 opening admin-only and adds an API-verified relay, which is another source
-difference and is not live on `EDFF...`. The successor is now deployed with
-source parity; its schema query is still pending due to StudioNet rate limiting.
-Keep the current deployment configured through settlement of its registered
-cases; on-chain registrations cannot be moved. The historical `A239...`
-deployment remains incompatible with the current hosted decision signer and
-is not a valid settlement target.
+difference and is not live on `EDFF...`. The successor is deployed with source parity. The schema query was still
+pending at that historical snapshot, but was later retrieved successfully; see
+the 15:24Z source and schema verification below.
+Keep each deployment routed through settlement of its registered cases;
+on-chain registrations cannot be moved. The historical `A239...` registration
+is a valid Base liability, but the active hosted signer path is scoped to its
+configured adjudicator and does not currently support an A239-versioned
+settlement. Do not send it through the successor/EDFF path.
 
 The Fly PostgreSQL cache was cleared of four stale investigation entries and
-their dependent cache data. The current EDFF investigation and its live
-challenge remain. A removed old entry still corresponds to an unfinalized
+their dependent cache data. At cleanup time, the current EDFF investigation
+and live challenge remained. A removed old entry corresponds to an unfinalized
 100,000-unit Base escrow registration to A239; cache cleanup did not change
-the on-chain record. See
+the on-chain record. Live A239 state was rechecked on 2026-10-17 at 15:26Z: its
+GenLayer investigation 2 is `RECALL_CONFIRMED`, challenge 1 is `UPHELD`, and
+the seven-day deadline is `2026-10-24T08:08:09Z`; the Base case remains bound
+to A239, funded with 100,000 bounty units and 20,000 challenge units, and is
+unfinalized. Its admin is `0x7452084E1Cf767bf19C743051cFf27D9F7A87a4D`, present as
+the unlocked local GenLayer account `eventweaver`. The hosted API does not have a version-scoped A239 relay. The repository now
+contains `scripts/settle_legacy_a239_case.mjs`; its read-only preflight checked
+the exact on-chain registration and challenge receipt, and its early-relay
+guard stopped before signing or broadcasting. The actual post-deadline GenLayer
+settlement and Base relay remain unexecuted. See
 [`e2e-evidence/legacy-cache-cleanup.json`](e2e-evidence/legacy-cache-cleanup.json).
 
 The current source also contains an independent challenge-backing check in
-both the relay path and decision signer. The API suite has 47 passing tests,
+both the relay path and decision signer. The API suite has 50 passing tests,
 including explicit decision-signer rejection of modified verdict, hunter,
 challenge id/challenger/overturn flag, seller-bond id/slash, and decision hash.
 The Foundry suite has 9 passing tests covering registration ownership, exact
@@ -275,3 +287,50 @@ tested signer comparison is deployed to Fly; its health and live case-3 cache
 were verified after rollout. The live `EDFF...` run verifies the real
 finalized GenLayer outcome and hosted cache; settlement and wallet withdrawal
 remain pending until the recorded deadline.
+
+Previous workstation check at 2026-10-17 15:19Z: API tests pass (50), GenVM
+direct-mode tests pass (2), and Foundry tests pass (9). A guarded read/resume
+attempt stopped before sending a transaction because DNS resolution failed for
+`studio.genlayer.com`, `sepolia.base.org`, and `recallraid-candidate-api.fly.dev`;
+an HTTPS probe to a numeric public IP also could not connect. This does not
+establish current hosted health or chain state. The earlier 500-requests/hour
+StudioNet quota errors are historical observations; refresh exact challenge
+confirmation and chain records after network connectivity returns. No duplicate
+funding/opening was sent, and no settlement or withdrawal was attempted. The
+retry helper retries only the same read-only challenge confirmation and has
+been committed as `9337cc7`.
+
+Live successor continuation at 2026-10-17 15:26Z: connectivity recovered. The
+authenticated API confirmed challenge 1, and GenLayer transaction
+`0x39247ac7480615388c4c1437aaeadefd6a7185072572dd1690fceea69fb0c62c`
+finalized with `MAJORITY_AGREE` / `FINISHED_WITH_RETURN`. The finalized state
+changed verdict 1 (`NO_ISSUE`) to 2 (`POTENTIAL_ISSUE`), closed
+`open_challenge_id`, and retained `last_challenge_id = 1`; the exact API
+challenge record is `OVERTURNED`, with challenger `0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d`, 20,000 USDC base units, and the
+matching Base funding receipt. The official CPSC PDF evidence was reachable
+and hash-verified by GenLayer. Candidate API reads report the same terminal
+investigation and challenge. A Base Sepolia read at block 48241239 confirmed
+the case remains registered to the successor and unfinalized, with the exact
+100,000-unit bounty and 20,000-unit challenge deposit; both claimable balances
+are zero. Its post-resolution seven-day deadline is
+`2026-10-24T15:22:12Z`. No Base settlement or wallet withdrawal was attempted.
+The positive-verdict bounty follows the documented first-evidence policy and
+is expected to go to the first evidence submitter; the overturned challenger
+is expected to receive their own stake. The user separately confirmed that the
+browser-wallet transaction flow succeeded; the continuation script resumed
+from existing on-chain funding and did not capture a new wallet-popup trace.
+See [`e2e-evidence/hardened-successor-live-challenge.json`](e2e-evidence/hardened-successor-live-challenge.json).
+
+Deployment/source refresh at 2026-10-17 15:35Z: public production `/submit`
+returned HTTP 200; all 16 JavaScript assets contain the hardened successor
+and candidate API, with EDFF absent. Candidate API CORS returned HTTP 204 for
+the production origin with credentials enabled. Candidate `/health` and its
+database returned `ok`. The deployed successor source was retrieved from
+StudioNet and is byte-for-byte identical to the checked-in contract after
+removing the CLI `Result:` wrapper and trailing newline (SHA-256
+`e7ca95221338bd213448be1cd18e0483eccd97312a8ba81a5c3fac94ef4daee0`); its
+schema was also retrieved. The A239 read-only preflight now exists at
+[`scripts/settle_legacy_a239_case.mjs`](../scripts/settle_legacy_a239_case.mjs)
+and verified its exact Base registration and challenge funding receipt. Its
+relay guard exited at the recorded deadline before signing or sending any
+transaction. The old A239 funds remain unfinalized; its case is not an orphan.

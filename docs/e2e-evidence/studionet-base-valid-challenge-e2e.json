@@ -364,5 +364,24 @@
       }
     },
     "freshReceiverKeyPath": "/private/tmp/recallraid-rotated-diagnostic-wallet.json"
+  },
+  "liveReadOnlyRecheck": {
+    "checkedAt": "2026-10-17T11:43:05Z",
+    "apiHealth": { "status": "ok", "database": "ok" },
+    "hostedSubmitPageHttpStatus": 200,
+    "hostedInvestigations": {
+      "total": 3,
+      "ids": [3, 2, 1],
+      "caseIds": [
+        "0x010e6a1d581e35182fc4385350d449c2c34e068d36bc63fa8deb8bd5c483a51c",
+        "0xda5c94f66e9fdf2680d44c626e383bffc7aad309d2f3c02be189efc85b9aedc1",
+        "0x7919596dbe3e194fd82aceaaa5156e80822d62d720f7745750883691d56566e5"
+      ],
+      "allSettled": false,
+      "source": "GET /investigations?limit=100"
+    },
+    "baseSepoliaChainId": "0x14a34",
+    "studioNetChainId": "0xf22f",
+    "writesSent": false
   }
 }

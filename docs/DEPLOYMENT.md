@@ -72,6 +72,12 @@ StudioNet write limit. The diagnostic funds remain unrecovered until the
 canonical StudioNet endpoint accepts a transaction and its receipt and both
 balances are verified.
 
+A further read-only production check at 11:43Z returned API and database
+health `ok`, `/submit` HTTP 200, and three cached investigations (IDs 1–3).
+All three are still unsettled; the feed's case IDs match the current evidence
+record. Base Sepolia returned chain id `84532`, and StudioNet returned
+`61999`. No write transaction was sent during this check.
+
 On 2026-10-17 the production PostgreSQL cache was pruned of four stale hunts
 from the superseded contract era, along with four dependent evidence rows, two
 pending evidence uploads, and two notifications. The exact active `EDFF...`

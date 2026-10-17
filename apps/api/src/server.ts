@@ -27,7 +27,7 @@ async function buildServer() {
   });
 
   await app.register(cors, {
-    origin: config.corsAllowedOrigin,
+    origin: config.corsAllowedOrigins,
     credentials: true,
     methods: ["GET", "POST", "PATCH", "DELETE"],
   });

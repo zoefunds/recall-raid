@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { parseCorsAllowedOrigins } from "./cors-origins.js";
 
 function required(name: string, fallback?: string): string {
   const configured = process.env[name]?.trim();
@@ -22,7 +23,7 @@ export const config = {
   env: process.env.NODE_ENV ?? "development",
   port: Number(process.env.PORT ?? 8080),
   databaseUrl: required("DATABASE_URL"),
-  corsAllowedOrigin: process.env.CORS_ALLOWED_ORIGIN ?? "http://localhost:3000",
+  corsAllowedOrigins: parseCorsAllowedOrigins(process.env.CORS_ALLOWED_ORIGIN),
   jwtSigningSecret: required("JWT_SIGNING_SECRET", "dev-only-insecure-secret-change-me"),
 
   genlayer: {

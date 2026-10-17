@@ -21,9 +21,9 @@ export async function syncInvestigation(investigationId: number): Promise<void> 
        marketplace, marketplace_url, manufacturer_url, recall_source_url, category, hazard_class,
        status, verdict, bounty_wei, bounty_deposited_wei, seller_bond_id, ai_confidence_bps,
        hunter_payout_bps, evidence_count, created_at_chain, evidence_deadline, verdict_deadline,
-       challenge_deadline, open_challenge_id, settled, relay_tx_hash, description, search_keywords, synced_at
+       challenge_deadline, open_challenge_id, last_challenge_id, challenge_used, settled, relay_tx_hash, description, search_keywords, synced_at
      ) values (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,
        to_tsvector('english', coalesce($4,'') || ' ' || coalesce($5,'') || ' ' || coalesce($12,'')),
        now()
      )
@@ -52,6 +52,8 @@ export async function syncInvestigation(investigationId: number): Promise<void> 
        verdict_deadline = excluded.verdict_deadline,
        challenge_deadline = excluded.challenge_deadline,
        open_challenge_id = excluded.open_challenge_id,
+       last_challenge_id = excluded.last_challenge_id,
+       challenge_used = excluded.challenge_used,
        settled = excluded.settled,
        relay_tx_hash = excluded.relay_tx_hash,
        description = excluded.description,
@@ -85,6 +87,8 @@ export async function syncInvestigation(investigationId: number): Promise<void> 
       inv.verdict_deadline,
       inv.challenge_deadline,
       inv.open_challenge_id || null,
+      inv.last_challenge_id,
+      inv.challenge_used,
       inv.settled,
       inv.relay_tx_hash,
       inv.description,

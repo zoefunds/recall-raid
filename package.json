@@ -13,11 +13,13 @@
     "build:web": "npm run build --workspace apps/web",
     "build:api": "npm run build --workspace apps/api",
     "test:api": "npm run test --workspace apps/api",
+    "test:base": "forge test",
     "migrate": "npm run migrate --workspace apps/api",
     "lint:contract": "genvm-lint check contracts/recallraid_contract.py --json",
     "compile:contract": "python3 -m py_compile contracts/recallraid_contract.py",
     "compile:base": "node contracts/base/compile.mjs",
-    "deploy:base": "node contracts/base/deploy.mjs"
+    "deploy:base": "node contracts/base/deploy.mjs",
+    "verify:base": "node contracts/base/verify.mjs"
   },
   "devDependencies": {
     "solc": "^0.8.30"

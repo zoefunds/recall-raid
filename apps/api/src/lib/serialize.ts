@@ -38,6 +38,8 @@ export interface InvestigationRow {
   verdict_deadline: string | number | null;
   challenge_deadline: string | number | null;
   open_challenge_id: number | null;
+  last_challenge_id: number | null;
+  challenge_used: boolean | null;
   settled: boolean;
   relay_tx_hash: string;
 }
@@ -71,6 +73,8 @@ export function serializeInvestigation(row: InvestigationRow) {
     verdict_deadline: Number(row.verdict_deadline ?? 0),
     challenge_deadline: Number(row.challenge_deadline ?? 0),
     open_challenge_id: row.open_challenge_id ?? 0,
+    last_challenge_id: row.last_challenge_id,
+    challenge_used: row.challenge_used,
     settled: row.settled,
     relay_tx_hash: row.relay_tx_hash,
   };

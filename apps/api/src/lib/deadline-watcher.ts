@@ -1,6 +1,7 @@
 import type { FastifyBaseLogger } from "fastify";
 import { pool, withAdvisoryLock } from "./db.js";
 import { getTransactionStatus, chain } from "./genlayer.js";
+import { assertSuccessfulFinalizedGenVmExecution } from "./settlement-validation.js";
 import { canTransition, isTerminal, type TxStatus } from "./tx-status-machine.js";
 import { syncInvestigation, syncSellerBond } from "./sync.js";
 import { relayTerminalInvestigation } from "./adjudication-relay.js";
@@ -15,21 +16,39 @@ const POLL_INTERVAL_MS = Number(process.env.DEADLINE_WATCHER_INTERVAL_MS ?? 20_0
 // must remain the same on every Fly machine so only one carries out a sweep.
 const DEADLINE_WATCHER_LOCK_KEY = 2_021_006;
 
-// Maps a GenVM transaction receipt status to our own tx_status_log enum.
-// GenVM statuses observed in sibling projects: PENDING, ACCEPTED, FINALIZED,
-// UNDETERMINED, CANCELED. We collapse ACCEPTED/FINALIZED to "confirmed" and
-// UNDETERMINED/CANCELED to "failed" — this backend only mirrors outcomes, it
-// never re-drives consensus.
-function mapChainStatusToTxStatus(chainStatus: string | undefined): TxStatus | null {
-  switch ((chainStatus ?? "").toUpperCase()) {
+// Map receipt lifecycle and execution results to the app's status enum.
+// ACCEPTED still awaits finalization. Only FINALIZED plus a successful return
+// execution and successful consensus is mirrored as confirmed.
+function mapChainStatusToTxStatus(receipt: {
+  statusName?: string;
+  status_name?: string;
+  status?: string | number;
+  resultName?: string;
+  result_name?: string;
+  txExecutionResultName?: string;
+  tx_execution_result_name?: string;
+} | null): TxStatus | null {
+  const chainStatus = receipt?.statusName ?? receipt?.status_name ?? String(receipt?.status ?? "");
+  switch (chainStatus.toUpperCase()) {
     case "PENDING":
-      return "pending";
+    case "PROPOSING":
+    case "COMMITTING":
+    case "REVEALING":
     case "ACCEPTED":
+      return "pending";
     case "FINALIZED":
-      return "confirmed";
+      try {
+        if (!receipt) return "failed";
+        assertSuccessfulFinalizedGenVmExecution(receipt);
+        return "confirmed";
+      } catch {
+        return "failed";
+      }
     case "UNDETERMINED":
     case "CANCELED":
     case "CANCELLED":
+    case "VALIDATORS_TIMEOUT":
+    case "LEADER_TIMEOUT":
       return "failed";
     default:
       return null;
@@ -37,17 +56,18 @@ function mapChainStatusToTxStatus(chainStatus: string | undefined): TxStatus | n
 }
 
 /**
- * Two read-only background jobs, both consistent with this API's hard
- * "never signs a transaction" rule:
+ * The watcher reads GenVM and Base state and carries out two background jobs:
  *
  *  1. Poll every non-terminal tx_status_log row against the chain's own
  *     receipt and mirror the outcome — this is what lets a user close their
  *     laptop mid-transaction and still see the right status when they come
- *     back, without the API ever needing to submit anything itself.
+ *     back. It never re-drives a user transaction.
  *  2. Sweep investigations_cache for evidence/verdict/challenge deadlines
  *     that are approaching or have just passed, and push a notification —
  *     purely informational (e.g. "your evidence window closes in 2 hours");
- *     the actual claim_*_timeout call is still signed and sent by a wallet.
+ *     deadline-gated GenLayer writes are still signed by a wallet. Terminal
+ *     Base settlement is submitted only after the API verifies successful
+ *     finalized GenVM state and its matching terminal write receipt.
  */
 export function startDeadlineWatcher(logger: FastifyBaseLogger): void {
   let tickRunning = false;
@@ -58,7 +78,7 @@ export function startDeadlineWatcher(logger: FastifyBaseLogger): void {
     for (const row of rows as { tx_hash: string; status: TxStatus }[]) {
       try {
         const receipt = await getTransactionStatus(row.tx_hash);
-        const nextStatus = mapChainStatusToTxStatus((receipt as { status?: string } | null)?.status);
+        const nextStatus = mapChainStatusToTxStatus(receipt as Parameters<typeof mapChainStatusToTxStatus>[0]);
         if (!nextStatus || !canTransition(row.status, nextStatus) || nextStatus === row.status) continue;
         await pool.query(
           `update tx_status_log set status = $2, updated_at = now() where tx_hash = $1`,

@@ -13,4 +13,7 @@ __pycache__/
 .vercel/
 .fly/
 coverage/
+cache/
+out/
 .claude/
+.vercel

@@ -90,6 +90,8 @@ export interface ChainInvestigation {
   verdict_deadline: number;
   challenge_deadline: number;
   open_challenge_id: number;
+  last_challenge_id: number;
+  challenge_used: boolean;
   settled: boolean;
   relay_tx_hash: string;
 }
@@ -166,6 +168,8 @@ export interface ChainProtocolInfo {
 export const chain = {
   getInvestigation: (id: number) => readContractView<ChainInvestigation>("get_investigation", [id]),
   getInvestigationCount: () => readContractView<number>("get_investigation_count", []),
+  hasRegisteredBaseCase: (caseId: string, submitter: string) =>
+    readContractView<boolean>("has_registered_base_case", [caseId, submitter]),
   listInvestigations: (offset: number, limit: number) =>
     readContractView<{ total: number; items: ChainInvestigation[] }>("list_investigations", [offset, limit]),
   getEvidence: (evidenceId: number) => readContractView<ChainEvidence>("get_evidence", [evidenceId]),

@@ -3,7 +3,7 @@
   "createdAt": "2026-10-17",
   "network": "Base Sepolia",
   "chainId": 84532,
-  "scope": "Live Base Sepolia contract and USDC branch checks with EIP-712 decision-signer attestations. GenLayer contract references and outcomes were supplied as explicit test inputs; no GenLayer transaction, consensus result, or browser-originated cross-chain flow was performed.",
+  "scope": "Live Base Sepolia contract and USDC branch checks with EIP-712 decision-signer attestations. GenLayer contract references and outcomes were supplied as explicit test inputs; no GenLayer transaction, consensus result, or browser-originated cross-chain flow was performed. On 2026-10-17 the corrected StudioNet adjudicator was separately deployed and accepted, and the corrected Base escrow runtime bytecode was independently verified against the checked-out source.",
   "escrow": "0xea0973CbFf42F1B41A339103f133d3D43a24A54b",
   "escrowDeploymentTx": "0xe8e2814512e4e49ec623551ee42358c797b467c531b30f21dfcb1b2bc975ec67",
   "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
@@ -72,17 +72,47 @@
   "explorer": "https://sepolia.basescan.org/address/0xea0973CbFf42F1B41A339103f133d3D43a24A54b",
   "genLayerDeployment": {
     "network": "StudioNet",
-    "contractAddress": "0x6d11FC5f7492407c287215CF8F8134025D6dEADE",
-    "deploymentTx": "0x5876729d37b8b13c9f4cec55bcb054ac218b34c88a86af473705ff24f3c1866f",
+    "contractAddress": "0xa239189c2921b592dBa1eccde830977edbfD1CB5",
+    "deploymentTx": "0x2bb98b6e3897235a7ae96790b565e5fa38c269e493a209a2595485e42474ecb0",
     "receiptStatus": "ACCEPTED",
     "consensusResult": "MAJORITY_AGREE",
-    "schemaVerified": true
+    "schemaVerified": true,
+    "protocolInfo": {
+      "challengeWindowSeconds": 604800,
+      "challengeResolutionSeconds": 172800
+    }
   },
   "localTestConfiguration": {
-    "genLayerContractAddress": "0x6d11FC5f7492407c287215CF8F8134025D6dEADE",
+    "genLayerContractAddress": "0xa239189c2921b592dBa1eccde830977edbfD1CB5",
     "baseEscrowAddress": "0xea0973CbFf42F1B41A339103f133d3D43a24A54b",
     "decisionSignerAddress": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C",
     "decisionSignerRotationTx": "0xe7f8a7c2572951c7a82ce2c075df63d4e1509e41dbfffaa88350bb7098d2496d",
     "secretsStoredInIgnoredLocalApiEnv": true
+  },
+  "correctedBaseEscrowVerification": {
+    "network": "Base Sepolia",
+    "chainId": 84532,
+    "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+    "sourceHash": "0x90e7562eeb84dcd0738b61d3dba8ff406761e8d4f8581caf2b3800909aac0fc6",
+    "runtimeBytecodeHash": "0xa7919e068cf4d9a0172ad8d8b888ff3770f3c45da94c6b195cb2009e5c20b370",
+    "compiler": "0.8.37+commit.f401782d.Emscripten.clang",
+    "optimizerRuns": 200,
+    "viaIR": true,
+    "ownerAndRelayer": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+    "decisionSigner": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+  },
+  "hostedConfigurationCheck": {
+    "checkedAt": "2026-10-17",
+    "api": "https://recallraid-usdc-api.fly.dev",
+    "apiHealth": "ok",
+    "apiDatabase": "ok",
+    "apiGenLayerContract": "0xa239189c2921b592dBa1eccde830977edbfD1CB5",
+    "apiBaseEscrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+    "frontend": "https://recall-raid.vercel.app",
+    "frontendHttpStatus": 200,
+    "frontendGenLayerContract": "0xa239189c2921b592dBa1eccde830977edbfD1CB5",
+    "frontendBaseEscrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+    "fullBrowserCrossChainFlowVerified": false
   }
 }

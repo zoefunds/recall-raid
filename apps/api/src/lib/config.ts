@@ -38,6 +38,7 @@ export const config = {
       process.env.BASE_SEPOLIA_USDC_ADDRESS ?? "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     escrowAddress: process.env.RECALLRAID_ESCROW_ADDRESS ?? "",
     relayerPrivateKey: process.env.BASE_SEPOLIA_RELAYER_PRIVATE_KEY ?? "",
+    decisionSignerPrivateKey: process.env.BASE_SEPOLIA_DECISION_SIGNER_PRIVATE_KEY ?? "",
   },
 
   cloudinary: {

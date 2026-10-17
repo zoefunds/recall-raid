@@ -143,7 +143,10 @@ export default function InvestigationDetailPage() {
 
   const now = Date.now() / 1000;
   const canRequestVerdict = inv.status === InvestigationStatus.EVIDENCE_SUBMITTED;
-  const canOpenChallenge = inv.status === InvestigationStatus.VERDICT_REACHED && now < inv.challenge_deadline;
+  const canOpenChallenge = inv.status === InvestigationStatus.VERDICT_REACHED
+    && inv.challenge_used === false
+    && inv.last_challenge_id === 0
+    && now < inv.challenge_deadline;
   const canSettle = inv.status === InvestigationStatus.VERDICT_REACHED && now >= inv.challenge_deadline && !inv.settled;
   // resolve_challenge and claim_challenge_timeout are both permissionless
   // (no sender-address check in the contract) — anyone can trigger

@@ -6,6 +6,10 @@ import { requireAuth } from "../plugins/auth-plugin.js";
 import { badRequest, notFound } from "../lib/http-errors.js";
 import { serializeInvestigation, type InvestigationRow } from "../lib/serialize.js";
 import { relayTerminalInvestigation } from "../lib/adjudication-relay.js";
+import { chain, getTransactionStatus } from "../lib/genlayer.js";
+import { getCaseEscrow, registerGenLayerCase, signOrphanRecovery } from "../lib/base-sepolia.js";
+import { config } from "../lib/config.js";
+import { assertBaseRegistrationMatches, assertGenLayerCall, assertGenLayerTransactionIdentity, assertOrphanRecoveryEligible, assertSuccessfulFinalizedGenVmExecution } from "../lib/settlement-validation.js";
 
 const ListQuerySchema = z.object({
   status: z.string().optional(),
@@ -23,6 +27,29 @@ const ListQuerySchema = z.object({
 const SyncSchema = z.object({ txHash: z.string().optional() });
 
 export async function investigationRoutes(app: FastifyInstance) {
+  app.post(
+    "/escrow/cases/:caseId/recovery-authorization",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const session = requireAuth(req);
+      const caseId = (req.params as { caseId: string }).caseId;
+      if (!/^0x[a-fA-F0-9]{64}$/.test(caseId)) throw badRequest("caseId must be a bytes32 value");
+      const escrow = await getCaseEscrow(caseId);
+      const registeredOnGenlayer = await chain.hasRegisteredBaseCase(caseId, session.walletAddress.toLowerCase());
+      assertOrphanRecoveryEligible({
+        depositor: escrow.submitter,
+        caller: session.walletAddress,
+        registeredOnBase: escrow.registered,
+        finalized: escrow.finalized,
+        fundedAtSeconds: escrow.fundedAt,
+        registeredOnGenlayer,
+        nowSeconds: Math.floor(Date.now() / 1000),
+      });
+      const authorization = await signOrphanRecovery(caseId, session.walletAddress, escrow.bountyUsdcBaseUnits);
+      return reply.send({ authorization, caseId, amount: escrow.bountyUsdcBaseUnits });
+    },
+  );
+
   // GET /investigations — paginated Active Hunts feed, served entirely from
   // the Postgres cache (fast reads; the chain remains the source of truth
   // and is re-pulled via /investigations/:id/sync after a confirmed tx).
@@ -100,6 +127,75 @@ export async function investigationRoutes(app: FastifyInstance) {
       if (!parsed.success) throw badRequest(parsed.error.message);
 
       await syncInvestigation(id);
+
+      // Bind the Base deposit as soon as the wallet-signed GenLayer
+      // registration is visible, so the orphan-recovery window cannot race
+      // an already active investigation.
+      const registered = await chain.getInvestigation(id);
+      const escrow = await getCaseEscrow(registered.base_case_id);
+      assertBaseRegistrationMatches({
+        baseSubmitter: escrow.submitter,
+        genlayerSubmitter: registered.submitter,
+        baseBounty: escrow.bountyUsdcBaseUnits,
+        genlayerBounty: registered.bounty_wei,
+        registered: escrow.registered,
+        recordedGenlayerContract: escrow.genlayerContract,
+        recordedInvestigationId: escrow.genlayerInvestigationId,
+        expectedGenlayerContract: config.genlayer.contractAddress,
+        expectedInvestigationId: id,
+      });
+      const transaction = parsed.data.txHash ? await getTransactionStatus(parsed.data.txHash) : null;
+      if (parsed.data.txHash) {
+        if (!/^0x[a-fA-F0-9]{64}$/.test(parsed.data.txHash)) throw badRequest("txHash must be a GenVM transaction hash");
+        if (!transaction) throw badRequest("GenVM transaction receipt is not available");
+        assertSuccessfulFinalizedGenVmExecution(transaction);
+        assertGenLayerTransactionIdentity({ transaction, expectedContract: config.genlayer.contractAddress });
+      }
+      if (!escrow.registered) {
+        if (!parsed.data.txHash || !transaction) {
+          throw badRequest("a finalized successful GenVM submission transaction hash is required before Base registration");
+        }
+        assertGenLayerTransactionIdentity({
+          transaction,
+          expectedContract: config.genlayer.contractAddress,
+          expectedSender: registered.submitter,
+        });
+        assertGenLayerCall({
+          transaction,
+          method: "submit_investigation",
+          args: [registered.base_case_id, BigInt(registered.bounty_wei)],
+        });
+        await registerGenLayerCase(
+          registered.base_case_id,
+          registered.submitter,
+          registered.bounty_wei,
+          config.genlayer.contractAddress,
+          id,
+        );
+      }
+
+      // The terminal Base relay requires an explicit successful, finalized
+      // GenVM write receipt whose decoded call matches the terminal state.
+      // A terminal view alone is not enough to authorize money movement.
+      const terminalWrite = registered.settled
+        ? { methods: ["settle_investigation"] }
+        : registered.status === 6
+          ? { methods: ["claim_evidence_timeout", "claim_verdict_timeout"] }
+          : registered.status === 7
+            ? { methods: ["cancel_investigation"] }
+            : null;
+      if (terminalWrite && parsed.data.txHash && transaction) {
+        const callData = (transaction.txDataDecoded as { callData?: unknown } | null | undefined)?.callData as { method?: unknown } | null | undefined;
+        const method = String(callData?.method ?? "");
+        if (!terminalWrite.methods.includes(method)) {
+          throw badRequest("the GenVM transaction is not the successful terminal write for this investigation");
+        }
+        assertGenLayerCall({ transaction, method, args: [id] });
+        await pool.query(
+          "update investigations_cache set terminal_genvm_tx_hash = $2, synced_at = now() where investigation_id = $1",
+          [id, parsed.data.txHash],
+        );
+      }
 
       if (parsed.data.txHash) {
         await pool.query(

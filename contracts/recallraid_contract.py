@@ -62,9 +62,8 @@ NO_ISSUE_REFUND_BPS = u32(10000)         # bounty fully refunds to submitter on 
 EVIDENCE_WINDOW_SECONDS = u64(72 * 3600)        # 72h to submit first evidence
 VERDICT_WINDOW_SECONDS = u64(48 * 3600)         # 48h for the investigation nondet pass to be requested/resolved
 # StudioNet/Base Sepolia milestone window. This remains a real, observable
-# challenge period while allowing an end-to-end test to reach settlement in a
-# single run. Increase this for a mainnet deployment.
-CHALLENGE_WINDOW_SECONDS = u64(90)
+# seven-day challenge period used by the application and deployment guide.
+CHALLENGE_WINDOW_SECONDS = u64(7 * 24 * 3600)
 CHALLENGE_RESOLUTION_SECONDS = u64(48 * 3600)   # 48h to resolve an open challenge before it expires
 MAX_EVIDENCE_PER_INVESTIGATION = 25
 MAX_FETCH_EXCERPT_CHARS = 4000
@@ -129,34 +128,7 @@ def _canonicalize_url(url: str) -> str:
 
 
 def _unwrap_leader_result(leader_result):
-    """The ROOT CAUSE of every nondet-consensus disagreement observed in
-    this contract's entire live-testing history: `validator_fn`'s
-    `leader_result` parameter arrives as a wrapped `gl.vm.Result` object
-    (a `gl.vm.Return` on a successful leader execution, or
-    `gl.vm.UserError`/`gl.vm.VMError` if the leader itself failed) — NOT
-    the plain value `leader_fn()` returned. Confirmed against GenLayer's
-    own docs (docs.genlayer.com/developers/intelligent-contracts/
-    equivalence-principle): the correct unwrap is
-    `isinstance(leader_result, gl.vm.Return)` then `.calldata`.
-
-    Every previous access pattern tried in this contract across many
-    rounds of live debugging — `leader_result.get(...)`
-    (AttributeError), bare subscript `leader_result["verdict"]`
-    (silently wrong, never actually verified working since
-    `request_verdict` had a 0% observed MAJORITY_AGREE rate the entire
-    time it was used), `int(leader_result)` (TypeError) — was wrong for
-    this same underlying reason: none of them went through `.calldata`.
-    Root-caused via a separate minimal diagnostic contract
-    (`contracts/diagnostics/nondet_consensus_diagnostic.py`) after an
-    external audit correctly pushed back that "probably a StudioNet
-    platform issue" was a reasonable but unproven hypothesis — the
-    diagnostic's `check_constant` (a hardcoded-int comparison, zero I/O)
-    reproduced the exact same crash, which is what finally made the real
-    cause traceable instead of looking like environment noise.
-
-    Returns `None` for a non-Return result (leader itself
-    errored/crashed) — callers must treat `None` as "cannot possibly
-    match a real value," never subscript it directly."""
+    """Return GenVM's leader return payload, or None when execution failed."""
     if isinstance(leader_result, gl.vm.Return):
         return leader_result.calldata
     return None
@@ -170,11 +142,8 @@ VERDICT_ORDER = {
     int(VERDICT_POTENTIAL_ISSUE): 2,
     int(VERDICT_RECALL_CONFIRMED): 3,
 }
-# No ordinal verdict-bucket tolerance exists (removed after two rounds of
-# real audit findings — see _verdicts_agree's docstring for the full
-# history). Leader and validator must land on the EXACT SAME verdict
-# bucket to agree; only the confidence score gets a tolerance band, via
-# CONFIDENCE_TOLERANCE_BPS below.
+# Leader and validator must agree on the same verdict bucket; only the
+# confidence score uses a tolerance band.
 CONFIDENCE_TOLERANCE_BPS = u32(1500)  # leader/validator confidence scores may differ by up to 15pp and still agree
 
 
@@ -218,6 +187,8 @@ class Investigation:
     verdict_deadline: u64
     challenge_deadline: u64
     open_challenge_id: u32      # 0 if none currently open
+    last_challenge_id: u32      # last resolved/expired challenge, retained for settlement
+    challenge_used: bool        # one challenge maximum; remains true after resolution/expiry
     settled: bool
     relay_tx_hash: str          # Base Sepolia relay transaction once finalized
 
@@ -354,6 +325,7 @@ class RecallRaid(gl.Contract):
 
     challenges: TreeMap[u32, Challenge]
     next_challenge_id: u32
+    registered_base_cases: TreeMap[str, bool]
 
     seller_bonds: TreeMap[u32, SellerBond]
     seller_bond_ids: DynArray[u32]
@@ -611,17 +583,11 @@ class RecallRaid(gl.Contract):
         )
 
     def _verdict_label_to_code(self, label: str) -> u8:
-        """Never raises — this runs inside the nondet leader/validator
-        closure, and raising there was confirmed live to turn a mere LLM
-        formatting quirk into a real MAJORITY_DISAGREE consensus failure
-        (an uncaught exception inside `leader_fn`/`validator_fn` does not
-        cleanly resolve to a comparable [LLM_ERROR]-tagged agreement the
-        way a normal deterministic `gl.vm.UserError` does elsewhere in this
-        contract — confirmed by an actual failed request_verdict
-        transaction, not assumed). An unparseable label degrades to the
-        same non-forcing NEEDS_MORE_EVIDENCE outcome as genuinely thin
-        evidence, which is exactly the fallback this contract already uses
-        everywhere else for "the model couldn't decide.\""""
+        """Map model output without raising inside a nondeterministic pass.
+
+        Unknown output degrades to NEEDS_MORE_EVIDENCE instead of forcing a
+        verdict.
+        """
         mapping = {
             "NO_ISSUE": VERDICT_NO_ISSUE,
             "POTENTIAL_ISSUE": VERDICT_POTENTIAL_ISSUE,
@@ -896,6 +862,14 @@ class RecallRaid(gl.Contract):
         self._require_not_paused()
         if not base_case_id or bounty_usdc_base_units <= 0:
             raise gl.vm.UserError("[EXPECTED] a funded Base Sepolia case id and positive USDC bounty are required")
+        # Scope this idempotency key to the signing wallet. GenLayer cannot
+        # read Base storage, so an attacker must not be able to squat on a
+        # victim's public case id before the actual depositor registers it.
+        registration_key = base_case_id.lower() + ":" + str(gl.message.sender_address).lower()
+        if self.registered_base_cases.get(registration_key) is not None:
+            raise gl.vm.UserError("[EXPECTED] this wallet already registered the Base case")
+        if not base_case_id.startswith("0x") or len(base_case_id) != 66:
+            raise gl.vm.UserError("[EXPECTED] Base case id must be a bytes32 value")
         if not product_name or not marketplace or not marketplace_url:
             raise gl.vm.UserError("[EXPECTED] product_name, marketplace, and marketplace_url are required")
         if hazard_class not in (1, 2, 3):
@@ -906,8 +880,12 @@ class RecallRaid(gl.Contract):
                 "(e.g. cpsc.gov, nhtsa.gov, fda.gov) or left empty — it is presented to the verdict "
                 "process as an authoritative recall confirmation, not a general reference link"
             )
+        # The registration identity is not caller-supplied: submitter below
+        # is always the signing wallet. The API additionally compares it to
+        # the Base deposit event before any relay.
 
         inv_id = self.next_investigation_id
+        self.registered_base_cases[registration_key] = True
         now = _now()
         inv = Investigation(
             id=inv_id,
@@ -937,6 +915,8 @@ class RecallRaid(gl.Contract):
             verdict_deadline=u64(0),
             challenge_deadline=u64(0),
             open_challenge_id=u32(0),
+            last_challenge_id=u32(0),
+            challenge_used=False,
             settled=False,
             relay_tx_hash="",
         )
@@ -1187,8 +1167,8 @@ class RecallRaid(gl.Contract):
             raise gl.vm.UserError("[EXPECTED] investigation is not in its challenge window")
         if _now() >= inv.challenge_deadline:
             raise gl.vm.UserError("[EXPECTED] challenge window has closed")
-        if gl.message.sender_address == inv.submitter:
-            raise gl.vm.UserError("[EXPECTED] the original submitter cannot challenge their own investigation")
+        if bool(inv.challenge_used) or int(inv.last_challenge_id) != 0:
+            raise gl.vm.UserError("[EXPECTED] this investigation already used its one challenge")
         if not reason:
             raise gl.vm.UserError("[EXPECTED] a reason is required to open a challenge")
 
@@ -1221,6 +1201,7 @@ class RecallRaid(gl.Contract):
 
         inv.status = INV_CHALLENGE_WINDOW
         inv.open_challenge_id = challenge_id
+        inv.challenge_used = True
         self.investigations[u32(investigation_id)] = inv
         return json.dumps({"challenge_id": int(challenge_id)})
 
@@ -1232,6 +1213,8 @@ class RecallRaid(gl.Contract):
             raise gl.vm.UserError("[EXPECTED] challenge not found")
         if int(challenge.status) != int(CHALLENGE_OPEN):
             raise gl.vm.UserError("[EXPECTED] challenge is not open")
+        if _now() >= challenge.resolution_deadline:
+            raise gl.vm.UserError("[EXPECTED] challenge resolution deadline has passed")
 
         inv = self._get_investigation(int(challenge.investigation_id))
         evidence_items = [self.evidence[eid] for eid in self._evidence_ids_for_investigation(int(challenge.investigation_id))]
@@ -1259,6 +1242,7 @@ class RecallRaid(gl.Contract):
         inv.ai_confidence_bps = confidence_bps
         inv.hunter_payout_bps = self._payout_bps_for_verdict(new_verdict)
         inv.open_challenge_id = u32(0)
+        inv.last_challenge_id = u32(challenge_id)
         inv.challenge_deadline = u64(int(_now()) + int(CHALLENGE_WINDOW_SECONDS))
         self.investigations[u32(challenge.investigation_id)] = inv
 
@@ -1290,6 +1274,7 @@ class RecallRaid(gl.Contract):
         inv = self._get_investigation(int(challenge.investigation_id))
         inv.status = INV_VERDICT_REACHED
         inv.open_challenge_id = u32(0)
+        inv.last_challenge_id = u32(challenge_id)
         inv.challenge_deadline = u64(int(_now()) + int(CHALLENGE_WINDOW_SECONDS))
         self.investigations[u32(challenge.investigation_id)] = inv
 
@@ -1554,6 +1539,8 @@ class RecallRaid(gl.Contract):
             "verdict_deadline": int(inv.verdict_deadline),
             "challenge_deadline": int(inv.challenge_deadline),
             "open_challenge_id": int(inv.open_challenge_id),
+            "last_challenge_id": int(inv.last_challenge_id),
+            "challenge_used": bool(inv.challenge_used),
             "settled": inv.settled,
             "relay_tx_hash": inv.relay_tx_hash,
         }
@@ -1566,6 +1553,12 @@ class RecallRaid(gl.Contract):
     @gl.public.view
     def get_investigation_count(self) -> int:
         return len(self.investigation_ids)
+
+    @gl.public.view
+    def has_registered_base_case(self, base_case_id: str, submitter: str) -> bool:
+        """True only for a Base case registered by this signing wallet."""
+        registration_key = base_case_id.lower() + ":" + submitter.lower()
+        return self.registered_base_cases.get(registration_key) is not None
 
     @gl.public.view
     def get_investigation_id_at(self, index: int) -> int:

@@ -11,6 +11,7 @@ export const ESCROW_ABI = [
   { type: 'function', name: 'usdc', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
   { type: 'function', name: 'fundInvestigation', stateMutability: 'nonpayable', inputs: [{ name: 'caseId', type: 'bytes32' }, { name: 'amount', type: 'uint256' }], outputs: [] },
   { type: 'function', name: 'fundChallenge', stateMutability: 'nonpayable', inputs: [{ name: 'caseId', type: 'bytes32' }, { name: 'amount', type: 'uint256' }], outputs: [] },
+  { type: 'function', name: 'recoverOrphanDeposit', stateMutability: 'nonpayable', inputs: [{ name: 'caseId', type: 'bytes32' }, { name: 'authorization', type: 'bytes' }], outputs: [] },
   { type: 'function', name: 'fundSellerBond', stateMutability: 'nonpayable', inputs: [{ name: 'bondId', type: 'bytes32' }, { name: 'amount', type: 'uint256' }], outputs: [] },
   { type: 'function', name: 'linkSellerBond', stateMutability: 'nonpayable', inputs: [{ name: 'caseId', type: 'bytes32' }, { name: 'bondId', type: 'bytes32' }], outputs: [] },
   { type: 'function', name: 'claim', stateMutability: 'nonpayable', inputs: [], outputs: [] },
@@ -142,6 +143,10 @@ export async function linkSellerBond(provider: unknown, account: Address, caseId
 
 export async function claimUsdc(provider: unknown, account: Address) {
   return send(provider, account, env.baseSepoliaEscrowAddress as Address, ESCROW_ABI, 'claim', []);
+}
+
+export async function recoverOrphanDeposit(provider: unknown, account: Address, caseId: Hex, authorization: Hex) {
+  return send(provider, account, env.baseSepoliaEscrowAddress as Address, ESCROW_ABI, 'recoverOrphanDeposit', [caseId, authorization]);
 }
 
 export async function readUsdcPosition(account: Address) {

@@ -109,6 +109,8 @@ export interface Investigation {
   verdict_deadline: number;
   challenge_deadline: number;
   open_challenge_id: number;
+  last_challenge_id: number | null;
+  challenge_used: boolean | null;
   settled: boolean;
   relay_tx_hash: string;
 }

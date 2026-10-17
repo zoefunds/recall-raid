@@ -150,6 +150,10 @@ export function syncChallenge(id: number | string, txHash?: string): Promise<{ c
   return apiFetch(`/challenges/${id}/sync`, { method: 'POST', body: JSON.stringify({ txHash }) });
 }
 
+export function requestOrphanRecoveryAuthorization(caseId: string): Promise<{ authorization: `0x${string}`; caseId: string; amount: string }> {
+  return apiFetch(`/escrow/cases/${encodeURIComponent(caseId)}/recovery-authorization`, { method: 'POST', body: JSON.stringify({}) });
+}
+
 export function syncSellerBond(id: number | string, txHash?: string): Promise<{ sellerBond: unknown }> {
   return apiFetch(`/seller-bonds/${id}/sync`, { method: 'POST', body: JSON.stringify({ txHash }) });
 }

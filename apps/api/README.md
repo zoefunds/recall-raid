@@ -15,6 +15,10 @@ user-signed funding, challenge, bond, or claim transactions.
   authorized cross-chain link;
 - validate terminal GenLayer state and matching Base payer, amount, challenge
   funding, and case reference before creating EIP-712 attestations;
+- require a successful matching Base challenge receipt before a challenge can
+  change the Base payout or receive its stake; confirmed unbacked challenges
+  settle using the snapshotted prior verdict, while missing receipt data stops
+  settlement for retry;
 - relay signed settlement instructions and issue eligible orphan-recovery
   authorizations;
 - poll transaction receipts, sync active state, retry terminal relays, and

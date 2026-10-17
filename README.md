@@ -39,13 +39,15 @@ and [deployment notes](docs/DEPLOYMENT.md) for the precise scope and addresses.
    recording the cross-chain registration.
 4. The GenLayer challenge window runs for seven days. A challenge requires an
    exact 20% of-bounty USDC stake, funded by the challenger on Base. GenLayer
-   resolves or expires the challenge; the Base escrow keeps deposits keyed by
-   each challenger's wallet.
-5. The API reads terminal GenLayer state, validates the Base funding and
-   registration records, and obtains a distinct decision-signer EIP-712
-   authorization. The relayer submits the signed instruction to Base. Base
-   checks its exact case, GenLayer reference, outcome, challenge and decision
-   hash before crediting claimable balances.
+   resolves or expires one challenge per investigation; the Base escrow keeps
+   deposits keyed by each challenger's wallet. Unmatched direct deposits are
+   recoverable by their depositor after the case is finalized.
+5. The API reads terminal GenLayer state and Base funding, registration,
+   challenge, and seller-bond records. A distinct decision signer validates
+   those records and signs the exact settlement instruction with EIP-712. The
+   relayer submits it; Base checks the signer authorization and stored case
+   constraints before crediting claimable balances. Base does not independently
+   prove GenLayer consensus.
 6. Recipients call `claim()` to withdraw USDC from Base escrow.
 
 The EIP-712 signer is a privileged attestation authority. This is not a

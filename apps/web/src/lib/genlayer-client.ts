@@ -9,8 +9,7 @@
  * handed that provider so every write is still signed by the user's own
  * wallet. The backend signs only the final Base Sepolia relay.
  *
- * VERIFIED against the installed genlayer-js@1.2.0 source
- * (node_modules/genlayer-js/dist/index.js): `createClient({ chain, account,
+ * The installed genlayer-js version accepts `createClient({ chain, account,
  * provider })` accepts `account` as a plain address STRING (not an Account
  * object from `createAccount` — that helper is for raw-private-key/backend
  * use only and is intentionally NOT used here) plus an optional `provider`,
@@ -23,13 +22,10 @@
  * provider (obtained from wagmi's active connector) is passed straight
  * through as `provider` below.
  *
- * REMAINING JUDGMENT CALL (flag for confirmation against
- * https://docs.genlayer.com/ / https://skills.genlayer.com/ once live docs
- * are available): the exact shape of `waitForTransactionReceipt`'s status
- * field and what a reverted GenVM call reports there was inferred from
- * this version's TypeScript types, not from a live network response —
- * verify the failure-status string(s) against a real StudioNet revert
- * before relying on `describeChainError` for anything user-critical.
+ * Runtime receipt handling below requires explicit finalized status,
+ * successful GenVM execution, and successful consensus before reporting a
+ * write as confirmed. The installed SDK's receipt shape should be checked
+ * again when upgrading genlayer-js.
  */
 
 import { createClient } from 'genlayer-js';
@@ -254,47 +250,31 @@ export async function callContractWrite({
       interval: 3000,
     });
 
-    // IMPORTANT: transaction STATUS ("FINALIZED") and consensus RESULT
-    // ("AGREE"/"MAJORITY_DISAGREE"/"UNDETERMINED"/etc, exposed as
-    // `result_name`) are two entirely separate fields in genlayer-js's
-    // receipt shape — confirmed empirically against a real disagreement:
-    // `status_name` reads "FINALIZED" (the round finished processing)
-    // while `result_name` separately reads "MAJORITY_DISAGREE". An
-    // earlier version of this check inspected `receipt.status` for the
-    // string "UNDETERMINED", which never matches (status is a numeric
-    // status code, not a result label) — meaning a genuine consensus
-    // disagreement was being reported to the user as "Confirmed" even
-    // though nothing was actually decided and no contract state changed.
-    // Only AGREE/MAJORITY_AGREE (or an absent result_name, for
-    // deterministic non-nondet calls that don't carry one) count as a
-    // real success.
+    // IMPORTANT: transaction status, execution result, and consensus result
+    // are separate fields in genlayer-js. A finalized transaction can still
+    // have an execution error or a consensus disagreement, so require all
+    // three signals before reporting a write as successful.
+    // `statusName` reports lifecycle finality; `txExecutionResultName`
+    // reports whether GenVM returned successfully; `resultName` reports the
+    // consensus outcome.
+    const statusName = String((receipt as { statusName?: unknown; status_name?: unknown })?.statusName ?? (receipt as { status_name?: unknown })?.status_name ?? '').toUpperCase();
+    const executionResult = String((receipt as { txExecutionResultName?: unknown; tx_execution_result_name?: unknown })?.txExecutionResultName ?? (receipt as { tx_execution_result_name?: unknown })?.tx_execution_result_name ?? '').toUpperCase();
     const resultName = String((receipt as { result_name?: unknown; resultName?: unknown })?.result_name ?? (receipt as { resultName?: unknown })?.resultName ?? '').toUpperCase();
-    const isAgreedResult = resultName === '' || resultName === 'AGREE' || resultName === 'MAJORITY_AGREE';
-    if (!isAgreedResult) {
-      // NOTE: an earlier version of this message blamed a "known GenVM
-      // web-fetch timing issue" for verify_seller_bond_listing
-      // disagreements specifically. That diagnosis was wrong and has
-      // since been corrected: the actual cause was this
-      // app's own contract code not unwrapping GenVM's leader_result via
-      // isinstance(..., gl.vm.Return) + .calldata, which has been fixed
-      // (contracts/recallraid_contract.py's _unwrap_leader_result) and
-      // confirmed live — the full suite now passes 67/67 including this
-      // exact method. A disagreement here is no longer expected/"known"
-      // behavior for any write, so the copy below stays generic and
-      // doesn't pin blame on the platform.
+    const isSuccessfulFinalizedExecution = statusName === 'FINALIZED'
+      && executionResult === 'FINISHED_WITH_RETURN'
+      && (resultName === 'AGREE' || resultName === 'MAJORITY_AGREE');
+    if (!isSuccessfulFinalizedExecution) {
       const isListingVerification = method === 'verify_seller_bond_listing';
       emit({
         status: 'failed',
         txHash,
-        message: isListingVerification
-          ? "The network's validators couldn't reach consensus on this listing verification (result: " +
-            resultName +
-            "). No changes were made — this is safe to retry."
-          : "The network's validators could not reach consensus on this action (result: " +
-            resultName +
-            "). No changes were made — this is safe to retry.",
+        message: statusName !== 'FINALIZED' || executionResult !== 'FINISHED_WITH_RETURN'
+          ? `The GenVM transaction did not finalize successfully (status: ${statusName || 'unknown'}, execution: ${executionResult || 'unknown'}). No changes were confirmed.`
+          : isListingVerification
+            ? "The network's validators couldn't reach consensus on this listing verification (result: " + resultName + "). No changes were made — this is safe to retry."
+            : "The network's validators could not reach consensus on this action (result: " + resultName + "). No changes were made — this is safe to retry.",
       });
-      throw new Error(`Transaction did not reach agreement (result: ${resultName})`);
+      throw new Error(`Transaction was not a successful finalized GenVM execution (status: ${statusName}, execution: ${executionResult}, consensus: ${resultName})`);
     }
 
     emit({ status: 'confirmed', txHash, message: 'Confirmed.' });

@@ -37,6 +37,16 @@ attested relay design, not a trustless bridge.
   and is recorded under the individual challenger address. API validation
   checks the successful Base receipt, `fundChallenge` calldata, case id,
   challenger, and amount against GenLayer state before signing settlement.
+  GenLayer permits one challenge per investigation. If another wallet makes a
+  direct Base challenge deposit, that unmatched deposit cannot occupy the
+  GenLayer challenge record and is recoverable by its depositor after terminal
+  settlement. A finalized GenLayer challenge with absent or mismatched Base
+  funding cannot alter the Base payout verdict or claim a stake: settlement
+  falls back to the challenge's snapshotted `prior_verdict`, signs no challenge
+  id, and leaves any Base deposit recoverable by its owner after finalization.
+  If the Base transaction or receipt is temporarily unavailable, both relay
+  and signer fail closed and retry rather than treating uncertainty as an
+  invalid challenge.
 - Seller-bond slashing is capped by remaining bond and bounty. Linked bonds
   cannot be withdrawn while their cases remain open.
 - Claims use checks-effects-interactions and a reentrancy guard. USDC claims
@@ -54,6 +64,9 @@ attested relay design, not a trustless bridge.
 - GenLayer stores no USDC and has no user-value transfer path.
 - The same wallet cannot register the same Base case id more than once.
 - Settlement uses the retained last challenge id after resolution or expiry.
+- Only one challenge can be opened for an investigation. Resolution must occur
+  before its 48-hour deadline; after that, anyone can expire the challenge and
+  the original verdict stands. Both paths retain the closed challenge id.
 - Verdict agreement requires the same verdict bucket; confidence has a
   separate 15 percentage-point tolerance.
 - Validators fetch evidence URLs and compare SHA-256 of fetched raw bytes to
@@ -97,11 +110,26 @@ It documents Base Sepolia funding, registration, EIP-712 settlement, and USDC
 claims for refund, recall/bond-slash, and overturned-challenge branches. The
 attestations used test inputs, including a synthetic GenLayer reference; they
 validate Base accounting and signature binding, not the authenticity of a
-GenLayer verdict. The revised GenLayer contract was separately deployed to
-StudioNet and its accepted deployment/schema were verified, but those Base
-branch transactions did not consume that deployment's consensus result.
+GenLayer verdict. An earlier revised GenLayer contract was separately deployed
+to StudioNet and its accepted deployment/schema were checked, but the current
+source adds explicit one-challenge state and enforcement after that deployment
+and the Base branch transactions did not consume that deployment's consensus
+result.
 
 Local API tests, Foundry tests, compilation, and web builds are useful checks,
 not substitutes for independent contract review, key management review,
 production deployment validation, or a complete wallet-driven cross-chain
 exercise.
+
+The live Fly API inspected on 2026-10-17 still points at the historical
+adjudicator and escrow addresses. The corrected Base escrow candidate has not
+yet passed deployed-bytecode comparison, and the hosted frontend deployment
+was not identified from this workspace. Treat the hosted application as
+unremediated until both services are configured and checked against the same
+reviewed commit and contract pair.
+
+Current local source also contains an independent challenge-backing check in
+both the relay path and decision signer. The test suite covers the deterministic
+rule that only a Base-backed challenge changes verdict/stake allocation; a
+live cross-chain challenge has not been executed against the current StudioNet
+and Base pair, so this local rule is not represented as deployed validation.

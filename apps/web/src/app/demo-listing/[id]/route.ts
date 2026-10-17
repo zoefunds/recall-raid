@@ -5,16 +5,9 @@ import { NextRequest, NextResponse } from 'next/server';
  * `verify_seller_bond_listing` — for a seller without a live marketplace
  * listing to embed the verification code into yet (or for testing).
  *
- * This used to be an apps/api (Fly) route. Moved here deliberately:
- * Fly's `recallraid-api` app runs a single region (`iad`), and GenVM's
- * validator set is geographically distributed — confirmed live that
- * `verify_seller_bond_listing` against the Fly-hosted version kept
- * landing on MAJORITY_DISAGREE even with the leader and at least one
- * validator both fetching it successfully and agreeing, meaning some
- * OTHER validators simply couldn't reach it reliably. Vercel's edge
- * network serves this from a point of presence near wherever the request
- * actually originates, which should be far more consistently reachable
- * for a globally-distributed validator set than one single-region origin.
+ * Served by the web application so GenVM can fetch an HTML test listing.
+ * This demo proves control of the RecallRaid route only, not ownership of a
+ * real marketplace listing; the rendered page labels that limitation.
  *
  * Deliberately NOT served via the Cloudinary evidence-upload pipeline
  * either: Cloudinary forces `Content-Disposition: attachment` on every
@@ -22,12 +15,8 @@ import { NextRequest, NextResponse } from 'next/server';
  * GenVM's browser-based `gl.nondet.web.render` treat it as a file
  * download rather than a page to render.
  *
- * Deliberately does NOT look up the bond (chain RPC or cache) to find its
- * code — the code is passed straight through as a query parameter (the
- * seller already has it, it's returned from `create_seller_bond` and
- * shown in the dashboard), so this route does zero I/O. `code` is
- * HTML-escaped before being embedded, so this stays safe even though it
- * echoes caller input.
+ * The verification code is supplied as a query parameter and HTML-escaped
+ * before rendering. The route does not read chain state.
  */
 function escapeHtml(value: string): string {
   return value

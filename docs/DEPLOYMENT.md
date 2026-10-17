@@ -1,11 +1,10 @@
 # Deployment and configuration
 
-This repository currently documents a StudioNet / Base Sepolia testnet setup.
-The addresses below distinguish the previously recorded milestone contracts
-from the 2026-10-17 remediation validation contracts. Confirm the target
-network, deployed bytecode, owner, relayer, decision signer, token, and frontend
-configuration before using any address. The validation escrow is test-only
-and must not be presented as a production deployment.
+This repository documents the RecallRaid testnet deployment on StudioNet and
+Base Sepolia. The contracts are test deployments, not production contracts.
+The 2026-10-17 remediation deployment is the pair used by the hosted test
+frontend and API. Confirm source, network, authority addresses, and current
+host configuration before relying on it.
 
 ## Networks and recorded deployments
 
@@ -18,20 +17,35 @@ here is StudioNet (`61999`), served through `https://studio.genlayer.com/api`.
 | Prior milestone escrow (historical) | Base Sepolia | `0x5D6426aA81583Fd795385952CB6d82A1Ed5a15F4` | `0xb60871d4e652d66cef7a3e66431a8ff1819ce24d662603369d3467681d731aa4` |
 | Prior milestone adjudicator (historical) | StudioNet | `0xa4e1D02aBaed368461870D1453d709d51183A119` | `0x0a9929c10a80cf39d590ff108a09da6d7bf0ec7cb6e9cda5f9c0341971f50e51` |
 | Remediation validation escrow (test only) | Base Sepolia | `0xea0973CbFf42F1B41A339103f133d3D43a24A54b` | `0xe8e2814512e4e49ec623551ee42358c797b467c531b30f21dfcb1b2bc975ec67` |
-| Revised adjudicator | StudioNet | `0x6d11FC5f7492407c287215CF8F8134025D6dEADE` | `0x5876729d37b8b13c9f4cec55bcb054ac218b34c88a86af473705ff24f3c1866f`; `ACCEPTED`, `MAJORITY_AGREE`, schema retrieved |
+| Corrected escrow | Base Sepolia | `0x861d5D4E903805cbE283A86f08E10D031601774E` | `0xf50fe9f4af945ab79208eaf3895347ea1d0b85b7fb4f641bfa0be7f499d460c7`; source verified 2026-10-17 |
+| Corrected adjudicator | StudioNet | `0xa239189c2921b592dBa1eccde830977edbfD1CB5` | `0x2bb98b6e3897235a7ae96790b565e5fa38c269e493a209a2595485e42474ecb0`; receipt `ACCEPTED`, consensus `MAJORITY_AGREE`, schema verified |
 
-The live Base branch checks and limitations are recorded in
+The live Base accounting branch checks and limitations are recorded in
 [`e2e-evidence/live-base-security-branches.json`](e2e-evidence/live-base-security-branches.json).
 Their EIP-712 authorizations used synthetic test outcomes and a synthetic
 GenLayer reference. The Base transactions did not consume the revised
-adjudicator's consensus result. No completed browser-originated cross-chain
-flow is claimed here.
+adjudicator's consensus result. They are accounting and signature-binding
+checks, not end-to-end adjudication evidence.
 
-The repository's API Fly app name is `recallraid-usdc-api`. Its source
-configuration does not prove that the hosted service is currently deployed or
-healthy. Check the hosting dashboard and health endpoint before using the
-service. Likewise, confirm the Vercel project/domain and deployed frontend
-before publishing endpoint values.
+The Base escrow verifier compiled the checked-out Solidity with solc
+`0.8.37+commit.f401782d`, optimizer runs `200`, and `viaIR: true`. It verified
+the deployed runtime bytecode (masking compiler-reported immutable slots) and
+reported source hash
+`0x90e7562eeb84dcd0738b61d3dba8ff406761e8d4f8581caf2b3800909aac0fc6` and
+runtime hash
+`0xa7919e068cf4d9a0172ad8d8b888ff3770f3c45da94c6b195cb2009e5c20b370`.
+The verified owner and relayer are `0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb`,
+the distinct decision signer is `0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C`,
+and USDC is `0x036CbD53842c5426634e7929541eC2318f3dCF7e`.
+
+On 2026-10-17 the hosted Fly API was updated to this pair and returned
+`{"status":"ok","db":"ok"}` from `/health`. The Vercel production app
+`recall-raid.vercel.app` was linked to this workspace, given the matching
+public contract and StudioNet RPC settings, and redeployed successfully. Its
+production alias returned HTTP 200. These live checks establish address
+configuration and reachability; they do not establish a completed
+browser-originated cross-chain settlement. The old milestone addresses above
+are historical and are not the hosted configuration.
 
 ## Environment variables
 
@@ -64,12 +78,29 @@ genlayer deploy --contract contracts/recallraid_contract.py
 genlayer schema <DEPLOYED_GENLAYER_ADDRESS>
 ```
 
-Base deployment also needs a Base Sepolia RPC URL and can use the configured
-USDC address. Inspect deploy output and verify the deployment receipt and
-constructor addresses in the explorer before configuring either application.
-GenLayer deploy/schema commands require the GenLayer CLI and configured
-StudioNet access. Do not copy old addresses over a new deployment without
-verifying contract version and constructor values.
+The deploy script checks the RPC reports Base Sepolia chain id `84532` and
+validates nonzero constructor addresses before broadcasting. Inspect the
+deployment receipt and constructor arguments in an explorer before
+configuring either application. The source verifier compiles the checked-out
+Solidity with the same optimizer and IR settings, compares deployed runtime
+bytecode while masking compiler-reported immutable slots, and checks the
+network, USDC, relayer, and decision-signer addresses. Set expected public
+addresses explicitly or derive them locally from the API's configured keys.
+Node's env-file support loads the ignored API settings without printing key
+material:
+
+```bash
+node --env-file=apps/api/.env contracts/base/verify.mjs
+```
+
+`DEPLOYER_ADDRESS=0x...` may also be supplied to compare the on-chain owner.
+This verifies the deployed Base bytecode and configured authorities; it does
+not establish GenLayer consensus or prove that a particular GenLayer receipt
+was consumed by Base. For StudioNet, compare `genlayer code` with the local
+Python source where supported, inspect the accepted deployment receipt, query
+`get_protocol_info`, and retrieve the schema. The corrected deployment's
+protocol info reports a 604800-second challenge period and 172800-second
+challenge resolution period.
 
 ## API deployment
 
@@ -100,11 +131,15 @@ wallet and verify Base network switching, approval/funding receipts, GenLayer
 writes, chain-to-cache synchronization, and claims. Build success alone does
 not prove a working remote integration.
 
-## Local remediation configuration
+## Current limitations
 
-During the 2026-10-17 checks, ignored local files were configured to use the
-revised StudioNet adjudicator, the test-only Base escrow, and a dedicated test
-decision signer. Their public contract addresses and Base evidence are in the
-JSON validation record. Private key material remains in ignored local API
-configuration and is not part of this repository. Production hosting settings
-were not changed by those local checks.
+The live Base accounting records use synthetic adjudication outcomes and do
+not prove the decision-signing service accepted an actual successful GenLayer
+consensus transaction and executed the resulting settlement on Base. A full
+browser-originated flow covering funding, authenticated registration,
+evidence, validator adjudication, a bonded overturned challenge, final
+settlement, and wallet withdrawals remains unverified. The seven-day orphan
+recovery delay is covered by local time-warp tests; no live seven-day wait was
+performed. Do not describe these remaining scenarios as completed evidence.
+Private key material stays in ignored local configuration and hosting secret
+stores; never add it to this repository.

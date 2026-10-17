@@ -69,9 +69,16 @@ rather than releasing funds.
 The Base challenge stake is exactly 20% of the bounty (minimum one USDC base
 unit for very small bounties). Challenge deposits are stored per case and
 challenger wallet so multiple deposits cannot be confused or consumed as one
-shared balance. GenLayer tracks a challenge id and final outcome. The API
+shared balance. Each investigation can open one GenLayer challenge. GenLayer
+retains that challenge id and final outcome for settlement. The API
 validates the originating Base `fundChallenge` receipt, case, challenger, and
-exact amount before authorizing settlement.
+exact amount before authorizing settlement. Both the relay and independent
+decision signer apply the same rule: a verified Base-funded challenge may
+affect the final payout and stake recipient; a confirmed mismatch is treated
+as unbacked, so the Base payout uses the challenge's snapshotted prior verdict
+and does not consume a challenge stake. Any unmatched Base deposit remains
+recoverable by its depositor after the case finalizes. Missing RPC transaction
+or receipt data is treated as uncertainty and stops settlement for retry.
 
 At terminal settlement, `NO_ISSUE` refunds the bounty to the submitter;
 `POTENTIAL_ISSUE` and `RECALL_CONFIRMED` pay the hunter. The hunter is the first

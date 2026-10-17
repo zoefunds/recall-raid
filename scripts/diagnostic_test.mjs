@@ -5,8 +5,7 @@
 // consensus_data.result_name plus every node's receipt) suitable for
 // pasting into a GenLayer support report.
 //
-// Usage: CONTRACT_ADDRESS=0x... node scripts/diagnostic_test.mjs
-// (defaults to the address below if the env var isn't set)
+// Usage: CONTRACT_ADDRESS=0x... PRIVATE_KEY=0x... node scripts/diagnostic_test.mjs
 
 import { createClient, createAccount } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
@@ -14,7 +13,8 @@ import { studionet } from "genlayer-js/chains";
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "PASTE_DEPLOYED_DIAGNOSTIC_CONTRACT_ADDRESS_HERE";
 const RPC_URL = process.env.GENLAYER_RPC_URL || "https://studio.genlayer.com/api";
 // Any funded StudioNet test wallet works — this contract moves no value.
-const PRIVATE_KEY = process.env.PRIVATE_KEY || "[REDACTED COMPROMISED KEY]";
+// Never check a wallet key into source control, even for a test-only contract.
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
 function decodeLeaderResult(leaderReceipt) {
   const payload = leaderReceipt?.result?.payload;
@@ -50,7 +50,11 @@ function summarizeNode(n) {
 
 async function main() {
   if (CONTRACT_ADDRESS.startsWith("PASTE_")) {
-    console.error("Set CONTRACT_ADDRESS to the deployed diagnostic contract's address (env var or edit this file).");
+    console.error("Set CONTRACT_ADDRESS to the deployed diagnostic contract's address in the environment.");
+    process.exit(1);
+  }
+  if (!PRIVATE_KEY) {
+    console.error("Set PRIVATE_KEY to a funded StudioNet test wallet via the environment; no key is bundled in this script.");
     process.exit(1);
   }
   const account = createAccount(PRIVATE_KEY);

@@ -5,5 +5,5 @@
   "reported_hazard": "Adult users, children, pets, and objects can be pulled underneath the rear roller",
   "official_reference": "U.S. CPSC Recall 21-129",
   "official_url": "https://www.cpsc.gov/Recalls/2021/Peloton-Recalls-Tread-Plus-Treadmills-Due-to-Risk-of-Injury-and-Death",
-  "test_scope": "A real cross-chain adjudication test using Base Sepolia USDC and GenLayer StudioNet."
+  "test_scope": "Historical testnet evidence fixture for Base Sepolia and GenLayer StudioNet. Product and recall metadata are supplied as adjudication input; this fixture file alone does not establish a live transaction or verdict."
 }

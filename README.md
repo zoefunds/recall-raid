@@ -1,49 +1,97 @@
 # RecallRaid
 
-RecallRaid is a cross-chain marketplace-safety bounty protocol. USDC staking,
-payments, seller bonds, challenge stakes, escrow, slashing, and claims execute
-on Base Sepolia. GenLayer performs only evidence verification and adjudication;
-the backend relays each final decision to Base Sepolia for settlement.
+RecallRaid is a product-safety investigation and bounty application. Product
+records, evidence submissions, verdicts, and challenges live on GenLayer
+StudioNet. USDC bounties, challenge stakes, seller bonds, settlement accounting,
+and claims live in a Base Sepolia escrow. The API mirrors chain state in
+PostgreSQL, authenticates wallet sessions, issues signed evidence-upload
+parameters, and coordinates explicitly attested cross-chain operations.
 
-## Current milestone deployment
+This repository contains a working testnet implementation. The live Base
+security-branch evidence is contract-level validation using synthetic
+GenLayer outcomes; it is not proof of a browser-originated end-to-end flow or a
+production deployment. See [the validation record](docs/e2e-evidence/live-base-security-branches.json)
+and [deployment notes](docs/DEPLOYMENT.md) for the precise scope and addresses.
 
-| Component | Network / URL | Identifier |
-|---|---|---|
-| USDC | Base Sepolia | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
-| RecallRaidEscrow | Base Sepolia | `0x5D6426aA81583Fd795385952CB6d82A1Ed5a15F4` |
-| RecallRaid adjudicator | GenLayer StudioNet | `0xa4e1D02aBaed368461870D1453d709d51183A119` |
-| API | Fly.io | `https://recallraid-usdc-api.fly.dev` |
-| Frontend | Vercel | `https://recall-raid.vercel.app` |
+## Repository map
 
-The deployer/relayer address is `0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb`.
-Private keys and service credentials are never committed.
+- `apps/web/` — Next.js 14 application: investigation submission and detail,
+  Active Hunts, seller bond management, wallet balances/claims, leaderboard.
+- `apps/api/` — Fastify API: wallet nonce/session auth, PostgreSQL cache and
+  migrations, signed Cloudinary uploads, chain sync, transaction status,
+  notifications, statistics, and settlement/recovery coordination.
+- `contracts/recallraid_contract.py` — GenLayer investigation, evidence,
+  verdict, challenge, timeout, and reputation logic.
+- `contracts/base/RecallRaidEscrow.sol` — Base Sepolia USDC escrow, seller
+  bonds, EIP-712 authorization checks, settlement, and pull claims.
+- `packages/shared/` — shared TypeScript types and protocol constants.
+- `docs/` — architecture, deployment, security, and on-chain evidence.
 
-## Architecture
+## Trust and money flow
 
-1. A wallet approves Base Sepolia USDC and funds a uniquely identified case in
-   `RecallRaidEscrow`.
-2. The same wallet records the case and evidence on GenLayer. GenLayer fetches
-   evidence bytes, verifies hashes, and reaches a validator-backed verdict.
-3. Challenges are funded in USDC on Base Sepolia before GenLayer adjudication.
-4. The backend hashes the final adjudication data and calls
-   `relayAdjudication` on Base Sepolia exactly once.
-5. Recipients claim USDC directly from the Base Sepolia escrow.
+1. A submitter approves USDC and funds a random `bytes32` case id in Base escrow.
+2. The same wallet submits the matching case and bounty metadata on GenLayer.
+   Evidence files are uploaded directly to Cloudinary using API-signed upload
+   parameters; evidence references and SHA-256 hashes are recorded on GenLayer.
+3. A GenLayer leader and validators fetch evidence URLs and adjudicate. The
+   API syncs chain state into PostgreSQL, then checks that the Base depositor,
+   amount, case id, GenLayer contract, and investigation id match before
+   recording the cross-chain registration.
+4. The GenLayer challenge window runs for seven days. A challenge requires an
+   exact 20% of-bounty USDC stake, funded by the challenger on Base. GenLayer
+   resolves or expires the challenge; the Base escrow keeps deposits keyed by
+   each challenger's wallet.
+5. The API reads terminal GenLayer state, validates the Base funding and
+   registration records, and obtains a distinct decision-signer EIP-712
+   authorization. The relayer submits the signed instruction to Base. Base
+   checks its exact case, GenLayer reference, outcome, challenge and decision
+   hash before crediting claimable balances.
+6. Recipients call `claim()` to withdraw USDC from Base escrow.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[docs/SECURITY.md](docs/SECURITY.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md),
-and [milestone.md](milestone.md).
+The EIP-712 signer is a privileged attestation authority. This is not a
+cryptographic proof of GenLayer consensus on Base. Keep signer and relayer keys
+separate, restrict both to testnet while testing, and see [Security](docs/SECURITY.md).
 
-## Verification
+## Local development
+
+Requirements: Node.js with npm, Python 3, PostgreSQL for API use, and Foundry
+for Solidity tests. GenLayer CLI / GenVM tools are needed to lint, deploy, and
+interact with the contract. Copy `.env.example` into the appropriate ignored
+local environment files; use fresh test credentials. Public `NEXT_PUBLIC_*`
+values go in `apps/web/.env.local`; server secrets go only in `apps/api/.env`.
+Do not commit either file.
 
 ```bash
 npm install
-npm run build:api
-npm run build:web
-npm run test:api
-npm run compile:base
-PYTHONPYCACHEPREFIX=/tmp/recallraid-pycache python3 -m py_compile contracts/recallraid_contract.py
+npm run migrate
+npm run dev:api
+npm run dev:web
 ```
 
-Three real Base Sepolia runs cover a no-issue refund, a recall-confirmed bounty
-with seller-bond slash, and an overturned funded challenge. Their funding,
-relay, and claim transactions are displayed under `/hunts` in the Active Hunts feed.
+The API listens on port `8080` by default and the web app on port `3000`.
+Configure a local PostgreSQL URL and deployed testnet contract addresses before
+using chain-dependent features.
+
+## Checks
+
+```bash
+npm run test:api
+npm run build:api
+npm run build:web
+npm run compile:base
+npm run test:base
+npm run compile:contract
+npm run lint:contract
+```
+
+`npm run test:base` requires Foundry. GenLayer lint requires `genvm-lint`.
+Network transactions and a browser wallet flow are separate manual checks;
+passing local tests does not establish live chain consensus or user flow.
+
+## Documentation
+
+- [Architecture and data flow](docs/ARCHITECTURE.md)
+- [Security model and controls](docs/SECURITY.md)
+- [Deployment and environment configuration](docs/DEPLOYMENT.md)
+- [Live Base security evidence and limitations](docs/e2e-evidence/live-base-security-branches.json)
+- [Historical Base Sepolia milestone summary](milestone.md)

@@ -5,5 +5,5 @@
   "reported_hazard": "Infant fatality risk when used without restraints or after the child can roll over",
   "official_reference": "U.S. CPSC Recall 19-105",
   "official_url": "https://www.cpsc.gov/Recalls/2019/Fisher-Price-Recalls-Rock-n-Play-Sleepers-Due-to-Reports-of-Deaths",
-  "test_scope": "A real cross-chain adjudication test using Base Sepolia USDC and GenLayer StudioNet."
+  "test_scope": "Historical testnet evidence fixture for Base Sepolia and GenLayer StudioNet. Product and recall metadata are supplied as adjudication input; this fixture file alone does not establish a live transaction or verdict."
 }

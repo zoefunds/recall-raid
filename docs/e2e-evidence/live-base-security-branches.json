@@ -1,0 +1,88 @@
+{
+  "schema": "recallraid-live-base-security-branches/v1",
+  "createdAt": "2026-10-17",
+  "network": "Base Sepolia",
+  "chainId": 84532,
+  "scope": "Live Base Sepolia contract and USDC branch checks with EIP-712 decision-signer attestations. GenLayer contract references and outcomes were supplied as explicit test inputs; no GenLayer transaction, consensus result, or browser-originated cross-chain flow was performed.",
+  "escrow": "0xea0973CbFf42F1B41A339103f133d3D43a24A54b",
+  "escrowDeploymentTx": "0xe8e2814512e4e49ec623551ee42358c797b467c531b30f21dfcb1b2bc975ec67",
+  "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  "relayer": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+  "testGenLayerReference": "0x0000000000000000000000000000000000008001",
+  "branches": {
+    "noIssueRefund": {
+      "caseId": "0x5544df36a3939f8ae0a2006a1a81ad987b34aae403ff660673620eb5b7aed4d0",
+      "bountyUsdcBaseUnits": "100000",
+      "fundTx": "0x8f1568127071896d766a0e43f971782638e7e9e42b39eef0f253911af13f937d",
+      "registrationTx": "0xf172da8d92e578d4dd01c02394558eab2bff8fcebd46dd30ae120341954cbb68",
+      "settlementTx": "0xccecb19235d513d4819401de5255b76bb5d46999775d08f2553a98267fcc44a5",
+      "claimTx": "0x80561fe3e68213f52d9d744a15d5f443f99bef872e3ae3e3e36b58aa7af3cc4e",
+      "payerBalanceAtBlockBeforeFund": "3450000",
+      "payerBalanceAtClaimBlock": "3450000",
+      "usdcTransferToPayer": "100000",
+      "balanceRestored": true
+    },
+    "recallConfirmedSellerBondSlash": {
+      "caseId": "0x1b52de5214374323d68e0b0ec450ed2ce3318a489aeed042c4265b5414fbdbd4",
+      "bountyUsdcBaseUnits": "100000",
+      "bondId": "0x42b451ff8fc573bbbae30a52f2cbfafec81368ec13af34db1408e30d665eaf35",
+      "bondFundedUsdcBaseUnits": "50000",
+      "fundTx": "0xf5ee95ddfdf9d88660764eb377b561ad141a6f95d6a7a77f1963f2e1a9847fc9",
+      "registrationTx": "0x822e9e0cdb69e532d7ac6183a2ca434dfe081a00466aee24ff539dcaebd65fa3",
+      "bondFundTx": "0x4942d8fd77af55cb49af4d9e1b78439f498c487e4b44015d80c084cffb9fdd49",
+      "bondLinkTx": "0xecb7ed46688765081b87aab7f72e6fe802a23d9b179a95692d084e6dc2bae07c",
+      "settlementAndSlashTx": "0x8837dc7f3a94ea191eb211ece4526c5118ef1fd33562ccc908adec926c4a2796",
+      "hunterClaimTx": "0x524ed126e60830bf4a72e111cc6a06fc64c448838b720d856b1fb873f6a0ac83",
+      "sellerBondTotalSlashed": "50000",
+      "usdcTransferToHunter": "150000",
+      "hunterFinalUsdcBalance": "250000"
+    },
+    "overturnedChallengeWithAttackerFirst": {
+      "caseId": "0x93aba7804708aa21bfdd696aebc860681905016855e7afa2a988e250e9c477ed",
+      "bountyUsdcBaseUnits": "100000",
+      "genLayerChallengeIdTestInput": 19,
+      "attacker": "0x4f424C744E5161bD269974B9Ab79ECcE7291e237",
+      "challenger": "0xC125D4bBaA567148D1F2d6727A188C817deF2266",
+      "hunter": "0xb1b947D6beD34B96f80D0bba18522933a92F2D02",
+      "requiredStakeUsdcBaseUnits": "20000",
+      "attackerFundTx": "0x4457d0e6b2e455f9c2ebeb34b0eb94f865a25ab005a4e25914c00e573629bef9",
+      "challengerFundTx": "0x5ffc1485020c3d62eab4e9bd2f5ded1799937e48295d7e64f6f9c68c9503a059",
+      "settlementTx": "0x874c86997754a4c90922ce93cbc1cc8baee82266a4e81c629416e4abd45fc6cb",
+      "hunterClaimTx": "0xaab2df7ad95f7e3c64dda80debccb3f93211b65d7e92bea223004dd7688d408a",
+      "challengerClaimTx": "0x17feaad2b7b53c34789321cd3238b2c596e828936638bdffd028ec692644539c",
+      "attackerRecoveryTx": "0xa848f4c92dc9a94ae05f3785f6db2bf060e0342db1156fbc60feb2266b3b15d3",
+      "attackerClaimTx": "0xca1b0f72f19a0ccb88672e48a79eed6f17dfcfb3fff1dcd2906b0850ea90d886",
+      "usdcTransferToHunter": "100000",
+      "usdcTransferToChallenger": "20000",
+      "usdcTransferToAttacker": "20000",
+      "remainingAttackerStake": "0",
+      "remainingChallengerStake": "0",
+      "hunterFinalUsdcBalance": "250000",
+      "attackerFinalUsdcBalance": "30000",
+      "challengerFinalUsdcBalance": "30000"
+    }
+  },
+  "limitations": [
+    "The EIP-712 signer attested to test outcomes and a synthetic GenLayer reference. The runs validate Base escrow accounting and signature binding, not GenLayer consensus authenticity.",
+    "The seven-day orphan-recovery delay is covered by Foundry time-warp tests; no seven-day live wait was performed.",
+    "The revised GenLayer contract was deployed separately and its accepted receipt and schema were verified, but its consensus result was not used in the Base branch transactions.",
+    "No complete browser-originated cross-chain transaction flow was completed during this validation.",
+    "The test decision-signer key is stored only in the ignored local apps/api/.env file; the test escrow is not configured in production."
+  ],
+  "explorer": "https://sepolia.basescan.org/address/0xea0973CbFf42F1B41A339103f133d3D43a24A54b",
+  "genLayerDeployment": {
+    "network": "StudioNet",
+    "contractAddress": "0x6d11FC5f7492407c287215CF8F8134025D6dEADE",
+    "deploymentTx": "0x5876729d37b8b13c9f4cec55bcb054ac218b34c88a86af473705ff24f3c1866f",
+    "receiptStatus": "ACCEPTED",
+    "consensusResult": "MAJORITY_AGREE",
+    "schemaVerified": true
+  },
+  "localTestConfiguration": {
+    "genLayerContractAddress": "0x6d11FC5f7492407c287215CF8F8134025D6dEADE",
+    "baseEscrowAddress": "0xea0973CbFf42F1B41A339103f133d3D43a24A54b",
+    "decisionSignerAddress": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C",
+    "decisionSignerRotationTx": "0xe7f8a7c2572951c7a82ce2c075df63d4e1509e41dbfffaa88350bb7098d2496d",
+    "secretsStoredInIgnoredLocalApiEnv": true
+  }
+}

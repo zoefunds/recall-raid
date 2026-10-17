@@ -304,6 +304,17 @@
       "contractAddress": null,
       "sourceParityResolved": false,
       "hostedCutoverPerformed": false,
+      "localSdkValidation": {
+        "checkedAt": "2026-10-17T11:37:58Z",
+        "command": "npm run lint:contract",
+        "runnerBundle": "v0.3.0-rc7",
+        "passed": true,
+        "methods": 32,
+        "viewMethods": 13,
+        "writeMethods": 19,
+        "constructorParams": 0,
+        "warning": "A newer py-genlayer runner is available; deployment must preserve the source's pinned dependency."
+      },
       "explorerCheck": {
         "checkedAt": "2026-10-17T11:31:38Z",
         "account": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",

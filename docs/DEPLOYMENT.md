@@ -270,8 +270,13 @@ address. Do not treat source parity as resolved, and do not change Fly/Vercel
 from `EDFF...` until the successor deployment is accepted, its source/schema/
 protocol info are verified, and cases registered on `EDFF...` have been
 settled or otherwise safely reconciled. `genvm-lint` static lint passed, but
-SDK validation could not load the pinned archive (`py-genlayer/...tar`
-missing), so full local schema validation also remains pending.
+SDK validation passes when pinned to the cached compatible `v0.3.0-rc7` runner
+bundle with `GENVM_VERSION=v0.3.0-rc7`; it reports 32 methods (13 views and 19
+writes) and zero constructor parameters. The default linter selection picks
+`v0.6.0-rc7`, which lacks the contract's pinned runner archive, so keep the
+explicit version override in the validation command. `npm run lint:contract`
+now selects `v0.3.0-rc7` by default while respecting an explicit
+`GENVM_VERSION` override.
 The public StudioNet explorer account page for the deployment wallet was
 checked at 11:31Z; it shows the existing EDFF calls as the newest project
 transactions and no successor deployment transaction.

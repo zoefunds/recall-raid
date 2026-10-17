@@ -68,9 +68,23 @@
   "settlement": {
     "baseRelaySent": false,
     "reason": "The challenge was upheld and the seven-day challenge window restarted. The corrected relay correctly refused because the GenLayer case is not terminal.",
+    "hostedApiRelayResponseStatus": 400,
+    "hostedApiRelayResponse": "GenLayer adjudication is not terminal",
     "claimTransactions": [],
     "walletWithdrawalsVerified": false,
     "settlementReadyAfter": "2026-10-24T08:08:09Z"
+  },
+  "hostedApiCheck": {
+    "api": "https://recallraid-usdc-api.fly.dev",
+    "deployedCommit": "4f998ad4c91454ea384aee47e7b620447fffbf5e",
+    "health": "ok",
+    "database": "ok",
+    "migration": "20261017000001_terminal_genvm_tx.sql applied",
+    "authenticatedSyncOfResolveReceipt": true,
+    "cachePreservedFinalVerdict": "RECALL_CONFIRMED",
+    "cachePreservedLastChallengeId": 1,
+    "cachePreservedChallengeUsed": true,
+    "prematureRelayRefused": true
   },
   "result": {
     "realBaseFundingAndRegistration": true,
@@ -83,7 +97,7 @@
   "notes": [
     "The first registration attempt using the GenLayer CLI parser treated a 0x-prefixed case ID as an integer and finalized with GenVM execution error; it did not alter contract state. The subsequent SDK submission preserved the case ID string and finalized successfully.",
     "The first inaccurate fixture case finalized as NEEDS_MORE_EVIDENCE and was not challenged.",
-    "The API receipt-normalization fix was exercised locally against real finalized StudioNet receipts. The hosted API still needs deployment of that code before the hosted relay can be considered validated.",
+    "The API receipt-normalization fix was deployed to Fly and exercised against the real finalized challenge-resolution receipt using wallet authentication and the production cache.",
     "No challenge outcome was synthesized. The validator network upheld the real challenge, so the successful-challenger payout and wallet withdrawal path remain unverified against this corrected pair."
   ]
 }

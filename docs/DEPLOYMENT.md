@@ -57,6 +57,16 @@ configuration and reachability; they do not establish a completed
 browser-originated cross-chain settlement. The old milestone addresses above
 are historical and are not the hosted configuration.
 
+After the CLI run below exposed an SDK receipt-shape mismatch, API commit
+`4f998ad4c91454ea384aee47e7b620447fffbf5e` was deployed to Fly on 2026-10-17
+and migration `20261017000001_terminal_genvm_tx.sql` was applied. An
+authenticated production sync consumed the real finalized `resolve_challenge`
+receipt and retained the verdict, last challenge id, and challenge-used state
+in the investigation cache. The hosted relay returned HTTP 400
+`GenLayer adjudication is not terminal` for this nonterminal case. This
+validates receipt parsing and early-relay rejection in the deployed API; it
+does not validate a successful settlement.
+
 ## Environment variables
 
 Use `.env.example` as a name/type guide and keep local files ignored. Public

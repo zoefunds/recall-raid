@@ -134,9 +134,14 @@ challenge opening, and actual finalized challenge resolution. StudioNet
 upheld the original verdict, so the successful-overturn branch, final Base
 relay, and withdrawals remain unverified. The details and transaction hashes
 are in [`e2e-evidence/studionet-base-cli-e2e.json`](e2e-evidence/studionet-base-cli-e2e.json).
-The updated API receipt normalization was validated locally against these real
-receipts; the hosted Fly image still needs that source deployed before its
-receipt gate is validated in production.
+The API receipt normalization fix was deployed to Fly in commit
+`4f998ad4c91454ea384aee47e7b620447fffbf5e`. An authenticated production sync
+consumed the real finalized challenge-resolution receipt and preserved the
+final verdict and challenge record in the cache. The hosted relay refused the
+case with HTTP 400 because adjudication was not terminal. This validates
+production receipt parsing and early-relay rejection, not successful
+settlement; challenge overturn, Base payout, and wallet withdrawal remain
+unverified.
 
 The current source also contains an independent challenge-backing check in
 both the relay path and decision signer. The test suite covers the deterministic

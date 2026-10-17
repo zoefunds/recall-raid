@@ -56,6 +56,8 @@ candidate API CORS allowlist is set to this exact preview origin. Neither
 production service nor its database was changed. See
 [`e2e-evidence/hardened-challenge-rollout-check.json`](e2e-evidence/hardened-challenge-rollout-check.json).
 
+### Hardened successor live challenge
+
 The successor-pair CLI exercise has begun and is being resumed from its exact
 on-chain state. Base case
 `0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987` was
@@ -68,6 +70,33 @@ registration transaction; resume this case using the checkpoint in
 after StudioNet read access returns. No challenge stake has been deposited on
 this case. Settlement and withdrawals are not claimed and remain deferred to
 the recorded seven-day deadline.
+
+The runner now has an explicit `RECALLRAID_HARDENED_SUCCESSOR_RESUME=1` mode.
+It refuses to start unless the successor address, case id, finalized submit
+transaction, Base funding transaction, investigation id `1`, report path, and
+checkpoint all match the recorded case. It carries earlier checkpoint data
+forward when a later read is rate-limited. Resume from the repository root
+after RPC access returns with:
+
+```sh
+RECALLRAID_HARDENED_SUCCESSOR_RESUME=1 \
+GENLAYER_CONTRACT_ADDRESS=0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA \
+RECALLRAID_API_BASE_URL=https://recallraid-candidate-api.fly.dev \
+RECALLRAID_E2E_ORIGIN=https://recall-raid-nhv1p5dax-adebiyi2002gmailcoms-projects.vercel.app \
+RECALLRAID_E2E_REPORT=docs/e2e-evidence/hardened-successor-live-challenge.json \
+RECALLRAID_E2E_CASE_ID=0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987 \
+RECALLRAID_E2E_INVESTIGATION_ID=1 \
+RECALLRAID_E2E_SUBMIT_TX=0x5c7081620580dcac4f430a8a1f6d519ab9072a219b767007f685296ec9c8e1a5 \
+RECALLRAID_E2E_BASE_FUNDING_TX=0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf \
+RECALLRAID_GENLAYER_READ_WAIT_MS=3600000 \
+node --env-file=apps/api/.env scripts/studionet_base_challenge_e2e.mjs
+```
+
+The challenge deposit, evidence, challenge opening, adjudication, and any later
+settlement are each verified and checkpointed independently. Stop and preserve
+the checkpoint if the wallet, case registration, receipt, or finalized
+GenLayer execution does not match; never run this successor command with the
+production EDFF contract or the generic fresh-case defaults.
 
 The live Base accounting branch checks and limitations are recorded in
 [`e2e-evidence/live-base-security-branches.json`](e2e-evidence/live-base-security-branches.json).

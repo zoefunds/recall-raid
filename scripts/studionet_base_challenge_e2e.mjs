@@ -112,8 +112,27 @@ async function glWrite(client, method, args) {
 }
 
 async function glRead(client, method, args) {
-  const raw = await client.readContract({ address: genlayerAddress, functionName: method, args });
-  return typeof raw === "string" ? JSON.parse(raw) : raw;
+  const startedAt = Date.now();
+  const maxWaitMs = Number(process.env.RECALLRAID_GENLAYER_READ_WAIT_MS || 60 * 60 * 1000);
+  let backoffMs = 10_000;
+  for (;;) {
+    try {
+      const raw = await client.readContract({ address: genlayerAddress, functionName: method, args });
+      return typeof raw === "string" ? JSON.parse(raw) : raw;
+    } catch (error) {
+      const message = String(error?.details ?? error?.message ?? error);
+      if (!message.includes("Rate limit exceeded: 500 requests per hour")) throw error;
+      const elapsedMs = Date.now() - startedAt;
+      if (elapsedMs >= maxWaitMs) {
+        throw new Error(`StudioNet read quota did not recover within ${Math.round(maxWaitMs / 1000)} seconds (${method})`);
+      }
+      const advisedSeconds = Number(error?.cause?.data?.retry_after_seconds ?? 0);
+      const waitMs = Math.min(60_000, Math.max(backoffMs, advisedSeconds * 1000));
+      console.error(`GenLayer ${method} read is rate-limited; retrying in ${Math.ceil(waitMs / 1000)}s (waited ${Math.ceil(elapsedMs / 1000)}s)`);
+      await new Promise((resolveWait) => setTimeout(resolveWait, waitMs));
+      backoffMs = Math.min(backoffMs * 2, 60_000);
+    }
+  }
 }
 
 async function baseConfirmed(transactionPromise) {

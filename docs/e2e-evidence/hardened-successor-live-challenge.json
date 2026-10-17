@@ -1,7 +1,7 @@
 {
   "schema": "recallraid-studionet-base-challenge-e2e/v1",
-  "startedAt": "2026-10-17T12:52:40.244Z",
-  "updatedAt": "2026-10-17T12:52:43.097Z",
+  "startedAt": "2026-10-17T13:05:06.747Z",
+  "updatedAt": "2026-10-17T13:05:24.492Z",
   "networks": {
     "genlayer": "StudioNet/61999",
     "base": "Base Sepolia/84532"
@@ -22,7 +22,7 @@
     "baseFundingTx": "0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf"
   },
   "progress": {
-    "stage": "authenticated-registration-synced-awaiting-evidence",
+    "stage": "authenticated-registration-synced",
     "complete": false
   },
   "base": {
@@ -37,7 +37,9 @@
   "genlayer": {
     "submit": {
       "txHash": "0x5c7081620580dcac4f430a8a1f6d519ab9072a219b767007f685296ec9c8e1a5",
-      "result": {"investigation_id": 1},
+      "result": {
+        "investigation_id": 1
+      },
       "status": "FINALIZED",
       "consensus": "MAJORITY_AGREE",
       "execution": "FINISHED_WITH_RETURN"
@@ -52,33 +54,9 @@
       "status": "ok",
       "db": "ok"
     },
-    "authenticatedRegistrationSync": true,
-    "baseRegistration": {
-      "registered": true,
-      "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
-      "investigationId": 1
-    }
+    "registrationPreviouslyRecorded": true,
+    "registrationAlreadyRecordedOnBase": true
   },
   "adjudication": {},
-  "settlement": {
-    "relaySent": false,
-    "withdrawalsVerified": false,
-    "reason": "Settlement is intentionally deferred until the seven-day challenge period expires; no payout has been attempted."
-  },
-  "pauseReason": "A StudioNet read returned the 500-requests/hour limit after the finalized registration and API synchronization. Evidence submission, adjudication, and the bonded challenge have not yet run; resume this exact case without duplicate Base funding or GenLayer registration.",
-  "latestReadOnlyVerification": {
-    "checkedAt": "2026-10-17T13:02:47Z",
-    "genlayerSubmitReceipt": "FINALIZED",
-    "genlayerSubmitConsensus": "MAJORITY_AGREE",
-    "baseCase": {
-      "registered": true,
-      "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
-      "investigationId": 1,
-      "bountyBaseUnits": "100000",
-      "finalized": false,
-      "challengeDepositBaseUnits": "0"
-    },
-    "candidateApi": {"httpStatus": 200, "api": "ok", "database": "ok"},
-    "studioNetContractCalls": "still rejected at 500 requests/hour; no additional contract write was sent"
-  }
+  "settlement": {}
 }

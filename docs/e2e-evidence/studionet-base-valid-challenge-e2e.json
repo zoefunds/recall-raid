@@ -426,7 +426,7 @@
     "writesSent": false
   },
   "studioNetSourceParityCheck": {
-    "checkedAt": "2026-10-17T11:47:02Z",
+    "checkedAt": "2026-10-17T11:47:41Z",
     "contract": "0xEDFFB4B4999D65A248441438233c18717515973d",
     "sourceRetrievedWith": "genlayer code --rpc https://studio.genlayer.com/api",
     "normalizedSourceSha256": "d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5",
@@ -434,5 +434,38 @@
     "semanticDifference": "Deployed URL validation checks only the regulator hostname; checkout also requires HTTPS and rejects URL credentials.",
     "successorDeploymentAccepted": false,
     "hostedCutoverPerformed": false
+  },
+  "latestActiveCaseRead": {
+    "checkedAt": "2026-10-17T11:51:00Z",
+    "method": "Read-only genlayer-js get_investigation/get_challenge and Base Sepolia getCase",
+    "investigationId": 3,
+    "caseId": "0x010e6a1d581e35182fc4385350d449c2c34e068d36bc63fa8deb8bd5c483a51c",
+    "genlayerStatus": 3,
+    "verdict": 2,
+    "settled": false,
+    "openChallengeId": 0,
+    "lastChallengeId": 3,
+    "challengeDeadlineUnix": 1792837904,
+    "challengeDeadlineUtc": "2026-10-24T10:31:44.000Z",
+    "challenge": {
+      "id": 3,
+      "status": 3,
+      "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+      "priorVerdict": 1,
+      "newVerdict": 2,
+      "stakeWei": "20000",
+      "stakeDepositedWei": "20000"
+    },
+    "base": {
+      "registered": true,
+      "finalized": false,
+      "submitter": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+      "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+      "bountyUsdcBaseUnits": "100000",
+      "challengeStakeUsdcBaseUnits": "20000",
+      "genlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+      "investigationId": 3
+    },
+    "writesSent": false
   }
 }

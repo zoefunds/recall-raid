@@ -325,6 +325,13 @@ USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e`, relayer
 `0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb`, and decision signer
 `0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C`.
 
+At 11:51Z, direct read-only StudioNet/Base Sepolia reads confirmed case 3 is
+still unsettled on both chains, with finalized overturned challenge 3,
+20,000-unit challenger stake, 100,000-unit bounty, and the same
+`2026-10-24T10:31:44Z` deadline. The Base case remains registered to EDFF
+investigation 3 and preserves the submitter and challenger addresses. No write
+was sent; the exact state is captured in the E2E evidence JSON.
+
 To finish the recorded case after its deadline, run the settlement runner from
 the repository root with the API key material in ignored `apps/api/.env` and
 the separate challenger key file already used by the challenge test:

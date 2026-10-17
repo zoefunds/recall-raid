@@ -78,6 +78,17 @@ investigation from the superseded `A239...` deployment remains in the current
 feed, while one deleted legacy Base registration remains on-chain as documented
 in the cleanup record.
 
+The production cache was rechecked read-only on 2026-10-17 at 11:07Z. Fly
+reported API and database health as `ok`, and the running machine's configured
+GenLayer contract was `0xEDFFB4B4999D65A248441438233c18717515973d`. The live hunts
+endpoint returned only investigations 1–3. A direct PostgreSQL inventory found
+zero unmatched investigation, evidence, challenge, pending evidence upload,
+investigation notification, related transaction-log, or seller-bond rows.
+This confirms that the cache contains no prior-contract hunts or dependent
+records. The three current-contract rows remain because their Base escrow or
+challenge states are unsettled. The refreshed counts and method are recorded
+in [`e2e-evidence/legacy-cache-cleanup.json`](e2e-evidence/legacy-cache-cleanup.json).
+
 At 2026-10-17 10:48Z, the Fly API was rolled to image
 `recallraid-usdc-api:deployment-01M54QJ6JVBCQVTT8NYVQN3C26`, built from API
 source commit `3c77c28`. Both version-14 machines passed health checks.

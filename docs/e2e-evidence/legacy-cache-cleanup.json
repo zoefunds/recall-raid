@@ -62,6 +62,25 @@
     "currentEvidenceIds": [1, 2],
     "currentOpenChallengeId": 1
   },
+  "liveReverification": {
+    "checkedAt": "2026-10-17T11:07:19Z",
+    "method": "Read-only Fly machine config and production PostgreSQL queries; public API GET /health and GET /investigations?limit=100",
+    "apiHealth": "ok",
+    "databaseHealth": "ok",
+    "configuredGenlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+    "productionInvestigationIds": [1, 2, 3],
+    "productionInvestigationCount": 3,
+    "previousContractOrUnmatchedRows": {
+      "investigations": 0,
+      "evidence": 0,
+      "challenges": 0,
+      "pendingEvidenceUploads": 0,
+      "relatedTransactionLogs": 0,
+      "investigationNotifications": 0,
+      "sellerBonds": 0
+    },
+    "result": "No cached hunts or dependent cache records from a previous contract were present. The three rows in the active feed are read from the configured EDFF deployment; they are not deleted because their current-contract Base escrow/challenge records are unsettled."
+  },
   "limitations": [
     "The cache schema did not store the source GenLayer contract address, so stale investigations were identified by pre-EDFF creation records and cross-checked against Base escrow registrations. The active investigation was protected by exact case ID and state guards.",
     "Deleting cache rows does not delete or settle any on-chain Base or GenLayer state.",

@@ -225,6 +225,25 @@ live seven-day orphan-recovery wait was performed. Keep these remaining
 scenarios documented as pending until their transactions and wallet balances
 are independently verified.
 
+On 2026-10-17 at 11:09Z, direct read-only StudioNet and Base Sepolia RPC checks
+reconfirmed that investigation 3 remains `POTENTIAL_ISSUE`, its finalized
+challenge 3 is `OVERTURNED`, and the registered Base case is unsettled with the
+matching submitter, challenger, bounty, and stake. Neither wallet has a
+claimable balance yet. No settlement or withdrawal transaction was sent. The
+seven-day window expires at `2026-10-24T10:31:44Z`; the evidence record includes
+the exact state read from both chains.
+
+At 11:12Z the deployment checks were refreshed: the Base Sepolia verifier
+again matched checked-out Solidity source to the deployed runtime bytecode and
+confirmed the USDC, relayer, and decision-signer addresses. The production
+`/submit` page returned HTTP 200; all 16 JavaScript assets loaded and contained
+the current GenLayer contract, Base escrow, and Fly API configuration, with no
+legacy A239 address. The StudioNet source was retrieved again and still differs
+from checkout only in the authoritative-URL validator (deployed accepts any
+scheme; checkout requires HTTPS and rejects credentials). The live E2E uses
+HTTPS, but exact StudioNet source parity remains an outstanding deployment
+item. API tests (46), Foundry tests (9), and API/web production builds pass.
+
 To finish the recorded case after its deadline, run the settlement runner from
 the repository root with the API key material in ignored `apps/api/.env` and
 the separate challenger key file already used by the challenge test:

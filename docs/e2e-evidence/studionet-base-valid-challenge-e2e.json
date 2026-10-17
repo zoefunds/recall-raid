@@ -212,11 +212,88 @@
     "readyAfterUnix": 1792837904,
     "reason": "The seven-day post-resolution challenge window has not elapsed; settlement and claims are deliberately deferred.",
     "readyAfterUtc": "2026-10-24T10:31:44.000Z",
+    "liveConsistencyCheck": {
+      "verifiedAt": "2026-10-17T11:09:28Z",
+      "method": "Read-only direct StudioNet and Base Sepolia RPC calls",
+      "genlayer": {
+        "contract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+        "investigationId": 3,
+        "caseId": "0x010e6a1d581e35182fc4385350d449c2c34e068d36bc63fa8deb8bd5c483a51c",
+        "verdict": "POTENTIAL_ISSUE",
+        "settled": false,
+        "openChallengeId": 0,
+        "lastChallengeId": 3,
+        "challengeStatus": "OVERTURNED",
+        "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+        "challengeBaseFundingTx": "0xc7303454014b9327a45c849ab5c5fec54c8b72f85c9c9037e0824699157e6336"
+      },
+      "base": {
+        "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+        "registered": true,
+        "finalized": false,
+        "verdict": "UNSETTLED",
+        "genlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+        "genlayerInvestigationId": 3,
+        "submitter": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+        "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+        "bountyBaseUnits": "100000",
+        "challengeStakeBaseUnits": "20000",
+        "challengerDepositBaseUnits": "20000",
+        "submitterClaimableBaseUnits": "0",
+        "challengerClaimableBaseUnits": "0"
+      },
+      "result": "The live pair still matches the recorded case and successful overturned challenge. No settlement or withdrawal transaction has been sent."
+    },
     "runner": {
       "path": "scripts/settle_studionet_base_e2e.mjs",
       "preDeadlineCheckVerifiedAt": "2026-10-17T10:57:47.854Z",
       "preDeadlineBehavior": "exits before any GenLayer RPC call or write",
       "deadline": "2026-10-24T10:31:44.000Z"
     }
+  },
+  "liveDeploymentReverification": {
+    "checkedAt": "2026-10-17T11:12:30Z",
+    "baseSepolia": {
+      "verified": true,
+      "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+      "runtimeBytecodeHash": "0xa7919e068cf4d9a0172ad8d8b888ff3770f3c45da94c6b195cb2009e5c20b370",
+      "checkedOutSourceHash": "0x90e7562eeb84dcd0738b61d3dba8ff406761e8d4f8581caf2b3800909aac0fc6",
+      "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "relayer": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+      "decisionSigner": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C",
+      "compiler": "0.8.37+commit.f401782d.Emscripten.clang",
+      "optimizerRuns": 200,
+      "viaIR": true
+    },
+    "studioNet": {
+      "configuredContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+      "normalizedDeployedSourceSha256": "d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5",
+      "checkedOutSourceSha256": "8a238ee1a135e58deab92aaed93ffd2659c544b78d5e3a2a60ec403290e2b652",
+      "sourceParity": false,
+      "semanticDifference": "The deployed authoritative-recall URL check validates the hostname but does not require HTTPS or reject URL credentials; the checkout enforces both. The live evidence uses HTTPS."
+    },
+    "hostedApi": {
+      "health": 200,
+      "database": "ok",
+      "configuredGenlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+      "activeInvestigations": [1, 2, 3]
+    },
+    "hostedFrontend": {
+      "url": "https://recall-raid.vercel.app/submit",
+      "httpStatus": 200,
+      "scriptAssets": 16,
+      "loadedScriptAssets": 16,
+      "genlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+      "baseEscrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+      "flyApiUrlPresent": true,
+      "legacyA239AddressPresent": false
+    },
+    "localVerification": {
+      "apiTests": "46 passed",
+      "baseTests": "9 passed",
+      "apiBuild": "passed",
+      "webBuild": "passed"
+    },
+    "settlementWasAttempted": false
   }
 }

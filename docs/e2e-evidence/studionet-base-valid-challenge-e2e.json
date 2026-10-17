@@ -211,6 +211,12 @@
     "withdrawalsVerified": false,
     "readyAfterUnix": 1792837904,
     "reason": "The seven-day post-resolution challenge window has not elapsed; settlement and claims are deliberately deferred.",
-    "readyAfterUtc": "2026-10-24T10:31:44.000Z"
+    "readyAfterUtc": "2026-10-24T10:31:44.000Z",
+    "runner": {
+      "path": "scripts/settle_studionet_base_e2e.mjs",
+      "preDeadlineCheckVerifiedAt": "2026-10-17T10:57:47.854Z",
+      "preDeadlineBehavior": "exits before any GenLayer RPC call or write",
+      "deadline": "2026-10-24T10:31:44.000Z"
+    }
   }
 }

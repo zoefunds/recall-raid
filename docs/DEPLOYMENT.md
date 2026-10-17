@@ -213,5 +213,23 @@ The seven-day orphan-recovery delay is covered by local time-warp tests; no
 live seven-day orphan-recovery wait was performed. Keep these remaining
 scenarios documented as pending until their transactions and wallet balances
 are independently verified.
+
+To finish the recorded case after its deadline, run the settlement runner from
+the repository root with the API key material in ignored `apps/api/.env` and
+the separate challenger key file already used by the challenge test:
+
+```bash
+RECALLRAID_API_BASE_URL=https://recallraid-usdc-api.fly.dev \
+RECALLRAID_E2E_ORIGIN=https://recall-raid.vercel.app \
+node --env-file=apps/api/.env scripts/settle_studionet_base_e2e.mjs
+```
+
+The runner first checks the report's recorded deadline without making an RPC
+write, then re-reads GenLayer state, requires successful finalized settlement,
+syncs its transaction through authenticated Fly API, invokes the deployed
+decision signer, verifies the Base `AdjudicationRelayed` event and case
+binding, and claims USDC from the hunter and challenger wallets. It records
+each completed stage in the live evidence JSON so an interrupted withdrawal
+can be resumed and checked without claiming the same balance twice.
 Private key material stays in ignored local configuration and hosting secret
 stores; never add it to this repository.

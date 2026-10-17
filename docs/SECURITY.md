@@ -110,26 +110,25 @@ It documents Base Sepolia funding, registration, EIP-712 settlement, and USDC
 claims for refund, recall/bond-slash, and overturned-challenge branches. The
 attestations used test inputs, including a synthetic GenLayer reference; they
 validate Base accounting and signature binding, not the authenticity of a
-GenLayer verdict. An earlier revised GenLayer contract was separately deployed
-to StudioNet and its accepted deployment/schema were checked, but the current
-source adds explicit one-challenge state and enforcement after that deployment
-and the Base branch transactions did not consume that deployment's consensus
-result.
+GenLayer verdict. The corrected GenLayer source was subsequently deployed to
+StudioNet with an accepted consensus receipt, and its schema and protocol
+windows were queried. The Base branch transactions still did not consume that
+deployment's consensus result.
 
 Local API tests, Foundry tests, compilation, and web builds are useful checks,
 not substitutes for independent contract review, key management review,
 production deployment validation, or a complete wallet-driven cross-chain
 exercise.
 
-The live Fly API inspected on 2026-10-17 still points at the historical
-adjudicator and escrow addresses. The corrected Base escrow candidate has not
-yet passed deployed-bytecode comparison, and the hosted frontend deployment
-was not identified from this workspace. Treat the hosted application as
-unremediated until both services are configured and checked against the same
-reviewed commit and contract pair.
+On 2026-10-17 the Fly API and Vercel production frontend were configured to the
+corrected contract pair. The Base escrow passed deployed-bytecode comparison,
+and both hosted services returned healthy/reachable responses. These checks
+confirm deployment configuration and reachability; they do not establish a
+browser-originated funding-to-settlement transaction using an actual finalized
+GenLayer decision.
 
-Current local source also contains an independent challenge-backing check in
+The current source also contains an independent challenge-backing check in
 both the relay path and decision signer. The test suite covers the deterministic
 rule that only a Base-backed challenge changes verdict/stake allocation; a
 live cross-chain challenge has not been executed against the current StudioNet
-and Base pair, so this local rule is not represented as deployed validation.
+and Base pair, so this rule is not represented as end-to-end deployed validation.

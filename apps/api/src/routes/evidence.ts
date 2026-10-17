@@ -5,6 +5,8 @@ import { generateSignedUpload, UploadValidationError } from "../lib/cloudinary.j
 import { syncInvestigation } from "../lib/sync.js";
 import { requireAuth } from "../plugins/auth-plugin.js";
 import { badRequest } from "../lib/http-errors.js";
+import { chain } from "../lib/genlayer.js";
+import { assertEvidenceUploadAuthorized } from "../lib/evidence-upload-authorization.js";
 import { serializeEvidence, type EvidenceRow } from "../lib/serialize.js";
 
 const UploadUrlSchema = z.object({
@@ -12,6 +14,7 @@ const UploadUrlSchema = z.object({
   contentType: z.string(),
   declaredSizeBytes: z.coerce.number().int().positive(),
   fileName: z.string().optional(),
+  purpose: z.enum(["evidence", "challenge_rebuttal"]).default("evidence"),
 });
 
 const SyncSchema = z.object({ txHash: z.string().optional() });
@@ -48,6 +51,22 @@ export async function evidenceRoutes(app: FastifyInstance) {
       const session = requireAuth(req);
       const parsed = UploadUrlSchema.safeParse(req.body);
       if (!parsed.success) throw badRequest(parsed.error.message);
+
+      // The upload URL is an authorization boundary: do not mint one from
+      // cache state or for an arbitrary authenticated wallet. Bind a normal
+      // evidence upload to the recorded submitter, and a challenge rebuttal
+      // to the recorded challenger of the currently open on-chain challenge.
+      const investigation = await chain.getInvestigation(parsed.data.investigationId);
+      if (!investigation) throw badRequest("investigation does not exist on GenLayer");
+      const challenge = parsed.data.purpose === "challenge_rebuttal" && investigation.open_challenge_id > 0
+        ? await chain.getChallenge(investigation.open_challenge_id)
+        : undefined;
+      assertEvidenceUploadAuthorized({
+        walletAddress: session.walletAddress,
+        purpose: parsed.data.purpose,
+        investigation,
+        challenge,
+      });
 
       try {
         const upload = generateSignedUpload(parsed.data);

@@ -39,9 +39,12 @@ allow recovery while a matching GenLayer investigation exists.
 
 ## Evidence and adjudication
 
-The API creates a short-lived, signed Cloudinary upload request; the browser
-uploads bytes directly, then submits the resulting URL and client-computed
-SHA-256 digest to GenLayer. Each investigation supports up to 25 evidence items.
+The API creates a short-lived, signed Cloudinary upload request only after
+checking current GenLayer state: ordinary evidence uploads are allowed only
+while evidence collection is open, and challenge rebuttal uploads only for the
+recorded challenger while that challenge remains open. The browser uploads bytes
+directly, then submits the resulting URL and client-computed SHA-256 digest to
+GenLayer. Each investigation supports up to 25 evidence items.
 The contract's validator pass fetches the URL and compares SHA-256 of fetched
 raw bytes to the committed digest. Reachability and hash-match are on-chain
 verification results; a text excerpt is best-effort context. A present

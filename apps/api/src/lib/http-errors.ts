@@ -20,3 +20,7 @@ export function badRequest(message: string): ApiError {
 export function unauthorized(message = "authentication_required"): ApiError {
   return new ApiError(401, "unauthorized", message);
 }
+
+export function forbidden(message: string): ApiError {
+  return new ApiError(403, "forbidden", message);
+}

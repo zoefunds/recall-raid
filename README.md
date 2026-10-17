@@ -9,8 +9,9 @@ parameters, and coordinates explicitly attested cross-chain operations.
 
 This repository contains a working testnet implementation. The live Base
 security-branch evidence is contract-level validation using synthetic
-GenLayer outcomes; it is not proof of a browser-originated end-to-end flow or a
-production deployment. See [the validation record](docs/e2e-evidence/live-base-security-branches.json)
+GenLayer outcomes. A separate CLI test used the earlier adjudicator and upheld
+a challenge; the latest adjudicator still needs a full end-to-end overturned
+settlement and withdrawal before that branch can be considered verified. See [the validation record](docs/e2e-evidence/live-base-security-branches.json)
 and [deployment notes](docs/DEPLOYMENT.md) for the precise scope and addresses.
 
 ## Repository map

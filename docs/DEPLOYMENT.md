@@ -2,9 +2,10 @@
 
 This repository documents the RecallRaid testnet deployment on StudioNet and
 Base Sepolia. The contracts are test deployments, not production contracts.
-The 2026-10-17 remediation deployment is the pair used by the hosted test
-frontend and API. Confirm source, network, authority addresses, and current
-host configuration before relying on it.
+The Base escrow deployment is verified below. Several StudioNet adjudicator
+deployments exist; the latest accepted deployment is not yet the hosted pair.
+Always verify runtime configuration and deployed source before treating the
+local, hosted, and on-chain configurations as one deployment.
 
 ## Networks and recorded deployments
 
@@ -18,7 +19,8 @@ here is StudioNet (`61999`), served through `https://studio.genlayer.com/api`.
 | Prior milestone adjudicator (historical) | StudioNet | `0xa4e1D02aBaed368461870D1453d709d51183A119` | `0x0a9929c10a80cf39d590ff108a09da6d7bf0ec7cb6e9cda5f9c0341971f50e51` |
 | Remediation validation escrow (test only) | Base Sepolia | `0xea0973CbFf42F1B41A339103f133d3D43a24A54b` | `0xe8e2814512e4e49ec623551ee42358c797b467c531b30f21dfcb1b2bc975ec67` |
 | Corrected escrow | Base Sepolia | `0x861d5D4E903805cbE283A86f08E10D031601774E` | `0xf50fe9f4af945ab79208eaf3895347ea1d0b85b7fb4f641bfa0be7f499d460c7`; source verified 2026-10-17 |
-| Corrected adjudicator | StudioNet | `0xa239189c2921b592dBa1eccde830977edbfD1CB5` | `0x2bb98b6e3897235a7ae96790b565e5fa38c269e493a209a2595485e42474ecb0`; receipt `ACCEPTED`, consensus `MAJORITY_AGREE`, schema verified |
+| Earlier corrected adjudicator | StudioNet | `0xa239189c2921b592dBa1eccde830977edbfD1CB5` | `0x2bb98b6e3897235a7ae96790b565e5fa38c269e493a209a2595485e42474ecb0`; accepted; superseded by next row |
+| Latest source with challenge rebuttal controls | StudioNet | `0xEDFFB4B4999D65A248441438233c18717515973d` | `0xe457b81502a2a9f66ab4f620f7d0ad738e27cac3f07ff23696ff61fef52ab350`; accepted; `get_protocol_info` reports 604800s challenge / 172800s resolution |
 
 The live Base accounting branch checks and limitations are recorded in
 [`e2e-evidence/live-base-security-branches.json`](e2e-evidence/live-base-security-branches.json).
@@ -27,15 +29,11 @@ GenLayer reference. The Base transactions did not consume the revised
 adjudicator's consensus result. They are accounting and signature-binding
 checks, not end-to-end adjudication evidence.
 
-A CLI-driven cross-chain run against the corrected contract pair is recorded
-in [`e2e-evidence/studionet-base-cli-e2e.json`](e2e-evidence/studionet-base-cli-e2e.json).
-It verified real Base USDC funding, successful finalized GenLayer registration,
-another wallet's evidence submission and validator-confirmed fetch/hash, a
-finalized `RECALL_CONFIRMED` decision, and a separately funded challenge whose
-actual finalized resolution upheld that verdict. It did not produce a
-successful overturn. The case remains inside its seven-day post-challenge
-window until 2026-10-24 08:08:09 UTC, so no Base settlement or wallet
-withdrawal was attempted. The relay correctly refused an early settlement.
+The CLI-driven cross-chain record in
+[`e2e-evidence/studionet-base-cli-e2e.json`](e2e-evidence/studionet-base-cli-e2e.json)
+used the earlier accepted adjudicator and demonstrates an upheld challenge,
+not a successful overturn. A separate run against the latest adjudicator is
+in progress; it is not evidence of completion until its report is recorded.
 
 The Base escrow verifier compiled the checked-out Solidity with solc
 `0.8.37+commit.f401782d`, optimizer runs `200`, and `viaIR: true`. It verified
@@ -48,14 +46,12 @@ The verified owner and relayer are `0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb`,
 the distinct decision signer is `0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C`,
 and USDC is `0x036CbD53842c5426634e7929541eC2318f3dCF7e`.
 
-On 2026-10-17 the hosted Fly API was updated to this pair and returned
-`{"status":"ok","db":"ok"}` from `/health`. The Vercel production app
-`recall-raid.vercel.app` was linked to this workspace, given the matching
-public contract and StudioNet RPC settings, and redeployed successfully. Its
-production alias returned HTTP 200. These live checks establish address
-configuration and reachability; they do not establish a completed
-browser-originated cross-chain settlement. The old milestone addresses above
-are historical and are not the hosted configuration.
+On 2026-10-17 the Fly API and Vercel app were configured with the `a239...`
+adjudicator. The latest `EDFF...` deployment was applied to local ignored
+configuration for testing, but the hosted API/frontend have not been verified
+against that latest pair. The production health/HTTP checks are historical
+reachability evidence only and do not establish current configuration or a
+completed browser-originated cross-chain settlement.
 
 After the CLI run below exposed an SDK receipt-shape mismatch, API commit
 `4f998ad4c91454ea384aee47e7b620447fffbf5e` was deployed to Fly on 2026-10-17

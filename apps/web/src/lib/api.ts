@@ -86,6 +86,7 @@ export function requestEvidenceUploadUrl(payload: {
   contentType: string;
   declaredSizeBytes: number;
   fileName?: string;
+  purpose?: 'evidence' | 'challenge_rebuttal';
 }): Promise<UploadUrlResponse> {
   return apiFetch('/evidence/upload-url', { method: 'POST', body: JSON.stringify(payload) });
 }

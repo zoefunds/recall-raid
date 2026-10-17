@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchChallengesForInvestigation, fetchEvidenceForInvestigation, fetchInvestigation, relayInvestigation, syncChallenge, syncInvestigation } from '@/lib/api';
+import { fetchChallengesForInvestigation, fetchEvidenceForInvestigation, fetchInvestigation, relayInvestigation, requestEvidenceUploadUrl, syncChallenge, syncEvidenceForInvestigation, syncInvestigation } from '@/lib/api';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { Card, CardBody } from '@/components/ui/Card';
 import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip, VerdictChip } from '@/components/ui/StatusChip';
@@ -18,6 +18,7 @@ import { useConnectedAddress } from '@/components/ConnectWalletButton';
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { fundChallenge } from '@/lib/base-sepolia';
+import { sha256Hex } from '@/lib/hash';
 
 export default function InvestigationDetailPage() {
   const params = useParams<{ id: string }>();
@@ -46,6 +47,8 @@ export default function InvestigationDetailPage() {
   const { isConnected } = useConnectedAddress();
   const { ensureSession } = useWalletSession();
   const [challengeReason, setChallengeReason] = useState('');
+  const [challengeEvidenceFile, setChallengeEvidenceFile] = useState<File | null>(null);
+  const [challengeEvidenceError, setChallengeEvidenceError] = useState<string | null>(null);
 
   if (invQuery.isLoading) {
     return (
@@ -134,6 +137,54 @@ export default function InvestigationDetailPage() {
     if (res) await refreshChallengeAfterTx(openChallenge.id, res.txHash);
   }
 
+  async function handleAddChallengeEvidence() {
+    if (!openChallenge || !challengeEvidenceFile || !address || !connector) return;
+    setChallengeEvidenceError(null);
+    try {
+      if (address.toLowerCase() !== openChallenge.challenger.toLowerCase()) {
+        throw new Error('Only the wallet that opened this challenge can add rebuttal evidence.');
+      }
+      await ensureSession();
+      const file = challengeEvidenceFile;
+      const { upload_url, fields } = await requestEvidenceUploadUrl({
+        investigationId: inv.id,
+        contentType: file.type,
+        declaredSizeBytes: file.size,
+        fileName: file.name,
+        purpose: 'challenge_rebuttal',
+      });
+      const body = new FormData();
+      body.append('file', file);
+      for (const [key, value] of Object.entries(fields)) body.append(key, value);
+      const uploadResponse = await fetch(upload_url, { method: 'POST', body });
+      if (!uploadResponse.ok) throw new Error('Challenge evidence upload failed.');
+      const uploaded = (await uploadResponse.json()) as { secure_url?: string; error?: { message?: string } };
+      if (!uploaded.secure_url) throw new Error(uploaded.error?.message || 'Challenge evidence upload failed.');
+
+      const evidenceResult = await write.send('add_evidence', [
+        inv.id,
+        'challenge_rebuttal',
+        await sha256Hex(file),
+        uploaded.secure_url,
+        `Challenge rebuttal: ${file.name}`,
+      ]);
+      if (!evidenceResult) return;
+      const result = evidenceResult.result as { evidence_id?: unknown } | string | null;
+      const decoded = typeof result === 'string' ? JSON.parse(result) as { evidence_id?: unknown } : result;
+      const evidenceId = Number(decoded?.evidence_id);
+      if (!Number.isInteger(evidenceId) || evidenceId <= 0) {
+        throw new Error('Evidence was submitted, but its on-chain id could not be read. Refresh and verify it before resolving.');
+      }
+      const verification = await write.send('verify_evidence', [evidenceId]);
+      if (!verification) return;
+      await syncEvidenceForInvestigation(inv.id, verification.txHash);
+      await refreshChallengeAfterTx(openChallenge.id, verification.txHash);
+      setChallengeEvidenceFile(null);
+    } catch (error) {
+      setChallengeEvidenceError(error instanceof Error ? error.message : 'Could not submit challenge evidence.');
+    }
+  }
+
   async function handleClaimChallengeTimeout() {
     if (!openChallenge) return;
     await ensureSession();
@@ -167,6 +218,7 @@ export default function InvestigationDetailPage() {
         <BountyPanel
           inv={inv}
           isConnected={isConnected}
+          connectedAddress={address}
           canRequestVerdict={canRequestVerdict}
           canOpenChallenge={canOpenChallenge}
           canSettle={canSettle}
@@ -179,6 +231,10 @@ export default function InvestigationDetailPage() {
           onOpenChallenge={handleOpenChallenge}
           onSettle={handleSettle}
           onResolveChallenge={handleResolveChallenge}
+          challengeEvidenceFile={challengeEvidenceFile}
+          setChallengeEvidenceFile={setChallengeEvidenceFile}
+          challengeEvidenceError={challengeEvidenceError}
+          onAddChallengeEvidence={handleAddChallengeEvidence}
           onClaimChallengeTimeout={handleClaimChallengeTimeout}
           txStatus={write.status}
         />
@@ -364,6 +420,7 @@ function Timeline({ inv }: { inv: Awaited<ReturnType<typeof fetchInvestigation>>
 function BountyPanel({
   inv,
   isConnected,
+  connectedAddress,
   canRequestVerdict,
   canOpenChallenge,
   canSettle,
@@ -376,11 +433,16 @@ function BountyPanel({
   onOpenChallenge,
   onSettle,
   onResolveChallenge,
+  challengeEvidenceFile,
+  setChallengeEvidenceFile,
+  challengeEvidenceError,
+  onAddChallengeEvidence,
   onClaimChallengeTimeout,
   txStatus,
 }: {
   inv: Awaited<ReturnType<typeof fetchInvestigation>>;
   isConnected: boolean;
+  connectedAddress?: string;
   canRequestVerdict: boolean;
   canOpenChallenge: boolean;
   canSettle: boolean;
@@ -393,6 +455,10 @@ function BountyPanel({
   onOpenChallenge: () => void;
   onSettle: () => void;
   onResolveChallenge: () => void;
+  challengeEvidenceFile: File | null;
+  setChallengeEvidenceFile: (file: File | null) => void;
+  challengeEvidenceError: string | null;
+  onAddChallengeEvidence: () => void;
   onClaimChallengeTimeout: () => void;
   txStatus: string;
 }) {
@@ -455,9 +521,27 @@ function BountyPanel({
           <div className="space-y-2 rounded border border-secondary/30 bg-secondary/5 p-3">
             <div className="font-mono text-label-caps uppercase text-secondary">Open Challenge</div>
             <p className="text-body-sm text-muted">
-              Challenged by {truncateAddress(openChallenge.challenger)}. Resolution re-runs the same
-              independent adjudication against current evidence — anyone can trigger it.
+              Challenged by {truncateAddress(openChallenge.challenger)}. Only that wallet can add regulator rebuttal evidence;
+              every evidence item must pass independent URL and hash verification before resolution. Anyone can trigger resolution.
             </p>
+            {!canClaimChallengeTimeout && isConnected && connectedAddress?.toLowerCase() === openChallenge.challenger.toLowerCase() && (
+              <div className="space-y-2 rounded border border-border-subtle bg-bg-deep p-3">
+                <label className="block font-mono text-label-caps uppercase text-muted" htmlFor="challenge-evidence">
+                  Add official regulator rebuttal evidence
+                </label>
+                <input
+                  id="challenge-evidence"
+                  type="file"
+                  accept="image/*,.pdf,.txt"
+                  onChange={(event) => setChallengeEvidenceFile(event.target.files?.[0] ?? null)}
+                  className="w-full text-body-sm text-on-surface"
+                />
+                <Button variant="ghost" className="w-full" onClick={onAddChallengeEvidence} loading={busy} disabled={!challengeEvidenceFile}>
+                  Upload and verify evidence
+                </Button>
+                {challengeEvidenceError && <p role="alert" className="text-body-sm text-danger">{challengeEvidenceError}</p>}
+              </div>
+            )}
             {canClaimChallengeTimeout ? (
               <Button variant="tactical" className="w-full" onClick={onClaimChallengeTimeout} loading={busy}>
                 Claim Timeout (resolution window expired)

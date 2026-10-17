@@ -120,14 +120,15 @@ not substitutes for independent contract review, key management review,
 production deployment validation, or a complete wallet-driven cross-chain
 exercise.
 
-On 2026-10-17 the Fly API and Vercel production frontend were configured to the
-corrected contract pair. The Base escrow passed deployed-bytecode comparison,
-and both hosted services returned healthy/reachable responses. These checks
-confirm deployment configuration and reachability; they do not establish a
+On 2026-10-17 the Fly API and Vercel production frontend were configured to
+the earlier `a239...` adjudicator. The Base escrow passed deployed-bytecode
+comparison, and both hosted services returned healthy/reachable responses.
+The latest `EDFF...` adjudicator is not configured in the hosted services.
+These historical checks do not establish current deployment consistency or a
 browser-originated funding-to-settlement transaction using an actual finalized
 GenLayer decision.
 
-A subsequent CLI run used the corrected pair for real Base funding and
+A prior CLI run used the `a239...` pair for real Base funding and
 authenticated registration, StudioNet evidence submission and fetch/hash
 verification, an actual finalized `RECALL_CONFIRMED` verdict, Base-funded
 challenge opening, and actual finalized challenge resolution. StudioNet
@@ -145,6 +146,6 @@ unverified.
 
 The current source also contains an independent challenge-backing check in
 both the relay path and decision signer. The test suite covers the deterministic
-rule that only a Base-backed challenge changes verdict/stake allocation; a
-live cross-chain challenge has not been executed against the current StudioNet
-and Base pair, so this rule is not represented as end-to-end deployed validation.
+rule that only a Base-backed challenge changes verdict/stake allocation. A
+separate run against the latest `EDFF...` deployment is incomplete and does not
+yet demonstrate that rule as end-to-end deployed validation.

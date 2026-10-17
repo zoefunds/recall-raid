@@ -327,7 +327,20 @@
     "studioNetAssetTransfer": "unconfirmed; RPC rate limiting prevented obtaining a transaction hash or receipt",
     "studioNetExplorerBalanceAtCheck": "998.795000 GEN",
     "studioNetExplorerTransferCheck": "No newer transfer from the exposed wallet appeared; listed wallet transactions were about two months old.",
-    "studioNetExplorerCheckedAt": "2026-10-17T11:31:38Z",
+    "studioNetExplorerCheckedAt": "2026-10-17T11:35:45Z",
+    "studioNetRecoveryAttempt": {
+      "readOnlyBatch": {
+        "sourceBalanceWei": "998795000000000001000",
+        "sourceNonce": 265,
+        "destinationBalanceWei": "0",
+        "gasPriceWei": "0"
+      },
+      "sendRawTransactionHttpStatus": 429,
+      "transactionHash": null,
+      "postAttemptExplorerSourceBalance": "998.795000 GEN",
+      "postAttemptExplorerReceiverTransferVisible": false,
+      "result": "Recovery remains pending; the RPC rejected the signed transaction at its hourly rate limit."
+    },
     "freshReceiverKeyPath": "/private/tmp/recallraid-rotated-diagnostic-wallet.json"
   }
 }

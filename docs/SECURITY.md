@@ -204,6 +204,13 @@ exact-origin lists; candidate production/preview and legacy preflight checks
 returned 204 with credentials enabled. The candidate challenge confirmation
 is still waiting on StudioNet's `500 requests/hour` limit.
 
+Update at 2026-10-17 15:10Z: both Fly APIs now run commit `77a7df1`. API build
+passes and 50 API tests pass, including a regression that accepts the exact
+successful admin-gated challenge transaction submitted before the admin
+rotation while rejecting altered target, challenger, stake, or failed GenVM
+execution. Candidate and legacy APIs both report healthy. Challenge sync remains
+waiting on StudioNet quota.
+
 On 2026-10-17 the hosted Fly API and Vercel frontend were configured to the
 `EDFF...` adjudicator and verified Base escrow. The hosted web bundle contains
 `EDFF...` and no longer contains `a239...`; Fly health reports both API and

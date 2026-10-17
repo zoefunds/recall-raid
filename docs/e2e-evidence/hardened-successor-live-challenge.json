@@ -1,7 +1,7 @@
 {
   "schema": "recallraid-studionet-base-challenge-e2e/v1",
   "startedAt": "2026-10-17T13:05:06.747Z",
-  "updatedAt": "2026-10-17T15:00:00Z",
+  "updatedAt": "2026-10-17T15:08:45Z",
   "networks": {
     "genlayer": "StudioNet/61999",
     "base": "Base Sepolia/84532"
@@ -175,13 +175,28 @@
         "checkedAt": "2026-10-17T15:02:29Z",
         "httpStatus": 500,
         "error": "Rate limit exceeded: 500 requests per hour"
-      }
+      },
+      "codeCommit": "77a7df1"
+    },
+    "liveStateRecheck": {
+      "checkedAt": "2026-10-17T15:03:41Z",
+      "method": "Read-only GET /investigations/1 on candidate API",
+      "httpStatus": 200,
+      "investigationId": 1,
+      "status": 4,
+      "verdict": 1,
+      "openChallengeId": 1,
+      "lastChallengeId": 0,
+      "challengeUsed": true,
+      "settled": false,
+      "caseId": "0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987",
+      "meaning": "The candidate cache sees the open challenge id, but exact finalized transaction and challenge-record confirmation is still pending StudioNet RPC quota recovery."
     }
   },
   "adjudication": {},
   "settlement": {},
   "deployment": {
-    "candidateApiImage": "deployment-01M555NYAFTKYC2BPNT9MJAE9N",
+    "candidateApiImage": "deployment-01M556DD7858ADZ91NADTMMP17",
     "candidateApiHealth": {
       "status": "ok",
       "db": "ok"
@@ -233,6 +248,16 @@
         "credentials": true
       }
     ],
-    "productionApiImage": "deployment-01M555RGD3ZER0AKYG9WFG0ENT"
+    "productionApiImage": "deployment-01M555RGD3ZER0AKYG9WFG0ENT",
+    "legacyApiImage": "deployment-01M556G07KBTF9Q9CS9XWPETHC",
+    "legacyApiHealth": {
+      "status": "ok",
+      "db": "ok"
+    }
+  },
+  "tests": {
+    "apiBuild": "passed",
+    "apiTests": 50,
+    "genlayerDirectModeTests": 2
   }
 }

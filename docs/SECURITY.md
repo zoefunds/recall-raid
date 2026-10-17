@@ -120,33 +120,39 @@ not substitutes for independent contract review, key management review,
 production deployment validation, or a complete wallet-driven cross-chain
 exercise.
 
-On 2026-10-17 the Fly API and Vercel frontend were configured to the latest
-accepted `EDFF...` adjudicator. Fly has the separate decision signer and both
-API machines are healthy; the production web bundle contains `EDFF...` and no
-longer contains `a239...`. An authenticated production sync consumed the
-actual finalized registration receipt. The API refuses pre-deadline relay.
-The contract source in this checkout additionally requires HTTPS for regulator
-URLs, which requires a successor adjudicator deployment after the existing
-Base-bound test case settles.
+On 2026-10-17 the hosted Fly API and Vercel frontend were configured to the
+`EDFF...` adjudicator and verified Base escrow. The hosted web bundle contains
+`EDFF...` and no longer contains `a239...`; Fly health reports both API and
+database healthy. The E2E record
+[`e2e-evidence/studionet-base-valid-challenge-e2e.json`](e2e-evidence/studionet-base-valid-challenge-e2e.json)
+now documents an authenticated registration sync, real Base Sepolia USDC
+funding, a valid challenger-owned stake receipt, a StudioNet-finalized
+`NO_ISSUE` verdict overturned to `POTENTIAL_ISSUE`, and matching verified CPSC
+evidence. The hosted API cache independently reports challenge 3 as
+`OVERTURNED` and retains `last_challenge_id = 3` with `open_challenge_id = 0`.
 
-The earlier CLI run used `a239...` and validators upheld its challenge. The
-current run on `EDFF...` used real Base USDC and the production authenticated
-API. The 20,000-unit challenge stake and official CPSC rebuttal evidence are
-recorded. A replacement evidence write for the dynamic 2019 CPSC HTML page
-finalized, but the contract's independent fetch/hash verification returned
-false for reachability and hash match. A version-pinned CPSC PDF produced a
-stable digest across production API and direct-fetch checks, but the next
-write was blocked by the StudioNet hourly RPC limit. The challenge is still
-open; no verdict change, settlement, or withdrawal is claimed. See
-[`e2e-evidence/studionet-base-challenge-e2e.json`](e2e-evidence/studionet-base-challenge-e2e.json).
-The production API at commit
-`17492f1b9f41a07ec847c2eaeefdc74f86c6cdcf` is healthy. Its authenticated
-challenge-source endpoint returned a digest for the CPSC HTML page, then
-later requests were blocked when its authoritative on-chain challenger check
-hit the StudioNet hourly RPC limit. The hosted relay refused the case with
-HTTP 400 because adjudication was not terminal. This validates production
-receipt parsing and early-relay rejection, not successful settlement;
-challenge overturn, Base payout, and wallet withdrawal remain unverified.
+The final Base relay and wallet withdrawals are not complete. The seven-day
+post-resolution challenge period expires at `2026-10-24T10:31:44Z`; the escrow
+still holds the 100,000-unit bounty and 20,000-unit stake. No settlement write
+or withdrawal is claimed before that deadline. Fly's StudioNet RPC quota has
+intermittently returned 500 errors during sync; a later authenticated sync
+and hosted cache reads succeeded. A separate failed test record,
+[`e2e-evidence/studionet-base-clean-challenge-e2e.json`](e2e-evidence/studionet-base-clean-challenge-e2e.json),
+documents a placeholder challenge transaction hash and is explicitly not
+valid payout evidence.
+
+The deployed `EDFF...` source was retrieved again with `genlayer code` on
+2026-10-17 and compared with the checkout. After removing the CLI's `Result:`
+wrapper, the deployed source SHA-256 is
+`d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5`. The
+only semantic source difference found is URL validation: the checkout requires
+HTTPS and rejects URL credentials, while deployed `EDFF...` checks only the
+authoritative hostname. The live test used HTTPS, so this difference did not
+affect its evidence. Exact source parity still requires a successor deployment.
+Keep the current deployment configured through settlement of its registered
+cases; on-chain registrations cannot be moved. The historical `A239...`
+deployment remains incompatible with the current hosted decision signer and
+is not a valid settlement target.
 
 The Fly PostgreSQL cache was cleared of four stale investigation entries and
 their dependent cache data. The current EDFF investigation and its live
@@ -156,8 +162,10 @@ the on-chain record. See
 [`e2e-evidence/legacy-cache-cleanup.json`](e2e-evidence/legacy-cache-cleanup.json).
 
 The current source also contains an independent challenge-backing check in
-both the relay path and decision signer. The test suite covers the deterministic
-rule that only a Base-backed challenge changes verdict/stake allocation. The
-`EDFF...` run has reached the challenge-evidence stage but is not end-to-end
-settlement evidence until verification, finalized challenge resolution, payout,
-and wallet withdrawals are confirmed.
+both the relay path and decision signer. The API and Foundry suites cover
+registration ownership, exact Base challenge receipt binding, finalized
+challenge outcome retention, signature tampering, seller-bond slashing,
+orphan recovery, and successful Base-backed challenger stake allocation. The
+live `EDFF...` run now verifies the real finalized GenLayer outcome and hosted
+cache; settlement and wallet withdrawal remain pending until the recorded
+deadline.

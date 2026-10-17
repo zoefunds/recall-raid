@@ -1,0 +1,192 @@
+{
+  "schema": "recallraid-studionet-base-challenge-e2e/v1",
+  "startedAt": "2026-10-17T10:30:05.276Z",
+  "completedAt": "2026-10-17T10:35:42.256Z",
+  "progress": {
+    "stage": "challenge-overturned-awaiting-seven-day-settlement",
+    "complete": false
+  },
+  "networks": {
+    "genlayer": "StudioNet/61999",
+    "base": "Base Sepolia/84532"
+  },
+  "contracts": {
+    "genlayer": "0xEDFFB4B4999D65A248441438233c18717515973d",
+    "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+  },
+  "wallets": {
+    "submitter": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+    "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d"
+  },
+  "case": {
+    "caseId": "0x010e6a1d581e35182fc4385350d449c2c34e068d36bc63fa8deb8bd5c483a51c",
+    "investigationId": 3,
+    "bountyUsdcBaseUnits": "100000",
+    "baseFundingTx": "0xdf64dfa9c5996769dee77a91968429b94b9473f565c52fb7de292e81cc302cb7"
+  },
+  "base": {
+    "challengerUsdcTransferTx": "0x0ceba90a24e6f496bed4a8a739117e0c0b0f67768553f4c5d9770ae6c0411007",
+    "bountyFundingTx": "0xdf64dfa9c5996769dee77a91968429b94b9473f565c52fb7de292e81cc302cb7",
+    "bountyFunding": {
+      "transactionHash": "0xdf64dfa9c5996769dee77a91968429b94b9473f565c52fb7de292e81cc302cb7",
+      "blockNumber": 48232124,
+      "from": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+      "amount": "100000"
+    },
+    "registration": {
+      "registered": true,
+      "genlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+      "investigationId": 3
+    },
+    "challengeFundingTx": "0xc7303454014b9327a45c849ab5c5fec54c8b72f85c9c9037e0824699157e6336",
+    "challengeFunding": {
+      "transactionHash": "0xc7303454014b9327a45c849ab5c5fec54c8b72f85c9c9037e0824699157e6336",
+      "blockNumber": 48232292,
+      "from": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+      "amount": "20000"
+    },
+    "challengeDeposit": {
+      "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+      "amount": "20000",
+      "unchangedBeforeSettlement": true
+    }
+  },
+  "genlayer": {
+    "submit": {
+      "txHash": "0xafabf8f9be34e98271c123de5f84f72c5dd0a00f060b04366cbcb1e59f5a0a40",
+      "result": {
+        "investigation_id": 3
+      },
+      "status": "FINALIZED",
+      "consensus": "MAJORITY_AGREE",
+      "execution": "FINISHED_WITH_RETURN"
+    },
+    "investigationId": 3,
+    "caseId": "0x010e6a1d581e35182fc4385350d449c2c34e068d36bc63fa8deb8bd5c483a51c",
+    "initialEvidenceUrl": "https://www.example.com/",
+    "initialEvidenceSha256": "25ddf2c883e0d1958ea971d279a7e4f0fd446724ee3db7db19dadabd4a62e484",
+    "initialEvidence": {
+      "id": 7,
+      "addTx": "0xb3961df3a325cca2ca04c5f9f6ead9b33040828b528d76c6929424e19d1b5290",
+      "verifyTx": "0xe896cc67855792eca85899c3cecbe1298541b1755c23517677fb9b145dbd532c",
+      "hashVerified": true
+    },
+    "initialAdjudication": {
+      "txHash": "0xca92a110d9a569145448e1aad2cc3c0ad267fdee18c6773d04ed4bf4f6719194",
+      "status": "already finalized",
+      "consensus": "verified from finalized contract state",
+      "execution": "verified from finalized contract state",
+      "verdict": 1,
+      "confidenceBps": 8250,
+      "challengeDeadline": 1792837535
+    },
+    "challenge": {
+      "id": 3,
+      "openTx": "0x3df17bd8c3d1090eb4df4da8a8d90eac1e675712a6505594a69cbb5efcc543e0",
+      "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+      "stakeBaseUnits": "20000",
+      "reason": "The product name identifies the recalled Rock 'n Play Sleeper family. The CPSC notice states the recall covers all models; the initial record had no production model or serial to match. Re-evaluate as a potential issue without claiming an exact-model confirmation."
+    },
+    "challengeEvidence": {
+      "id": 8,
+      "url": "https://www.cpsc.gov/s3fs-public/010922-FP-and-Kids2-reannouncement.pdf?VersionId=rjCj6OORidUHu8aueBwkLh3zxvzha_Xl",
+      "sha256": "4b6f0a522cd082583bb6f6381ae78aec36ba6ce1b02e8c1bb56228da455e6e8e",
+      "byteLength": 151580,
+      "addTx": "0x9c1e9f765738c64605a4859171eeabc93b1259b0f364a6b07ef56ab6e58307be",
+      "verifyTx": "0x0fc44baef2eea791c5d4368df5277557397512ebad42d9fc83ca09d962c9fcc2",
+      "reachable": true,
+      "hashVerified": true
+    },
+    "challengeResolution": {
+      "txHash": "0x50c64714378ce31bad0c6e2c6b97ac0c5e076e5e2b979af553d8286af8d69a95",
+      "status": "FINALIZED",
+      "consensus": "MAJORITY_AGREE",
+      "execution": "FINISHED_WITH_RETURN",
+      "originalVerdict": 1,
+      "finalVerdict": 2,
+      "challengeStatus": 3,
+      "overturned": true,
+      "openChallengeId": 0,
+      "lastChallengeId": 3,
+      "settlementChallengeDeadline": 1792837904
+    },
+    "deployedSourceCheck": {
+      "verifiedAt": "2026-10-17T11:39:28Z",
+      "retrieval": "genlayer code 0xEDFFB4B4999D65A248441438233c18717515973d --rpc https://studio.genlayer.com/api",
+      "normalizedSha256": "d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5",
+      "sourceParity": false,
+      "semanticDifference": "deployed _is_authoritative_recall_domain checks only the authoritative hostname; checked-out source additionally requires https and rejects URL credentials"
+    }
+  },
+  "api": {
+    "health": {
+      "status": "ok",
+      "db": "ok"
+    },
+    "registrationPreviouslyRecorded": true,
+    "registrationAlreadyRecordedOnBase": true,
+    "authenticatedRegistrationSync": true,
+    "registrationTxHash": "0xafabf8f9be34e98271c123de5f84f72c5dd0a00f060b04366cbcb1e59f5a0a40",
+    "hostedVerification": {
+      "verifiedAt": "2026-10-17T10:35:42.262Z",
+      "origin": "https://recall-raid.vercel.app",
+      "health": "ok",
+      "investigation": {
+        "id": 3,
+        "status": 3,
+        "verdict": 2,
+        "openChallengeId": 0,
+        "lastChallengeId": 3,
+        "settled": false
+      },
+      "challenge": {
+        "id": 3,
+        "investigation_id": 3,
+        "challenger": "0xa0e30f264f4db37cddcfed0c93a6bcdff5c70f8d",
+        "reason": "The product name identifies the recalled Rock 'n Play Sleeper family. The CPSC notice states the recall covers all models; the initial record had no production model or serial to match. Re-evaluate as a potential issue without claiming an exact-model confirmation.",
+        "stake_wei": "20000",
+        "stake_deposited_wei": "20000",
+        "base_tx_hash": "0xc7303454014b9327a45c849ab5c5fec54c8b72f85c9c9037e0824699157e6336",
+        "status": 3,
+        "created_at": 1792232874,
+        "resolution_deadline": 1792405674,
+        "prior_verdict": 1,
+        "new_verdict": 2
+      },
+      "evidence": [
+        {
+          "id": 7,
+          "url": "https://www.example.com/",
+          "url_reachable": true,
+          "content_hash_verified": true
+        },
+        {
+          "id": 8,
+          "url": "https://www.cpsc.gov/s3fs-public/010922-FP-and-Kids2-reannouncement.pdf?VersionId=rjCj6OORidUHu8aueBwkLh3zxvzha_Xl",
+          "url_reachable": true,
+          "content_hash_verified": true
+        }
+      ],
+      "authenticatedRegistrationSyncHttpStatus": 200
+    },
+    "hostedFrontend": {
+      "verifiedAt": "2026-10-17T10:41:19.311Z",
+      "url": "https://recall-raid.vercel.app/submit",
+      "httpStatus": 200,
+      "scriptAssets": 16,
+      "failedScriptAssets": 0,
+      "genlayerContractPresent": true,
+      "legacyA239AddressPresent": false,
+      "hostedFlyApiPresent": true
+    }
+  },
+  "adjudication": {},
+  "settlement": {
+    "relaySent": false,
+    "withdrawalsVerified": false,
+    "readyAfterUnix": 1792837904,
+    "reason": "The seven-day post-resolution challenge window has not elapsed; settlement and claims are deliberately deferred.",
+    "readyAfterUtc": "2026-10-24T10:31:44.000Z"
+  }
+}

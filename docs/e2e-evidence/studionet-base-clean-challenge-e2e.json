@@ -1,0 +1,120 @@
+{
+  "schema": "recallraid-studionet-base-challenge-e2e/v1",
+  "startedAt": "2026-10-17T10:08:56.062Z",
+  "updatedAt": "2026-10-17T10:41:06.680Z",
+  "networks": {
+    "genlayer": "StudioNet/61999",
+    "base": "Base Sepolia/84532"
+  },
+  "contracts": {
+    "genlayer": "0xEDFFB4B4999D65A248441438233c18717515973d",
+    "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+  },
+  "wallets": {
+    "submitter": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+    "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d"
+  },
+  "case": {
+    "caseId": "0xda5c94f66e9fdf2680d44c626e383bffc7aad309d2f3c02be189efc85b9aedc1",
+    "investigationId": 2,
+    "bountyUsdcBaseUnits": "100000",
+    "baseFundingTx": "0x1192f19623951367f27cc002937501ba2de7c402ac182bfb873cda357fdb2c44"
+  },
+  "progress": {
+    "stage": "challenge-overturned-but-genlayer-base-tx-binding-invalid",
+    "complete": false,
+    "blocker": "GenLayer challenge 2 stores a descriptive placeholder rather than the exact successful Base ChallengeFunded transaction hash. The separate Base deposit exists, but the decision signer must reject it as unbacked for stake payout; no successful settlement or stake award is claimed."
+  },
+  "base": {
+    "challengerUsdcTransferTx": "0x87bd093a717e5c4b0cf063df80bcc5a31022aa0ae97e39e7d7fd5b7abb0646a2",
+    "bountyFundingTx": "0x1192f19623951367f27cc002937501ba2de7c402ac182bfb873cda357fdb2c44",
+    "registration": {
+      "registered": true,
+      "genlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+      "investigationId": 2
+    },
+    "challengeFundingTx": "0x0d4f4c6f3f89fd770069bea20abce4deadc9b697d4d4dfc9369853c0fe217f96",
+    "challengeFundingRecordMismatch": {
+      "genlayerStoredBaseTxHash": "existing exact challenger deposit; no duplicate funding sent",
+      "validBaseTransactionHash": false,
+      "baseDepositUnits": "20000",
+      "baseCaseFinalized": false
+    }
+  },
+  "genlayer": {
+    "submit": {
+      "txHash": "0xfe19199594538415da165fec22ac4a3131fc70c61c13452d851f1d0324ca283f",
+      "result": {
+        "investigation_id": 2
+      },
+      "status": "FINALIZED",
+      "consensus": "MAJORITY_AGREE",
+      "execution": "FINISHED_WITH_RETURN"
+    },
+    "investigationId": 2,
+    "caseId": "0xda5c94f66e9fdf2680d44c626e383bffc7aad309d2f3c02be189efc85b9aedc1",
+    "initialEvidenceUrl": "https://www.example.com/",
+    "initialEvidenceSha256": "25ddf2c883e0d1958ea971d279a7e4f0fd446724ee3db7db19dadabd4a62e484",
+    "initialEvidence": {
+      "id": 5,
+      "addTx": "0x445733e3735ec52fa2cef640fbc9f55767825d3c9b0dbf1a85f7a82fe7bf81c8",
+      "verifyTx": "0x43ac64fce3e46122be5016fd323899f3b2c41b8b0b791bc009ece6e4b961dbc8",
+      "hashVerified": true
+    },
+    "initialAdjudication": {
+      "txHash": "0xf913b2a89eac69e59349bda4ccdad9a1a71490a2c094482117a727bccf8b86e7",
+      "status": "already finalized",
+      "consensus": "verified from finalized contract state",
+      "execution": "verified from finalized contract state",
+      "verdict": 1,
+      "confidenceBps": 7600,
+      "challengeDeadline": 1792836341
+    },
+    "challenge": {
+      "id": 2,
+      "openTx": "0x043fe4af3d1febd8b1ed554b4b462f5c8ff0259bd44f22d8d69d1e4bea2a0518",
+      "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+      "stakeBaseUnits": "20000",
+      "storedBaseFundingTxHash": "existing exact challenger deposit; no duplicate funding sent"
+    },
+    "challengeEvidence": {
+      "id": 6,
+      "url": "https://www.cpsc.gov/s3fs-public/010922-FP-and-Kids2-reannouncement.pdf?VersionId=rjCj6OORidUHu8aueBwkLh3zxvzha_Xl",
+      "sha256": "4b6f0a522cd082583bb6f6381ae78aec36ba6ce1b02e8c1bb56228da455e6e8e",
+      "byteLength": 151580,
+      "addTx": "0xe21d873111866878c4bef97ed0806a1864c97572eb52aa2b79d0132f94748a7e",
+      "verifyTx": "0x36f30d70624c91ab48db163192d2a5f8368223db5cbe0a3a48e1b70665a46a55",
+      "reachable": true,
+      "hashVerified": true
+    },
+    "challengeResolution": {
+      "txHash": "0x3f4ff18cb1cd6348051c1ecf6b53f32e312b27d7b9c633b16cfc3632bee28f02",
+      "status": "FINALIZED",
+      "consensus": "MAJORITY_AGREE",
+      "execution": "FINISHED_WITH_RETURN",
+      "originalVerdict": 1,
+      "finalVerdict": 2,
+      "challengeStatus": 3,
+      "overturned": true,
+      "openChallengeId": 0,
+      "lastChallengeId": 2,
+      "settlementChallengeDeadline": 1792836746
+    }
+  },
+  "api": {
+    "health": {
+      "status": "ok",
+      "db": "ok"
+    },
+    "authenticatedRegistrationSync": true,
+    "registrationAlreadyRecordedOnBase": true
+  },
+  "adjudication": {},
+  "settlement": {
+    "relaySent": false,
+    "withdrawalsVerified": false,
+    "eligibleAfterUtc": "2026-10-24T10:12:26.000Z",
+    "reason": "Do not relay this challenge stake as successfully Base-backed: the GenLayer challenge record contains a placeholder Base transaction string. The 20,000-unit unmatched Base deposit remains in the unfinalized escrow and can only be recovered after the Base case reaches the contract recovery condition."
+  }
+}

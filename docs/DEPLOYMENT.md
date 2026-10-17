@@ -8,6 +8,12 @@ The repository adds a stricter HTTPS check for official regulator URLs after
 that adjudicator was deployed; deploy a successor adjudicator only after the
 currently bound live case has completed settlement, because Base registration
 is immutable.
+The deployed `EDFF...` source was retrieved with `genlayer code` on
+2026-10-17. Its normalized source hash is
+`d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5`; the sole
+semantic difference from the checked-out source is that the deployed URL
+validator does not require HTTPS or reject URL credentials. The successful
+live challenge used a version-pinned HTTPS CPSC PDF.
 
 ## Networks and recorded deployments
 
@@ -33,15 +39,25 @@ checks, not end-to-end adjudication evidence.
 
 The earlier CLI record in
 [`e2e-evidence/studionet-base-cli-e2e.json`](e2e-evidence/studionet-base-cli-e2e.json)
-used `a239...` and demonstrated an upheld challenge. The live `EDFF...` run
-has a funded challenge. A replacement evidence item for the dynamic 2019 CPSC
-HTML page finalized, but validator-side fetch/hash verification returned
-false for both reachability and hash match. A version-pinned CPSC PDF had
-stable bytes in repeated production API and direct-fetch checks, but a new
-evidence write has not been submitted because StudioNet reached its hourly
-RPC limit. The challenge remains open; no settlement or withdrawal has
-occurred. See
-[`e2e-evidence/studionet-base-challenge-e2e.json`](e2e-evidence/studionet-base-challenge-e2e.json).
+used `a239...` and demonstrated an upheld challenge. The current successful
+StudioNet-to-Base test is recorded in
+[`e2e-evidence/studionet-base-valid-challenge-e2e.json`](e2e-evidence/studionet-base-valid-challenge-e2e.json).
+It began with 100,000 Base USDC base units funded by the same wallet that
+submitted investigation 3, authenticated registration through Fly, a 20,000
+unit Base challenge stake from the named challenger, and a successful
+StudioNet validator resolution that changed `NO_ISSUE` to `POTENTIAL_ISSUE`.
+The version-pinned CPSC PDF's exact SHA-256 was verified by GenLayer validators.
+Fly's API cache independently retains challenge 3's exact Base transaction,
+challenger, stake, prior/final verdicts, and the closed challenge identifier.
+
+Settlement and withdrawals remain pending: the seven-day post-resolution
+window ends at `2026-10-24T10:31:44Z`. The API and contracts have not claimed
+or transferred these balances yet. The separate record
+[`e2e-evidence/studionet-base-clean-challenge-e2e.json`](e2e-evidence/studionet-base-clean-challenge-e2e.json)
+captures a failed attempt whose GenLayer challenge contains a placeholder Base
+transaction string; do not use it as settlement evidence. StudioNet's hosted
+RPC quota intermittently blocked Fly sync requests, although authenticated
+registration sync and the final hosted cache reads subsequently succeeded.
 
 On 2026-10-17 the production PostgreSQL cache was pruned of four stale hunts
 from the superseded contract era, along with four dependent evidence rows, two
@@ -51,6 +67,14 @@ was still registered on Base to `A239...` with 100,000 USDC base units and is
 not finalized; the database cleanup did not alter that on-chain escrow. The
 cleanup inventory and guard results are in
 [`e2e-evidence/legacy-cache-cleanup.json`](e2e-evidence/legacy-cache-cleanup.json).
+The cleanup is a historical record, not a continuing delete job. A hosted
+feed check after the live run showed three investigations (IDs 1–3), all
+bound to the current `EDFF...` deployment. The two older `EDFF...` test cases
+remain indexed because their on-chain challenge/deposit state is still open
+or unsettled; deleting their cache rows would only hide that state. No
+investigation from the superseded `A239...` deployment remains in the current
+feed, while one deleted legacy Base registration remains on-chain as documented
+in the cleanup record.
 
 The Base escrow verifier compiled the checked-out Solidity with solc
 `0.8.37+commit.f401782d`, optimizer runs `200`, and `viaIR: true`. It verified
@@ -168,15 +192,18 @@ not prove a working remote integration.
 
 ## Current limitations
 
-The live Base accounting records use synthetic adjudication outcomes and do
-not prove the decision-signing service accepted an actual successful GenLayer
-consensus transaction and executed the resulting settlement on Base. A full
-browser-originated flow covering funding, authenticated registration,
-evidence, validator adjudication, a bonded overturned challenge, final
-settlement, and wallet withdrawals remains unverified. The current live CLI
-run has not resolved its challenge because StudioNet RPC writes remain rate
-limited. The seven-day orphan recovery delay is covered by local time-warp
-tests; no live seven-day wait was performed. Do not describe these remaining
-scenarios as completed evidence.
+The live `EDFF...` exercise now proves browser-equivalent Base funding,
+authenticated Fly registration, finalized GenLayer evidence verification and
+adjudication, and a real Base-backed challenge that validators overturned.
+The production API cache reflects the same challenge and final verdict. The
+settlement signer and Base payout have not yet been exercised against that
+live finalized case: the seven-day post-resolution window expires at
+`2026-10-24T10:31:44Z`. Wallet withdrawals are therefore still outstanding.
+Fly's StudioNet RPC limit has intermittently blocked sync requests, although
+the final authenticated registration sync and cache verification succeeded.
+The seven-day orphan-recovery delay is covered by local time-warp tests; no
+live seven-day orphan-recovery wait was performed. Keep these remaining
+scenarios documented as pending until their transactions and wallet balances
+are independently verified.
 Private key material stays in ignored local configuration and hosting secret
 stores; never add it to this repository.

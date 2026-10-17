@@ -52,7 +52,9 @@ challenger, stake, prior/final verdicts, and the closed challenge identifier.
 
 Settlement and withdrawals remain pending: the seven-day post-resolution
 window ends at `2026-10-24T10:31:44Z`. The API and contracts have not claimed
-or transferred these balances yet. The separate record
+or transferred these balances yet. An authenticated relay request against this
+case returned HTTP 400 `GenLayer adjudication is not terminal` and sent no Base
+transaction. The separate record
 [`e2e-evidence/studionet-base-clean-challenge-e2e.json`](e2e-evidence/studionet-base-clean-challenge-e2e.json)
 captures a failed attempt whose GenLayer challenge contains a placeholder Base
 transaction string; do not use it as settlement evidence. StudioNet's hosted

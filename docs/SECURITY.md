@@ -134,7 +134,9 @@ evidence. The hosted API cache independently reports challenge 3 as
 The final Base relay and wallet withdrawals are not complete. The seven-day
 post-resolution challenge period expires at `2026-10-24T10:31:44Z`; the escrow
 still holds the 100,000-unit bounty and 20,000-unit stake. No settlement write
-or withdrawal is claimed before that deadline. Fly's StudioNet RPC quota has
+or withdrawal is claimed before that deadline. An authenticated production
+relay attempt returned HTTP 400 `GenLayer adjudication is not terminal` and
+sent no Base transaction. Fly's StudioNet RPC quota has
 intermittently returned 500 errors during sync; a later authenticated sync
 and hosted cache reads succeeded. A separate failed test record,
 [`e2e-evidence/studionet-base-clean-challenge-e2e.json`](e2e-evidence/studionet-base-clean-challenge-e2e.json),

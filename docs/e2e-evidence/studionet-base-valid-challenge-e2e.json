@@ -179,6 +179,13 @@
       "genlayerContractPresent": true,
       "legacyA239AddressPresent": false,
       "hostedFlyApiPresent": true
+    },
+    "hostedPreDeadlineRelayGuard": {
+      "verifiedAt": "2026-10-17T10:43:14.179Z",
+      "httpStatus": 400,
+      "message": "GenLayer adjudication is not terminal",
+      "baseTransactionSent": false,
+      "baseCaseFinalized": false
     }
   },
   "adjudication": {},

@@ -98,6 +98,14 @@ attested relay design, not a trustless bridge.
   ignored files as appropriate; deploy secrets via the hosting provider's
   secret store. If a key was exposed, rotate it on-chain where applicable and
   replace the secret before further use.
+- A private key formerly embedded in `scripts/diagnostic_test.mjs` was exposed
+  in repository history. The script now requires `PRIVATE_KEY` from the
+  environment, and on 2026-10-17 `main` history was rewritten to redact the
+  exact value; the rewritten remote `main` was scanned and contains no matching
+  blob. The key must still be treated as compromised: history rewriting does
+  not revoke it or erase clones, forks, caches, or copies made before cleanup.
+  Do not reuse its wallet; rotate any service configuration and move any
+  remaining test assets to a fresh wallet controlled by the project owner.
 - PostgreSQL is a derived cache, not a ledger. The API watcher serializes its
   sweep with a database advisory lock and retries terminal relays. Base
   idempotency makes duplicate relay attempts safe.

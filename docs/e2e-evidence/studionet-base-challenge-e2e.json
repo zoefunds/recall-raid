@@ -1,6 +1,6 @@
 {
   "schema": "recallraid-studionet-base-challenge-e2e/v1",
-  "updatedAt": "2026-10-17",
+  "updatedAt": "2026-10-17T09:40:00Z",
   "networks": {
     "genlayer": "StudioNet",
     "genlayerChainId": 61999,
@@ -13,9 +13,9 @@
     "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
   },
   "progress": {
-    "stage": "challenge-evidence-added-verification-pending",
+    "stage": "challenge-evidence-verification-blocked",
     "complete": false,
-    "blocker": "StudioNet RPC rate limit rejected verify_evidence submission; the existing challenge remains open and funds remain in escrow."
+    "blocker": "StudioNet RPC eth_sendRawTransaction is rate limited at 500 requests per hour. A replacement evidence write was rejected before submission after the returned cooldown elapsed; the challenge remains open and funds remain in escrow."
   },
   "case": {
     "caseId": "0x7919596dbe3e194fd82aceaaa5156e80822d62d720f7745750883691d56566e5",
@@ -63,7 +63,7 @@
     "urlReachable": false,
     "contentHashVerified": false,
     "verificationTx": null,
-    "note": "The add_evidence transaction finalized. Independent GenLayer verification has not yet been submitted, so the API cache currently reports its verification booleans as false."
+    "note": "The original add_evidence transaction finalized, but its digest was computed from a prior response body. The production API fetched the same URL at 2026-10-17 and returned SHA-256 b885d8a63b414225e8c797501602e1bec0b999ab587e0b4efbc9351212173045 for 75,705 bytes, demonstrating that the source body had changed. A replacement add_evidence transaction using that current production digest was attempted but rejected by the StudioNet RPC rate limiter before submission. No successful verification is claimed."
   },
   "hostedChecks": {
     "flyApi": "https://recallraid-usdc-api.fly.dev",
@@ -71,16 +71,20 @@
     "databaseHealth": "ok",
     "apiGenlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
     "decisionSignerConfigured": true,
+    "apiDeploymentCommit": "17492f1b9f41a07ec847c2eaeefdc74f86c6cdcf",
+    "apiDeploymentImageDigest": "sha256:b4daea688da58139541ea82a5a2efd3547ac645c72d10807a0a4eb32152b486e",
     "authenticatedRegistrationSync": true,
     "preDeadlineRelayRefused": true,
+    "challengeSourceDigestEndpoint": "HTTP 200; fetched 75,705 bytes and returned SHA-256 b885d8a63b414225e8c797501602e1bec0b999ab587e0b4efbc9351212173045",
     "vercelFrontend": "https://recall-raid.vercel.app",
     "frontendHttpStatus": 200,
-    "frontendBundleGenlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d"
+    "frontendBundleGenlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+    "frontendDeploymentId": "dpl_9VA6bJXdZCDwSGpsnCQ4HPuh2QML"
   },
   "settlement": {
     "baseRelaySent": false,
     "walletWithdrawalsVerified": false,
     "successfulOverturn": null,
-    "reason": "Challenge resolution and terminal settlement have not happened. No payout or withdrawal is claimed."
+    "reason": "The existing challenge is still open because source verification could not be submitted during StudioNet RPC rate limiting. No payout or withdrawal is claimed."
   }
 }

@@ -129,21 +129,22 @@ The contract source in this checkout additionally requires HTTPS for regulator
 URLs, which requires a successor adjudicator deployment after the existing
 Base-bound test case settles.
 
-The earlier CLI run used `a239...` and validators upheld its challenge. A
-new run on `EDFF...` used real Base USDC and the production authenticated
+The earlier CLI run used `a239...` and validators upheld its challenge. The
+current run on `EDFF...` used real Base USDC and the production authenticated
 API. The 20,000-unit challenge stake and official CPSC rebuttal evidence are
-recorded, but the StudioNet RPC rate limit blocked the evidence-verification
-transaction. The challenge is still open; no verdict change, settlement, or
-withdrawal is claimed. See
+recorded. The source page changed bytes after the original digest was
+submitted; the production API returned a fresh digest, but the StudioNet RPC
+hourly request cap rejected a replacement evidence write before submission.
+The challenge is still open; no verdict change, settlement, or withdrawal is
+claimed. See
 [`e2e-evidence/studionet-base-challenge-e2e.json`](e2e-evidence/studionet-base-challenge-e2e.json).
-The API receipt normalization fix was deployed to Fly in commit
-`4f998ad4c91454ea384aee47e7b620447fffbf5e`. An authenticated production sync
-consumed the real finalized challenge-resolution receipt and preserved the
-final verdict and challenge record in the cache. The hosted relay refused the
-case with HTTP 400 because adjudication was not terminal. This validates
-production receipt parsing and early-relay rejection, not successful
-settlement; challenge overturn, Base payout, and wallet withdrawal remain
-unverified.
+The production API at commit
+`17492f1b9f41a07ec847c2eaeefdc74f86c6cdcf` is healthy and its authenticated
+challenge-source digest endpoint successfully returned the current page
+digest. The hosted relay refused the case with HTTP 400 because adjudication
+was not terminal. This validates production receipt parsing and early-relay
+rejection, not successful settlement; challenge overturn, Base payout, and
+wallet withdrawal remain unverified.
 
 The current source also contains an independent challenge-backing check in
 both the relay path and decision signer. The test suite covers the deterministic

@@ -34,10 +34,11 @@ checks, not end-to-end adjudication evidence.
 The earlier CLI record in
 [`e2e-evidence/studionet-base-cli-e2e.json`](e2e-evidence/studionet-base-cli-e2e.json)
 used `a239...` and demonstrated an upheld challenge. The live `EDFF...` run
-is currently paused after adding official CPSC rebuttal evidence: the GenLayer
-RPC rate limit prevented the verification transaction from being submitted.
-The Base challenge stake is deposited and the challenge remains open; no
-settlement or withdrawal has occurred. See
+is currently paused after adding official CPSC rebuttal evidence: a fresh
+digest from the production API was obtained after the page bytes changed, but
+the GenLayer RPC hourly request cap rejected the replacement evidence write
+before submission. The Base challenge stake is deposited and the challenge
+remains open; no settlement or withdrawal has occurred. See
 [`e2e-evidence/studionet-base-challenge-e2e.json`](e2e-evidence/studionet-base-challenge-e2e.json).
 
 The Base escrow verifier compiled the checked-out Solidity with solc
@@ -161,10 +162,10 @@ not prove the decision-signing service accepted an actual successful GenLayer
 consensus transaction and executed the resulting settlement on Base. A full
 browser-originated flow covering funding, authenticated registration,
 evidence, validator adjudication, a bonded overturned challenge, final
-settlement, and wallet withdrawals remains unverified. The live CLI run
-reached challenge resolution but validators upheld the original verdict. The
-seven-day orphan recovery delay is covered by local time-warp tests; no live
-seven-day wait was performed. Do not describe these remaining scenarios as
-completed evidence.
+settlement, and wallet withdrawals remains unverified. The current live CLI
+run has not resolved its challenge because StudioNet RPC writes remain rate
+limited. The seven-day orphan recovery delay is covered by local time-warp
+tests; no live seven-day wait was performed. Do not describe these remaining
+scenarios as completed evidence.
 Private key material stays in ignored local configuration and hosting secret
 stores; never add it to this repository.

@@ -84,6 +84,8 @@ describe("settlement cross-chain validation", () => {
     };
     const exact = { transaction, expectedContract: escrow, investigationId: 4, challenger, reason, stake: amount, baseTxHash };
     expect(() => assertFundedChallengeOpeningTransaction(exact)).not.toThrow();
+    expect(() => assertFundedChallengeOpeningTransaction({ ...exact, expectedSender: previousAdmin })).not.toThrow();
+    expect(() => assertFundedChallengeOpeningTransaction({ ...exact, expectedSender: payer })).toThrow(/sender/);
     expect(() => assertFundedChallengeOpeningTransaction({ ...exact, expectedContract: payer })).toThrow(/different contract/);
     expect(() => assertFundedChallengeOpeningTransaction({ ...exact, challenger: payer })).toThrow(/argument 1/);
     expect(() => assertFundedChallengeOpeningTransaction({ ...exact, stake: "1" })).toThrow(/argument 3/);

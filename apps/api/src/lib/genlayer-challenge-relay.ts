@@ -59,6 +59,9 @@ export async function confirmFundedChallenge(input: {
   stake: string;
   baseTxHash: string;
 }) {
+  const expectedSender = config.genlayer.challengeOpenAdminGated
+    ? undefined
+    : getChallengeRelayer().address;
   const transaction = await getTransactionStatus(input.txHash);
   const status = String(transaction.statusName ?? "").toUpperCase();
   if (status !== "FINALIZED") return { status: "pending" as const };
@@ -66,6 +69,7 @@ export async function confirmFundedChallenge(input: {
   assertFundedChallengeOpeningTransaction({
     transaction,
     expectedContract: config.genlayer.contractAddress,
+    expectedSender,
     investigationId: input.investigationId,
     challenger: input.challenger,
     reason: input.reason,

@@ -30,6 +30,7 @@ export const config = {
     rpcUrl: process.env.GENLAYER_RPC_URL ?? "",
     contractAddress: process.env.GENLAYER_CONTRACT_ADDRESS ?? "",
     chain: process.env.NEXT_PUBLIC_GENLAYER_CHAIN ?? "studionet",
+    challengeOpenAdminGated: process.env.GENLAYER_CHALLENGE_OPEN_ADMIN_GATED === "true",
   },
 
   baseSepolia: {

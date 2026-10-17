@@ -77,13 +77,15 @@ export function assertGenLayerCall(input: {
 
 /**
  * Validate a previously submitted funded challenge opening. The transaction
- * may predate an admin rotation, so its sender is not compared with the
- * current configured admin; successful execution of the admin-gated contract
- * call, exact calldata, and the resulting challenge record prove authorization.
+ * may predate an admin rotation. For contracts whose `open_challenge` is
+ * admin-gated, the caller can be authenticated by the successful execution and
+ * the result record. For legacy deployments without that guard, callers must
+ * pass the expected current relay sender so the relaxed rule cannot apply.
  */
 export function assertFundedChallengeOpeningTransaction(input: {
   transaction: Parameters<typeof assertSuccessfulFinalizedGenVmExecution>[0] & Parameters<typeof assertGenLayerTransactionIdentity>[0]["transaction"];
   expectedContract: string;
+  expectedSender?: string;
   investigationId: number;
   challenger: string;
   reason: string;
@@ -91,7 +93,11 @@ export function assertFundedChallengeOpeningTransaction(input: {
   baseTxHash: string;
 }) {
   assertSuccessfulFinalizedGenVmExecution(input.transaction);
-  assertGenLayerTransactionIdentity({ transaction: input.transaction, expectedContract: input.expectedContract });
+  assertGenLayerTransactionIdentity({
+    transaction: input.transaction,
+    expectedContract: input.expectedContract,
+    ...(input.expectedSender ? { expectedSender: input.expectedSender } : {}),
+  });
   assertGenLayerCall({
     transaction: input.transaction,
     method: "open_challenge",

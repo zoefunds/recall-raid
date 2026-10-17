@@ -1,7 +1,7 @@
 {
   "schema": "recallraid-studionet-base-challenge-e2e/v1",
   "startedAt": "2026-10-17T13:05:06.747Z",
-  "updatedAt": "2026-10-17T13:05:24.492Z",
+  "updatedAt": "2026-10-17T13:47:33.458Z",
   "networks": {
     "genlayer": "StudioNet/61999",
     "base": "Base Sepolia/84532"
@@ -22,7 +22,7 @@
     "baseFundingTx": "0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf"
   },
   "progress": {
-    "stage": "authenticated-registration-synced",
+    "stage": "initial-evidence-verified",
     "complete": false
   },
   "base": {
@@ -32,6 +32,11 @@
       "blockNumber": 48236591,
       "from": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
       "amount": "100000"
+    },
+    "registration": {
+      "registered": true,
+      "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+      "investigationId": 1
     }
   },
   "genlayer": {
@@ -47,7 +52,13 @@
     "investigationId": 1,
     "caseId": "0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987",
     "initialEvidenceUrl": "https://www.example.com/",
-    "initialEvidenceSha256": "25ddf2c883e0d1958ea971d279a7e4f0fd446724ee3db7db19dadabd4a62e484"
+    "initialEvidenceSha256": "25ddf2c883e0d1958ea971d279a7e4f0fd446724ee3db7db19dadabd4a62e484",
+    "initialEvidence": {
+      "id": 1,
+      "addTx": "0xde9959bb34fac31a9f7fe84371599f232fd11a4cfa878788e66ca0e77877def4",
+      "verifyTx": "0xf54a753321c5b9d9fe65595bda5591c3f32c0bae3b5a4892859eca55ea04c5e8",
+      "hashVerified": true
+    }
   },
   "api": {
     "health": {
@@ -58,5 +69,26 @@
     "registrationAlreadyRecordedOnBase": true
   },
   "adjudication": {},
-  "settlement": {}
+  "settlement": {},
+  "pause": {
+    "checkedAt": "2026-10-17T13:47:33.458Z",
+    "reason": "StudioNet get_investigation was rate-limited after the existing investigation received finalized add_evidence and verify_evidence transactions. The script stopped before verdict request, Base challenger stake funding, or challenge opening.",
+    "rpcLimits": [
+      "500 requests per hour",
+      "30 requests per minute"
+    ],
+    "lastSuccessfulWrites": [
+      {
+        "method": "add_evidence",
+        "txHash": "0xde9959bb34fac31a9f7fe84371599f232fd11a4cfa878788e66ca0e77877def4",
+        "evidenceId": 1
+      },
+      {
+        "method": "verify_evidence",
+        "txHash": "0xf54a753321c5b9d9fe65595bda5591c3f32c0bae3b5a4892859eca55ea04c5e8",
+        "hashVerified": true
+      }
+    ],
+    "nextAction": "Resume this exact case after StudioNet RPC quota recovers; do not repeat bounty funding, registration, or evidence writes."
+  }
 }

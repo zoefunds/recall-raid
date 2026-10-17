@@ -63,9 +63,12 @@ on-chain state. Base case
 `0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987` was
 funded with 100,000 USDC base units by its submitter, finalized as GenLayer
 investigation 1 at the successor, and authenticated registration was confirmed
-on Base and in the candidate API. The next StudioNet read hit the 500-requests/
-hour RPC limit before evidence submission. Do not repeat the funding or
-registration transaction; resume this case using the checkpoint in
+on Base and in the candidate API. The guarded resume added control evidence
+(GenLayer evidence id 1) and verified its URL and SHA-256 through successful
+finalized GenVM writes (`0xde9959…77def4` and `0xf54a75…04c5e8`). The next
+investigation read encountered StudioNet's 500-requests/hour and 30-requests/
+minute limits before verdict request, challenger funding, or challenge opening.
+Do not repeat the funding, registration, or evidence writes; resume this case using the checkpoint in
 [`e2e-evidence/hardened-successor-live-challenge.json`](e2e-evidence/hardened-successor-live-challenge.json)
 after StudioNet read access returns. No challenge stake has been deposited on
 this case. Settlement and withdrawals are not claimed and remain deferred to

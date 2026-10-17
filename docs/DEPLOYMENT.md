@@ -76,7 +76,10 @@ A further read-only production check at 11:43Z returned API and database
 health `ok`, `/submit` HTTP 200, and three cached investigations (IDs 1–3).
 All three are still unsettled; the feed's case IDs match the current evidence
 record. Base Sepolia returned chain id `84532`, and StudioNet returned
-`61999`. No write transaction was sent during this check.
+`61999`. All 16 JavaScript assets loaded; they contain the current `EDFF...`
+adjudicator, Base escrow, and Fly API hostname, with no superseded `A239...`
+address. API tests (46) and Foundry tests (9) passed again at 11:43Z. No write
+transaction was sent during these checks.
 
 On 2026-10-17 the production PostgreSQL cache was pruned of four stale hunts
 from the superseded contract era, along with four dependent evidence rows, two

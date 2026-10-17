@@ -369,6 +369,13 @@
     "checkedAt": "2026-10-17T11:43:05Z",
     "apiHealth": { "status": "ok", "database": "ok" },
     "hostedSubmitPageHttpStatus": 200,
+    "frontendBundleCheck": {
+      "scriptAssets": 16,
+      "matchedGenlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+      "matchedBaseEscrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+      "matchedFlyApiHostname": true,
+      "supersededA239AddressPresent": false
+    },
     "hostedInvestigations": {
       "total": 3,
       "ids": [3, 2, 1],
@@ -382,6 +389,11 @@
     },
     "baseSepoliaChainId": "0x14a34",
     "studioNetChainId": "0xf22f",
+    "localTestRecheck": {
+      "checkedAt": "2026-10-17T11:43:38Z",
+      "apiTests": "46 passed",
+      "foundryTests": "9 passed"
+    },
     "writesSent": false
   }
 }

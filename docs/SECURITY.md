@@ -146,6 +146,13 @@ was not terminal. This validates production receipt parsing and early-relay
 rejection, not successful settlement; challenge overturn, Base payout, and
 wallet withdrawal remain unverified.
 
+The Fly PostgreSQL cache was cleared of four stale investigation entries and
+their dependent cache data. The current EDFF investigation and its live
+challenge remain. A removed old entry still corresponds to an unfinalized
+100,000-unit Base escrow registration to A239; cache cleanup did not change
+the on-chain record. See
+[`e2e-evidence/legacy-cache-cleanup.json`](e2e-evidence/legacy-cache-cleanup.json).
+
 The current source also contains an independent challenge-backing check in
 both the relay path and decision signer. The test suite covers the deterministic
 rule that only a Base-backed challenge changes verdict/stake allocation. The

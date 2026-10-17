@@ -41,6 +41,15 @@ before submission. The Base challenge stake is deposited and the challenge
 remains open; no settlement or withdrawal has occurred. See
 [`e2e-evidence/studionet-base-challenge-e2e.json`](e2e-evidence/studionet-base-challenge-e2e.json).
 
+On 2026-10-17 the production PostgreSQL cache was pruned of four stale hunts
+from the superseded contract era, along with four dependent evidence rows, two
+pending evidence uploads, and two notifications. The exact active `EDFF...`
+case and its open funded challenge were preserved. One removed cache record
+was still registered on Base to `A239...` with 100,000 USDC base units and is
+not finalized; the database cleanup did not alter that on-chain escrow. The
+cleanup inventory and guard results are in
+[`e2e-evidence/legacy-cache-cleanup.json`](e2e-evidence/legacy-cache-cleanup.json).
+
 The Base escrow verifier compiled the checked-out Solidity with solc
 `0.8.37+commit.f401782d`, optimizer runs `200`, and `viaIR: true`. It verified
 the deployed runtime bytecode (masking compiler-reported immutable slots) and

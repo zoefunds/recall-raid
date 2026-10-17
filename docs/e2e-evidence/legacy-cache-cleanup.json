@@ -1,0 +1,70 @@
+{
+  "schema": "recallraid-legacy-cache-cleanup/v1",
+  "performedAt": "2026-10-17T09:45:09Z",
+  "environment": "Fly production API PostgreSQL cache",
+  "scope": "Cached hunts tied to or predating superseded GenLayer deployments; no chain or token transactions were sent.",
+  "preserved": {
+    "investigationId": 1,
+    "genlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+    "baseCaseId": "0x7919596dbe3e194fd82aceaaa5156e80822d62d720f7745750883691d56566e5",
+    "status": "CHALLENGE_WINDOW",
+    "settled": false,
+    "openChallengeId": 1,
+    "evidenceRows": 2,
+    "challengeStakeUsdcBaseUnits": "20000"
+  },
+  "removedFromCache": {
+    "investigations": [
+      {
+        "id": 2,
+        "baseCaseId": "0xf10b16b005e9f6fe5b0a433d0dfb042e7086e880bb6bb15cb0c9ac41ec72f864",
+        "legacyRegisteredGenlayerContract": "0xa239189c2921b592dBa1eccde830977edbfD1CB5",
+        "baseRegistration": true,
+        "baseFinalized": false,
+        "baseBountyUsdcBaseUnits": "100000",
+        "note": "Legacy Base escrow registration remains on-chain and was not modified. The active API is configured to EDFF and cannot settle this older A239 registration."
+      },
+      {
+        "id": 3,
+        "baseCaseId": "0x13ba6cd3e69be2806603614dd22616069ca356801d98db005c236b962d6844cc",
+        "baseRegistration": false,
+        "baseFinalized": false,
+        "baseBountyUsdcBaseUnits": "0"
+      },
+      {
+        "id": 5,
+        "baseCaseId": "0x9141822015bf32736f981c2aca443dd4fe470eed08ee1b9b270f895432c88ad8",
+        "baseRegistration": false,
+        "baseFinalized": false,
+        "baseBountyUsdcBaseUnits": "0"
+      },
+      {
+        "id": 6,
+        "baseCaseId": "0x9368a5c8afbb37d8985def34e0ee12124076ab606d50a33c1d0b9b05986c8cc1",
+        "baseRegistration": false,
+        "baseFinalized": false,
+        "baseBountyUsdcBaseUnits": "0"
+      }
+    ],
+    "cascadeDeletedEvidenceRows": 4,
+    "deletedPendingEvidenceUploads": 2,
+    "deletedNotifications": 2,
+    "deletedRelatedTxLogs": 0,
+    "deletedChallenges": 0,
+    "deletedSellerBondRows": 0,
+    "deletedLeaderboardRows": 0,
+    "remainingInvestigationCount": 1
+  },
+  "method": "Single PostgreSQL transaction with row locks and guards that required the exact four stale IDs and Base case IDs, plus the current investigation 1 in open CHALLENGE_WINDOW state. Transaction would roll back if any guard failed.",
+  "verification": {
+    "productionHuntsEndpointTotal": 1,
+    "remainingInvestigationId": 1,
+    "currentEvidenceIds": [1, 2],
+    "currentOpenChallengeId": 1
+  },
+  "limitations": [
+    "The cache schema did not store the source GenLayer contract address, so stale investigations were identified by pre-EDFF creation records and cross-checked against Base escrow registrations. The active investigation was protected by exact case ID and state guards.",
+    "Deleting cache rows does not delete or settle any on-chain Base or GenLayer state.",
+    "The legacy investigation 2 Base registration and its 100,000 USDC base-unit bounty remain on-chain and require a separately supported legacy recovery or settlement path."
+  ]
+}

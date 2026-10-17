@@ -395,5 +395,16 @@
       "foundryTests": "9 passed"
     },
     "writesSent": false
+  },
+  "settlementRunnerPreflight": {
+    "checkedAt": "2026-10-17T11:45:37Z",
+    "script": "scripts/settle_studionet_base_e2e.mjs",
+    "submitterKeyMatchesEvidenceWallet": true,
+    "challengerKeyMatchesEvidenceWallet": true,
+    "challengerKeyFilePresent": true,
+    "challengerKeyFileMode": "0600",
+    "apiEnvFileMode": "0600",
+    "requiredDeploymentVariablesPresent": true,
+    "writesSent": false
   }
 }

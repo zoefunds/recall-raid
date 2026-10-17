@@ -81,6 +81,14 @@ adjudicator, Base escrow, and Fly API hostname, with no superseded `A239...`
 address. API tests (46) and Foundry tests (9) passed again at 11:43Z. No write
 transaction was sent during these checks.
 
+At 11:45Z the post-deadline settlement runner inputs were preflighted without
+signing or broadcasting: the configured submitter key and the mode-`0600`
+challenger key file both derive the wallets recorded for the case; the API env
+file is also mode `0600`, and the required deployment variables are present.
+This confirms the withdrawal runner has its local credentials when the
+recorded challenge deadline passes; it does not claim settlement readiness
+before that deadline.
+
 On 2026-10-17 the production PostgreSQL cache was pruned of four stale hunts
 from the superseded contract era, along with four dependent evidence rows, two
 pending evidence uploads, and two notifications. The exact active `EDFF...`

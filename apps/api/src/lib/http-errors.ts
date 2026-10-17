@@ -24,3 +24,7 @@ export function unauthorized(message = "authentication_required"): ApiError {
 export function forbidden(message: string): ApiError {
   return new ApiError(403, "forbidden", message);
 }
+
+export function badGateway(message: string): ApiError {
+  return new ApiError(502, "upstream_error", message);
+}

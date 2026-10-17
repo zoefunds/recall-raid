@@ -7,6 +7,7 @@ import { requireAuth } from "../plugins/auth-plugin.js";
 import { badRequest } from "../lib/http-errors.js";
 import { chain } from "../lib/genlayer.js";
 import { assertEvidenceUploadAuthorized } from "../lib/evidence-upload-authorization.js";
+import { fetchChallengeSourceDigest } from "../lib/challenge-source.js";
 import { serializeEvidence, type EvidenceRow } from "../lib/serialize.js";
 
 const UploadUrlSchema = z.object({
@@ -14,16 +15,42 @@ const UploadUrlSchema = z.object({
   contentType: z.string(),
   declaredSizeBytes: z.coerce.number().int().positive(),
   fileName: z.string().optional(),
-  purpose: z.enum(["evidence", "challenge_rebuttal"]).default("evidence"),
 });
 
 const SyncSchema = z.object({ txHash: z.string().optional() });
+const ChallengeSourceSchema = z.object({
+  investigationId: z.coerce.number().int().positive(),
+  url: z.string().url(),
+});
 
 const ListQuerySchema = z.object({
   investigation_id: z.coerce.number().int().positive(),
 });
 
 export async function evidenceRoutes(app: FastifyInstance) {
+  app.post(
+    "/evidence/challenge-source-digest",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const session = requireAuth(req);
+      const parsed = ChallengeSourceSchema.safeParse(req.body);
+      if (!parsed.success) throw badRequest(parsed.error.message);
+
+      const investigation = await chain.getInvestigation(parsed.data.investigationId);
+      const challenge = investigation.open_challenge_id > 0
+        ? await chain.getChallenge(investigation.open_challenge_id)
+        : undefined;
+      assertEvidenceUploadAuthorized({
+        walletAddress: session.walletAddress,
+        purpose: "challenge_rebuttal",
+        investigation,
+        challenge,
+      });
+
+      return reply.send(await fetchChallengeSourceDigest(parsed.data.url));
+    },
+  );
+
   // GET /evidence?investigation_id=N — served from the Postgres cache,
   // mirroring the read pattern already used by GET /investigations.
   // Powers the evidence gallery on the investigation detail page.
@@ -58,14 +85,10 @@ export async function evidenceRoutes(app: FastifyInstance) {
       // to the recorded challenger of the currently open on-chain challenge.
       const investigation = await chain.getInvestigation(parsed.data.investigationId);
       if (!investigation) throw badRequest("investigation does not exist on GenLayer");
-      const challenge = parsed.data.purpose === "challenge_rebuttal" && investigation.open_challenge_id > 0
-        ? await chain.getChallenge(investigation.open_challenge_id)
-        : undefined;
       assertEvidenceUploadAuthorized({
         walletAddress: session.walletAddress,
-        purpose: parsed.data.purpose,
+        purpose: "evidence",
         investigation,
-        challenge,
       });
 
       try {

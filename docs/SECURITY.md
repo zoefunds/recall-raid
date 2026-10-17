@@ -120,21 +120,22 @@ not substitutes for independent contract review, key management review,
 production deployment validation, or a complete wallet-driven cross-chain
 exercise.
 
-On 2026-10-17 the Fly API and Vercel production frontend were configured to
-the earlier `a239...` adjudicator. The Base escrow passed deployed-bytecode
-comparison, and both hosted services returned healthy/reachable responses.
-The latest `EDFF...` adjudicator is not configured in the hosted services.
-These historical checks do not establish current deployment consistency or a
-browser-originated funding-to-settlement transaction using an actual finalized
-GenLayer decision.
+On 2026-10-17 the Fly API and Vercel frontend were configured to the latest
+accepted `EDFF...` adjudicator. Fly has the separate decision signer and both
+API machines are healthy; the production web bundle contains `EDFF...` and no
+longer contains `a239...`. An authenticated production sync consumed the
+actual finalized registration receipt. The API refuses pre-deadline relay.
+The contract source in this checkout additionally requires HTTPS for regulator
+URLs, which requires a successor adjudicator deployment after the existing
+Base-bound test case settles.
 
-A prior CLI run used the `a239...` pair for real Base funding and
-authenticated registration, StudioNet evidence submission and fetch/hash
-verification, an actual finalized `RECALL_CONFIRMED` verdict, Base-funded
-challenge opening, and actual finalized challenge resolution. StudioNet
-upheld the original verdict, so the successful-overturn branch, final Base
-relay, and withdrawals remain unverified. The details and transaction hashes
-are in [`e2e-evidence/studionet-base-cli-e2e.json`](e2e-evidence/studionet-base-cli-e2e.json).
+The earlier CLI run used `a239...` and validators upheld its challenge. A
+new run on `EDFF...` used real Base USDC and the production authenticated
+API. The 20,000-unit challenge stake and official CPSC rebuttal evidence are
+recorded, but the StudioNet RPC rate limit blocked the evidence-verification
+transaction. The challenge is still open; no verdict change, settlement, or
+withdrawal is claimed. See
+[`e2e-evidence/studionet-base-challenge-e2e.json`](e2e-evidence/studionet-base-challenge-e2e.json).
 The API receipt normalization fix was deployed to Fly in commit
 `4f998ad4c91454ea384aee47e7b620447fffbf5e`. An authenticated production sync
 consumed the real finalized challenge-resolution receipt and preserved the
@@ -146,6 +147,7 @@ unverified.
 
 The current source also contains an independent challenge-backing check in
 both the relay path and decision signer. The test suite covers the deterministic
-rule that only a Base-backed challenge changes verdict/stake allocation. A
-separate run against the latest `EDFF...` deployment is incomplete and does not
-yet demonstrate that rule as end-to-end deployed validation.
+rule that only a Base-backed challenge changes verdict/stake allocation. The
+`EDFF...` run has reached the challenge-evidence stage but is not end-to-end
+settlement evidence until verification, finalized challenge resolution, payout,
+and wallet withdrawals are confirmed.

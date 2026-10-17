@@ -98,10 +98,11 @@ def _is_authoritative_recall_domain(url: str) -> bool:
     if not url:
         return True  # optional field — absence is not a violation, only a mismatched present value is
     try:
-        host = (urlparse(url).hostname or "").lower()
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
     except Exception:
         return False
-    if not host:
+    if parsed.scheme.lower() != "https" or parsed.username or parsed.password or not host:
         return False
     return host in AUTHORITATIVE_RECALL_DOMAINS
 

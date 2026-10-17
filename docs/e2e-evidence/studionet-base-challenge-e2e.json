@@ -1,0 +1,86 @@
+{
+  "schema": "recallraid-studionet-base-challenge-e2e/v1",
+  "updatedAt": "2026-10-17",
+  "networks": {
+    "genlayer": "StudioNet",
+    "genlayerChainId": 61999,
+    "base": "Base Sepolia",
+    "baseChainId": 84532
+  },
+  "contracts": {
+    "genlayer": "0xEDFFB4B4999D65A248441438233c18717515973d",
+    "baseEscrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+  },
+  "progress": {
+    "stage": "challenge-evidence-added-verification-pending",
+    "complete": false,
+    "blocker": "StudioNet RPC rate limit rejected verify_evidence submission; the existing challenge remains open and funds remain in escrow."
+  },
+  "case": {
+    "caseId": "0x7919596dbe3e194fd82aceaaa5156e80822d62d720f7745750883691d56566e5",
+    "investigationId": 1,
+    "submitter": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+    "bountyUsdcBaseUnits": "100000",
+    "baseEscrowRegistered": true,
+    "genlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+    "genlayerSubmitTx": "0xb62b23574653e7854ab3be7279d529591e47a777489006a8d024c5a102d16a06",
+    "genlayerSubmitConsensus": "MAJORITY_AGREE",
+    "genlayerSubmitExecution": "SUCCESS",
+    "initialEvidence": {
+      "id": 1,
+      "url": "https://www.example.com/",
+      "sha256": "25ddf2c883e0d1958ea971d279a7e4f0fd446724ee3db7db19dadabd4a62e484",
+      "verified": true
+    },
+    "initialVerdict": {
+      "tx": "0x275fcdb83bae491c265d59a8757f4a96128eaa0b1680a1f4de585f7aa01fdbd2",
+      "status": "FINALIZED",
+      "consensus": "MAJORITY_AGREE",
+      "execution": "SUCCESS",
+      "verdict": "NO_ISSUE",
+      "verdictCode": 1,
+      "confidenceBps": 7000
+    }
+  },
+  "challenge": {
+    "id": 1,
+    "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+    "stakeUsdcBaseUnits": "20000",
+    "baseFundingTx": "0xed13afdac627c5dbf3be0053d23e13039f834be5946d8303a82cd731e4f107f7",
+    "openTx": "0x47f79468ec716086793492f58c9e83afa5cd7d0aaf1e59a6d4c8fae3bc89d618",
+    "status": "OPEN",
+    "priorVerdict": "NO_ISSUE",
+    "resolutionDeadline": "2026-10-19T09:21:56Z",
+    "baseEscrowChallengeDeposit": "20000"
+  },
+  "challengeEvidence": {
+    "id": 2,
+    "url": "https://www.cpsc.gov/Recalls/2019/Fisher-Price-Recalls-Rock-n-Play-Sleepers-Due-to-Reports-of-Deaths",
+    "sha256": "387ede9bf09078ecc07dcef5a2ce06ab2fca658c0c15b9f8657ec8bdead536ab",
+    "byteLength": 75705,
+    "addTx": "0xd2689c8d518bcbcbc59689593593081dc93db8d7884bcaf9cf6e76b952c1e40e",
+    "urlReachable": false,
+    "contentHashVerified": false,
+    "verificationTx": null,
+    "note": "The add_evidence transaction finalized. Independent GenLayer verification has not yet been submitted, so the API cache currently reports its verification booleans as false."
+  },
+  "hostedChecks": {
+    "flyApi": "https://recallraid-usdc-api.fly.dev",
+    "apiHealth": "ok",
+    "databaseHealth": "ok",
+    "apiGenlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+    "decisionSignerConfigured": true,
+    "authenticatedRegistrationSync": true,
+    "preDeadlineRelayRefused": true,
+    "vercelFrontend": "https://recall-raid.vercel.app",
+    "frontendHttpStatus": 200,
+    "frontendBundleGenlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d"
+  },
+  "settlement": {
+    "baseRelaySent": false,
+    "walletWithdrawalsVerified": false,
+    "successfulOverturn": null,
+    "reason": "Challenge resolution and terminal settlement have not happened. No payout or withdrawal is claimed."
+  }
+}

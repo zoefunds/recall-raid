@@ -16,6 +16,7 @@ const baseRpc = process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org";
 const escrowAddress = process.env.RECALLRAID_ESCROW_ADDRESS;
 const usdcAddress = process.env.BASE_SEPOLIA_USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const apiBase = process.env.RECALLRAID_API_BASE_URL || "http://localhost:8081";
+const testOrigin = process.env.RECALLRAID_E2E_ORIGIN || "http://localhost:3001";
 const challengerKeyFile = process.env.RECALLRAID_CHALLENGER_KEY_FILE || "/private/tmp/recallraid-challenger-key.json";
 const reportPath = process.env.RECALLRAID_E2E_REPORT || "docs/e2e-evidence/studionet-base-challenge-e2e.json";
 const submitterKey = process.env.BASE_SEPOLIA_RELAYER_PRIVATE_KEY;
@@ -49,7 +50,28 @@ const bounty = 100_000n; // 0.10 USDC
 const challengeStake = bounty / 5n;
 const startedAt = new Date().toISOString();
 const caseId = ethers.id(`recallraid:challenge-e2e:${randomUUID()}`);
+const resumeInvestigationId = Number(process.env.RECALLRAID_E2E_INVESTIGATION_ID || 0);
+const activeCaseId = process.env.RECALLRAID_E2E_CASE_ID || caseId;
+const activeSubmitTx = process.env.RECALLRAID_E2E_SUBMIT_TX || "";
+let reportInvestigationId = resumeInvestigationId || null;
+let reportProgress = "initialized";
 const results = { base: {}, genlayer: {}, api: {}, adjudication: {}, settlement: {} };
+
+function checkpoint(stage) {
+  reportProgress = stage;
+  const report = {
+    schema: "recallraid-studionet-base-challenge-e2e/v1",
+    startedAt,
+    updatedAt: new Date().toISOString(),
+    networks: { genlayer: "StudioNet/61999", base: "Base Sepolia/84532" },
+    contracts: { genlayer: genlayerAddress, escrow: escrowAddress, usdc: usdcAddress },
+    wallets: { submitter: submitter.address, challenger: challenger.address },
+    case: { caseId: activeCaseId, investigationId: reportInvestigationId, bountyUsdcBaseUnits: bounty.toString(), baseFundingTx: results.base.bountyFundingTx },
+    progress: { stage: reportProgress, complete: false },
+    ...results,
+  };
+  writeFileSync(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`);
+}
 
 function decodeResult(transaction) {
   const leader = transaction?.consensus_data?.leader_receipt?.find((item) => item?.mode === "leader")
@@ -98,16 +120,15 @@ async function baseConfirmed(transactionPromise) {
 }
 
 async function authenticate(wallet) {
-  const origin = "http://localhost:3001";
   const nonceResponse = await fetch(`${apiBase}/auth/nonce`, {
-    method: "POST", headers: { "content-type": "application/json", origin },
+    method: "POST", headers: { "content-type": "application/json", origin: testOrigin },
     body: JSON.stringify({ address: wallet.address }),
   });
   if (!nonceResponse.ok) throw new Error(`Wallet nonce request failed (${nonceResponse.status})`);
   const { message } = await nonceResponse.json();
   const signature = await wallet.signMessage(message);
   const verifyResponse = await fetch(`${apiBase}/auth/verify`, {
-    method: "POST", headers: { "content-type": "application/json", origin },
+    method: "POST", headers: { "content-type": "application/json", origin: testOrigin },
     body: JSON.stringify({ address: wallet.address, signature }),
   });
   if (!verifyResponse.ok) throw new Error(`Wallet session verification failed (${verifyResponse.status})`);
@@ -121,7 +142,7 @@ async function apiPost(path, body, cookie) {
   for (let attempt = 0; attempt < 5; attempt++) {
     const response = await fetch(`${apiBase}${path}`, {
       method: "POST",
-      headers: { "content-type": "application/json", origin: "http://localhost:3001", cookie },
+      headers: { "content-type": "application/json", origin: testOrigin, cookie },
       body: JSON.stringify(body),
     });
     const text = await response.text();
@@ -144,6 +165,7 @@ if (Number(baseChain.chainId) !== 84532) throw new Error(`Expected Base Sepolia 
 const apiHealth = await fetch(`${apiBase}/health`).then((res) => res.json());
 if (apiHealth.status !== "ok" || apiHealth.db !== "ok") throw new Error("Local API/database health check failed");
 results.api.health = apiHealth;
+checkpoint("services-healthy");
 
 // Fund the independent challenger with only its required stake and enough gas.
 const challengerUsdcBefore = await usdc.balanceOf(challenger.address);
@@ -157,9 +179,6 @@ if ((await baseProvider.getBalance(challenger.address)) < ethers.parseEther("0.0
   results.base.challengerGasTransferTx = gasTx.hash;
 }
 
-const resumeInvestigationId = Number(process.env.RECALLRAID_E2E_INVESTIGATION_ID || 0);
-const activeCaseId = process.env.RECALLRAID_E2E_CASE_ID || caseId;
-const activeSubmitTx = process.env.RECALLRAID_E2E_SUBMIT_TX || "";
 if (resumeInvestigationId && (!/^0x[a-fA-F0-9]{64}$/.test(activeCaseId) || !/^0x[a-fA-F0-9]{64}$/.test(activeSubmitTx))) {
   throw new Error("Resume mode requires valid RECALLRAID_E2E_CASE_ID and RECALLRAID_E2E_SUBMIT_TX values");
 }
@@ -175,6 +194,7 @@ const fundedCase = await escrow.getCase(activeCaseId);
 if (fundedCase.submitter.toLowerCase() !== submitter.address.toLowerCase() || fundedCase.bounty !== bounty) {
   throw new Error("Base escrow funding does not match the intended submitter and bounty");
 }
+checkpoint("base-bounty-funded");
 
 // The fixture deliberately omits a model/serial. The challenge then supplies
 // a real CPSC notice for all Rock 'n Play Sleeper models; any corrected verdict
@@ -199,6 +219,7 @@ if (resumeInvestigationId) {
   investigationId = Number(submitted.result?.investigation_id);
   if (!Number.isInteger(investigationId) || investigationId <= 0) throw new Error("Could not decode the GenLayer investigation id");
 }
+reportInvestigationId = investigationId;
 results.genlayer.submit = submitted;
 results.genlayer.investigationId = investigationId;
 results.genlayer.caseId = activeCaseId;
@@ -208,6 +229,7 @@ results.genlayer.initialEvidenceSha256 = neutral.hash;
 const submitterCookie = await authenticate(submitter);
 await apiPost(`/investigations/${investigationId}/sync`, { txHash: submitted.txHash }, submitterCookie);
 results.api.authenticatedRegistrationSync = true;
+checkpoint("authenticated-registration-synced");
 const baseAfterRegistration = await escrow.getCase(activeCaseId);
 if (!baseAfterRegistration.registered || baseAfterRegistration.genlayerContract.toLowerCase() !== genlayerAddress.toLowerCase()
   || Number(baseAfterRegistration.genlayerInvestigationId) !== investigationId) {
@@ -241,9 +263,10 @@ if (existingNeutral) {
 if (!initialVerification.result?.url_reachable || !initialVerification.result?.content_hash_verified) {
   throw new Error("Initial control evidence did not pass GenLayer URL/hash verification");
 }
-await apiPost(`/evidence/${investigationId}/sync`, { txHash: initialVerification.txHash }, submitterCookie);
-await apiPost(`/investigations/${investigationId}/sync`, { txHash: initialVerification.txHash }, submitterCookie);
+await apiPost(`/evidence/${investigationId}/sync`, initialVerification.txHash ? { txHash: initialVerification.txHash } : {}, submitterCookie);
+await apiPost(`/investigations/${investigationId}/sync`, initialVerification.txHash ? { txHash: initialVerification.txHash } : {}, submitterCookie);
 results.genlayer.initialEvidence = { id: initialEvidenceId, addTx: initialEvidence.txHash, verifyTx: initialVerification.txHash, hashVerified: true };
+checkpoint("initial-evidence-verified");
 
 let initialState = await glRead(submitterClient, "get_investigation", [investigationId]);
 let initialAdjudication = null;
@@ -260,17 +283,29 @@ results.genlayer.initialAdjudication = {
   confidenceBps: Number(initialState.ai_confidence_bps),
   challengeDeadline: Number(initialState.challenge_deadline),
 };
-if (Number(initialState.status) !== 3 || ![1, 2, 3].includes(Number(initialState.verdict))) {
+const existingOpenChallengeId = Number(initialState.open_challenge_id || 0);
+if (![3, 4].includes(Number(initialState.status)) || ![1, 2, 3].includes(Number(initialState.verdict))) {
   throw new Error(`The control adjudication was not challengeable (status=${initialState.status}, verdict=${initialState.verdict})`);
 }
-if (Number(initialState.open_challenge_id) > 0 || Number(initialState.last_challenge_id) > 0) {
+if (Number(initialState.status) === 4 && existingOpenChallengeId <= 0) {
+  throw new Error("Investigation reports an open challenge without its active challenge id");
+}
+if (Number(initialState.last_challenge_id) > 0) {
   throw new Error("This investigation already has or had a challenge; use a fresh case for another live attempt");
+}
+checkpoint("initial-verdict-finalized");
+if (existingOpenChallengeId > 0) {
+  const existingChallenge = await glRead(challengerClient, "get_challenge", [existingOpenChallengeId]);
+  if (Number(existingChallenge.status) !== 1 || existingChallenge.challenger.toLowerCase() !== challenger.address.toLowerCase()) {
+    throw new Error("Existing open challenge does not belong to the funded test challenger");
+  }
 }
 
 // The challenger funds its own Base position and signs its own StudioNet call.
 const challengerUsdc = usdc.connect(challenger);
 let challengeDepositBefore = await escrow.getChallengeDeposit(activeCaseId, challenger.address);
 if (challengeDepositBefore.amount === 0n) {
+  if (existingOpenChallengeId > 0) throw new Error("Open GenLayer challenge exists without its matching Base challenge stake");
   results.base.challengeApprovalTx = await baseConfirmed(challengerUsdc.approve(escrowAddress, challengeStake));
   results.base.challengeFundingTx = await baseConfirmed(escrow.connect(challenger).fundChallenge(activeCaseId, challengeStake));
 } else if (challengeDepositBefore.amount === challengeStake) {
@@ -278,10 +313,11 @@ if (challengeDepositBefore.amount === 0n) {
 } else {
   throw new Error(`Unexpected pre-existing challenge deposit: ${challengeDepositBefore.amount}`);
 }
+checkpoint("base-challenge-funded");
 const reason = "The product name identifies the recalled Rock 'n Play Sleeper family. The CPSC notice states the recall covers all models; the initial record had no production model or serial to match. Re-evaluate as a potential issue without claiming an exact-model confirmation.";
 let currentInvestigation = await glRead(challengerClient, "get_investigation", [investigationId]);
 let challengeOpened = null;
-let challengeId = Number(currentInvestigation.open_challenge_id || currentInvestigation.last_challenge_id || 0);
+let challengeId = Number(currentInvestigation.open_challenge_id || 0);
 if (!challengeId) {
   challengeOpened = await glWrite(challengerClient, "open_challenge", [
     investigationId, reason, Number(challengeStake), results.base.challengeFundingTx,
@@ -292,6 +328,7 @@ if (!Number.isInteger(challengeId) || challengeId <= 0) throw new Error("Could n
 results.genlayer.challenge = { id: challengeId, openTx: challengeOpened?.txHash ?? process.env.RECALLRAID_E2E_OPEN_CHALLENGE_TX ?? null, challenger: challenger.address, stakeBaseUnits: challengeStake.toString(), reason };
 const challengerCookie = await authenticate(challenger);
 if (challengeOpened?.txHash) await apiPost(`/challenges/${challengeId}/sync`, { txHash: challengeOpened.txHash }, challengerCookie);
+checkpoint("genlayer-challenge-open");
 
 // Attach the CPSC primary-source notice as regulator-only rebuttal evidence.
 const official = await evidenceDigest(officialRecallUrl);
@@ -308,6 +345,8 @@ if (!challengeEvidenceId) {
   ]);
   challengeEvidenceId = Number(challengeEvidence.result?.evidence_id);
   if (!Number.isInteger(challengeEvidenceId)) throw new Error("Could not decode regulator rebuttal evidence id");
+  results.genlayer.challengeEvidence = { id: challengeEvidenceId, url: officialRecallUrl, sha256: official.hash, byteLength: official.bytes, addTx: challengeEvidence.txHash, verifyTx: null, reachable: false, hashVerified: false };
+  checkpoint("challenge-evidence-added");
   challengeVerification = await glWrite(challengerClient, "verify_evidence", [challengeEvidenceId]);
 } else if (!existingChallengeEvidenceId.content_hash_verified || !existingChallengeEvidenceId.url_reachable) {
   challengeVerification = await glWrite(challengerClient, "verify_evidence", [challengeEvidenceId]);
@@ -329,6 +368,7 @@ results.genlayer.challengeEvidence = {
   reachable: Boolean(existingChallengeEvidenceId?.url_reachable || challengeVerification?.result?.url_reachable),
   hashVerified: Boolean(existingChallengeEvidenceId?.content_hash_verified || challengeVerification?.result?.content_hash_verified),
 };
+checkpoint("challenge-evidence-verified");
 
 let resolved = null;
 let challengeState = await glRead(challengerClient, "get_challenge", [challengeId]);
@@ -354,6 +394,7 @@ results.genlayer.challengeResolution = {
 };
 await apiPost(`/challenges/${challengeId}/sync`, { txHash: resolved.txHash }, challengerCookie);
 await apiPost(`/investigations/${investigationId}/sync`, { txHash: resolved.txHash }, submitterCookie);
+checkpoint("challenge-resolution-finalized");
 
 const challengeDeposit = await escrow.getChallengeDeposit(activeCaseId, challenger.address);
 if (challengeDeposit.amount !== challengeStake) throw new Error("Base escrow does not retain the exact challenger stake for this wallet");
@@ -371,6 +412,7 @@ const report = {
   schema: "recallraid-studionet-base-challenge-e2e/v1",
   startedAt,
   completedAt: new Date().toISOString(),
+  progress: { stage: "settlement-wait", complete: false },
   networks: { genlayer: "StudioNet/61999", base: "Base Sepolia/84532" },
   contracts: { genlayer: genlayerAddress, escrow: escrowAddress, usdc: usdcAddress },
   wallets: { submitter: submitter.address, challenger: challenger.address },

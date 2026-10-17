@@ -86,9 +86,15 @@ export function requestEvidenceUploadUrl(payload: {
   contentType: string;
   declaredSizeBytes: number;
   fileName?: string;
-  purpose?: 'evidence' | 'challenge_rebuttal';
 }): Promise<UploadUrlResponse> {
   return apiFetch('/evidence/upload-url', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function fetchChallengeSourceDigest(payload: {
+  investigationId: number;
+  url: string;
+}): Promise<{ url: string; sha256: string; byteLength: number }> {
+  return apiFetch('/evidence/challenge-source-digest', { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export function fetchChallengesForInvestigation(investigationId: number | string): Promise<{ challenges: Challenge[] }> {

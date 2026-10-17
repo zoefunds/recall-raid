@@ -2,10 +2,12 @@
 
 This repository documents the RecallRaid testnet deployment on StudioNet and
 Base Sepolia. The contracts are test deployments, not production contracts.
-The Base escrow deployment is verified below. Several StudioNet adjudicator
-deployments exist; the latest accepted deployment is not yet the hosted pair.
-Always verify runtime configuration and deployed source before treating the
-local, hosted, and on-chain configurations as one deployment.
+The Base escrow deployment is verified below. The currently hosted pair uses
+the accepted `EDFF...` StudioNet adjudicator and the verified Base escrow.
+The repository adds a stricter HTTPS check for official regulator URLs after
+that adjudicator was deployed; deploy a successor adjudicator only after the
+currently bound live case has completed settlement, because Base registration
+is immutable.
 
 ## Networks and recorded deployments
 
@@ -29,11 +31,14 @@ GenLayer reference. The Base transactions did not consume the revised
 adjudicator's consensus result. They are accounting and signature-binding
 checks, not end-to-end adjudication evidence.
 
-The CLI-driven cross-chain record in
+The earlier CLI record in
 [`e2e-evidence/studionet-base-cli-e2e.json`](e2e-evidence/studionet-base-cli-e2e.json)
-used the earlier accepted adjudicator and demonstrates an upheld challenge,
-not a successful overturn. A separate run against the latest adjudicator is
-in progress; it is not evidence of completion until its report is recorded.
+used `a239...` and demonstrated an upheld challenge. The live `EDFF...` run
+is currently paused after adding official CPSC rebuttal evidence: the GenLayer
+RPC rate limit prevented the verification transaction from being submitted.
+The Base challenge stake is deposited and the challenge remains open; no
+settlement or withdrawal has occurred. See
+[`e2e-evidence/studionet-base-challenge-e2e.json`](e2e-evidence/studionet-base-challenge-e2e.json).
 
 The Base escrow verifier compiled the checked-out Solidity with solc
 `0.8.37+commit.f401782d`, optimizer runs `200`, and `viaIR: true`. It verified
@@ -46,12 +51,14 @@ The verified owner and relayer are `0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb`,
 the distinct decision signer is `0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C`,
 and USDC is `0x036CbD53842c5426634e7929541eC2318f3dCF7e`.
 
-On 2026-10-17 the Fly API and Vercel app were configured with the `a239...`
-adjudicator. The latest `EDFF...` deployment was applied to local ignored
-configuration for testing, but the hosted API/frontend have not been verified
-against that latest pair. The production health/HTTP checks are historical
-reachability evidence only and do not establish current configuration or a
-completed browser-originated cross-chain settlement.
+On 2026-10-17 Fly was updated with the `EDFF...` GenLayer address and the
+separate decision-signer secret; both API machines were healthy. Vercel
+production now bundles `EDFF...`, points to the Fly API, and has a READY
+production deployment. Authenticated production sync consumed the actual
+finalized registration receipt and preserved the live case. Production relay
+returned HTTP 400 before the seven-day settlement deadline. These checks
+verify current address configuration and fail-closed behavior; they do not
+prove final payout or withdrawal.
 
 After the CLI run below exposed an SDK receipt-shape mismatch, API commit
 `4f998ad4c91454ea384aee47e7b620447fffbf5e` was deployed to Fly on 2026-10-17

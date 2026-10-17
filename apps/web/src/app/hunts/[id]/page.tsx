@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchChallengesForInvestigation, fetchEvidenceForInvestigation, fetchInvestigation, relayInvestigation, requestEvidenceUploadUrl, syncChallenge, syncEvidenceForInvestigation, syncInvestigation } from '@/lib/api';
+import { fetchChallengeSourceDigest, fetchChallengesForInvestigation, fetchEvidenceForInvestigation, fetchInvestigation, relayInvestigation, syncChallenge, syncEvidenceForInvestigation, syncInvestigation } from '@/lib/api';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { Card, CardBody } from '@/components/ui/Card';
 import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip, VerdictChip } from '@/components/ui/StatusChip';
@@ -18,7 +18,6 @@ import { useConnectedAddress } from '@/components/ConnectWalletButton';
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { fundChallenge } from '@/lib/base-sepolia';
-import { sha256Hex } from '@/lib/hash';
 
 export default function InvestigationDetailPage() {
   const params = useParams<{ id: string }>();
@@ -47,7 +46,7 @@ export default function InvestigationDetailPage() {
   const { isConnected } = useConnectedAddress();
   const { ensureSession } = useWalletSession();
   const [challengeReason, setChallengeReason] = useState('');
-  const [challengeEvidenceFile, setChallengeEvidenceFile] = useState<File | null>(null);
+  const [challengeEvidenceUrl, setChallengeEvidenceUrl] = useState('');
   const [challengeEvidenceError, setChallengeEvidenceError] = useState<string | null>(null);
 
   if (invQuery.isLoading) {
@@ -138,35 +137,21 @@ export default function InvestigationDetailPage() {
   }
 
   async function handleAddChallengeEvidence() {
-    if (!openChallenge || !challengeEvidenceFile || !address || !connector) return;
+    if (!openChallenge || !challengeEvidenceUrl.trim() || !address || !connector) return;
     setChallengeEvidenceError(null);
     try {
       if (address.toLowerCase() !== openChallenge.challenger.toLowerCase()) {
         throw new Error('Only the wallet that opened this challenge can add rebuttal evidence.');
       }
       await ensureSession();
-      const file = challengeEvidenceFile;
-      const { upload_url, fields } = await requestEvidenceUploadUrl({
-        investigationId: inv.id,
-        contentType: file.type,
-        declaredSizeBytes: file.size,
-        fileName: file.name,
-        purpose: 'challenge_rebuttal',
-      });
-      const body = new FormData();
-      body.append('file', file);
-      for (const [key, value] of Object.entries(fields)) body.append(key, value);
-      const uploadResponse = await fetch(upload_url, { method: 'POST', body });
-      if (!uploadResponse.ok) throw new Error('Challenge evidence upload failed.');
-      const uploaded = (await uploadResponse.json()) as { secure_url?: string; error?: { message?: string } };
-      if (!uploaded.secure_url) throw new Error(uploaded.error?.message || 'Challenge evidence upload failed.');
+      const source = await fetchChallengeSourceDigest({ investigationId: inv.id, url: challengeEvidenceUrl.trim() });
 
       const evidenceResult = await write.send('add_evidence', [
         inv.id,
         'challenge_rebuttal',
-        await sha256Hex(file),
-        uploaded.secure_url,
-        `Challenge rebuttal: ${file.name}`,
+        source.sha256,
+        source.url,
+        'Official regulator source submitted as challenge rebuttal evidence.',
       ]);
       if (!evidenceResult) return;
       const result = evidenceResult.result as { evidence_id?: unknown } | string | null;
@@ -179,7 +164,7 @@ export default function InvestigationDetailPage() {
       if (!verification) return;
       await syncEvidenceForInvestigation(inv.id, verification.txHash);
       await refreshChallengeAfterTx(openChallenge.id, verification.txHash);
-      setChallengeEvidenceFile(null);
+      setChallengeEvidenceUrl('');
     } catch (error) {
       setChallengeEvidenceError(error instanceof Error ? error.message : 'Could not submit challenge evidence.');
     }
@@ -231,8 +216,8 @@ export default function InvestigationDetailPage() {
           onOpenChallenge={handleOpenChallenge}
           onSettle={handleSettle}
           onResolveChallenge={handleResolveChallenge}
-          challengeEvidenceFile={challengeEvidenceFile}
-          setChallengeEvidenceFile={setChallengeEvidenceFile}
+          challengeEvidenceUrl={challengeEvidenceUrl}
+          setChallengeEvidenceUrl={setChallengeEvidenceUrl}
           challengeEvidenceError={challengeEvidenceError}
           onAddChallengeEvidence={handleAddChallengeEvidence}
           onClaimChallengeTimeout={handleClaimChallengeTimeout}
@@ -433,8 +418,8 @@ function BountyPanel({
   onOpenChallenge,
   onSettle,
   onResolveChallenge,
-  challengeEvidenceFile,
-  setChallengeEvidenceFile,
+  challengeEvidenceUrl,
+  setChallengeEvidenceUrl,
   challengeEvidenceError,
   onAddChallengeEvidence,
   onClaimChallengeTimeout,
@@ -455,8 +440,8 @@ function BountyPanel({
   onOpenChallenge: () => void;
   onSettle: () => void;
   onResolveChallenge: () => void;
-  challengeEvidenceFile: File | null;
-  setChallengeEvidenceFile: (file: File | null) => void;
+  challengeEvidenceUrl: string;
+  setChallengeEvidenceUrl: (url: string) => void;
   challengeEvidenceError: string | null;
   onAddChallengeEvidence: () => void;
   onClaimChallengeTimeout: () => void;
@@ -527,17 +512,20 @@ function BountyPanel({
             {!canClaimChallengeTimeout && isConnected && connectedAddress?.toLowerCase() === openChallenge.challenger.toLowerCase() && (
               <div className="space-y-2 rounded border border-border-subtle bg-bg-deep p-3">
                 <label className="block font-mono text-label-caps uppercase text-muted" htmlFor="challenge-evidence">
-                  Add official regulator rebuttal evidence
+                  Add official regulator source URL
                 </label>
                 <input
                   id="challenge-evidence"
-                  type="file"
-                  accept="image/*,.pdf,.txt"
-                  onChange={(event) => setChallengeEvidenceFile(event.target.files?.[0] ?? null)}
-                  className="w-full text-body-sm text-on-surface"
+                  type="url"
+                  required
+                  value={challengeEvidenceUrl}
+                  onChange={(event) => setChallengeEvidenceUrl(event.target.value)}
+                  placeholder="https://www.cpsc.gov/Recalls/..."
+                  className="w-full rounded border border-border-subtle bg-bg-base px-3 py-2 text-body-sm text-on-surface"
                 />
-                <Button variant="ghost" className="w-full" onClick={onAddChallengeEvidence} loading={busy} disabled={!challengeEvidenceFile}>
-                  Upload and verify evidence
+                <p className="text-caption text-muted">Only regulator sources are accepted. The API fetches and hashes the official page before you submit it on-chain.</p>
+                <Button variant="ghost" className="w-full" onClick={onAddChallengeEvidence} loading={busy} disabled={!challengeEvidenceUrl.trim()}>
+                  Hash and submit official source
                 </Button>
                 {challengeEvidenceError && <p role="alert" className="text-body-sm text-danger">{challengeEvidenceError}</p>}
               </div>

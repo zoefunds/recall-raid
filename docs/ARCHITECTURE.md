@@ -41,10 +41,11 @@ allow recovery while a matching GenLayer investigation exists.
 
 The API creates a short-lived, signed Cloudinary upload request only after
 checking current GenLayer state: ordinary evidence uploads are allowed only
-while evidence collection is open, and challenge rebuttal uploads only for the
-recorded challenger while that challenge remains open. The browser uploads bytes
-directly, then submits the resulting URL and client-computed SHA-256 digest to
-GenLayer. Each investigation supports up to 25 evidence items.
+while evidence collection is open. Challenge rebuttals use a separate API
+route: it accepts only the recorded challenger during an open challenge,
+fetches an HTTPS regulator URL from the exact domain allowlist with bounded
+redirects and a 10 MB cap, and returns the SHA-256 digest for direct on-chain
+submission. Each investigation supports up to 25 evidence items.
 The contract's validator pass fetches the URL and compares SHA-256 of fetched
 raw bytes to the committed digest. Reachability and hash-match are on-chain
 verification results; a text excerpt is best-effort context. A present

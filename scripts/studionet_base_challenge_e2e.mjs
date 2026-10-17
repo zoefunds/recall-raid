@@ -120,8 +120,9 @@ async function glRead(client, method, args) {
       const raw = await client.readContract({ address: genlayerAddress, functionName: method, args });
       return typeof raw === "string" ? JSON.parse(raw) : raw;
     } catch (error) {
-      const message = String(error?.details ?? error?.message ?? error);
-      if (!message.includes("Rate limit exceeded: 500 requests per hour")) throw error;
+      const message = [error?.details, error?.message, error?.cause?.message]
+        .filter(Boolean).join(" ");
+      if (!message.includes("Rate limit exceeded:")) throw error;
       const elapsedMs = Date.now() - startedAt;
       if (elapsedMs >= maxWaitMs) {
         throw new Error(`StudioNet read quota did not recover within ${Math.round(maxWaitMs / 1000)} seconds (${method})`);

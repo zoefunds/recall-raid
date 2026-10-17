@@ -1,0 +1,69 @@
+{
+  "schema": "recallraid-studionet-base-challenge-e2e/v1",
+  "startedAt": "2026-10-17T12:52:40.244Z",
+  "updatedAt": "2026-10-17T12:52:43.097Z",
+  "networks": {
+    "genlayer": "StudioNet/61999",
+    "base": "Base Sepolia/84532"
+  },
+  "contracts": {
+    "genlayer": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+    "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+  },
+  "wallets": {
+    "submitter": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+    "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d"
+  },
+  "case": {
+    "caseId": "0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987",
+    "investigationId": 1,
+    "bountyUsdcBaseUnits": "100000",
+    "baseFundingTx": "0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf"
+  },
+  "progress": {
+    "stage": "authenticated-registration-synced-awaiting-evidence",
+    "complete": false
+  },
+  "base": {
+    "bountyFundingTx": "0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf",
+    "bountyFunding": {
+      "transactionHash": "0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf",
+      "blockNumber": 48236591,
+      "from": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+      "amount": "100000"
+    }
+  },
+  "genlayer": {
+    "submit": {
+      "txHash": "0x5c7081620580dcac4f430a8a1f6d519ab9072a219b767007f685296ec9c8e1a5",
+      "result": {"investigation_id": 1},
+      "status": "FINALIZED",
+      "consensus": "MAJORITY_AGREE",
+      "execution": "FINISHED_WITH_RETURN"
+    },
+    "investigationId": 1,
+    "caseId": "0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987",
+    "initialEvidenceUrl": "https://www.example.com/",
+    "initialEvidenceSha256": "25ddf2c883e0d1958ea971d279a7e4f0fd446724ee3db7db19dadabd4a62e484"
+  },
+  "api": {
+    "health": {
+      "status": "ok",
+      "db": "ok"
+    },
+    "authenticatedRegistrationSync": true,
+    "baseRegistration": {
+      "registered": true,
+      "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+      "investigationId": 1
+    }
+  },
+  "adjudication": {},
+  "settlement": {
+    "relaySent": false,
+    "withdrawalsVerified": false,
+    "reason": "Settlement is intentionally deferred until the seven-day challenge period expires; no payout has been attempted."
+  },
+  "pauseReason": "A StudioNet read returned the 500-requests/hour limit after the finalized registration and API synchronization. Evidence submission, adjudication, and the bonded challenge have not yet run; resume this exact case without duplicate Base funding or GenLayer registration."
+}

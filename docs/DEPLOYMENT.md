@@ -56,6 +56,19 @@ candidate API CORS allowlist is set to this exact preview origin. Neither
 production service nor its database was changed. See
 [`e2e-evidence/hardened-challenge-rollout-check.json`](e2e-evidence/hardened-challenge-rollout-check.json).
 
+The successor-pair CLI exercise has begun and is being resumed from its exact
+on-chain state. Base case
+`0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987` was
+funded with 100,000 USDC base units by its submitter, finalized as GenLayer
+investigation 1 at the successor, and authenticated registration was confirmed
+on Base and in the candidate API. The next StudioNet read hit the 500-requests/
+hour RPC limit before evidence submission. Do not repeat the funding or
+registration transaction; resume this case using the checkpoint in
+[`e2e-evidence/hardened-successor-live-challenge.json`](e2e-evidence/hardened-successor-live-challenge.json)
+after StudioNet read access returns. No challenge stake has been deposited on
+this case. Settlement and withdrawals are not claimed and remain deferred to
+the recorded seven-day deadline.
+
 The live Base accounting branch checks and limitations are recorded in
 [`e2e-evidence/live-base-security-branches.json`](e2e-evidence/live-base-security-branches.json).
 Their EIP-712 authorizations used synthetic test outcomes and a synthetic

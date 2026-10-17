@@ -11,6 +11,8 @@ This repository contains a testnet implementation with a live StudioNet-to-Base 
 
 The isolated successor preview is [available on Vercel](https://recall-raid-nhv1p5dax-adebiyi2002gmailcoms-projects.vercel.app) to project members; it uses a separate candidate API and database. Production remains on `EDFF...` until its existing registrations are safely resolved.
 
+A CLI live run on the successor has funded and authenticated registration for investigation 1. StudioNet’s 500-requests/hour limit interrupted the run before evidence submission and challenge opening; its resumable checkpoint is in [the live evidence record](docs/e2e-evidence/hardened-successor-live-challenge.json). The existing EDFF overturned challenge remains intact and unsettled.
+
 ## Repository map
 
 - `apps/web/` — Next.js 14 application: investigation submission and detail,

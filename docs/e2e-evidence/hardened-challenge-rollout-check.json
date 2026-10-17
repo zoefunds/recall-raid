@@ -85,6 +85,7 @@
       "migrations": "all repository migrations applied to the isolated candidate database",
       "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
       "corsOrigin": "https://recall-raid-nhv1p5dax-adebiyi2002gmailcoms-projects.vercel.app",
+      "syncedInvestigations": [1],
       "productionChanged": false
     },
     "vercel": {
@@ -123,7 +124,7 @@
     "The new successor contains the hardened challenge-opening path. Production Fly/Vercel still serve EDFF; a separate candidate Fly API and Vercel preview have been deployed for the successor.",
     "Successor source and protocol info were verified; a fresh schema query was rate-limited and remains pending.",
     "The hosted EDFF investigation records were preserved because their Base registrations cannot be reassigned.",
-    "No investigations, bonds, or hunts have been created on the successor yet.",
+    "The successor now has candidate investigation 1 registered to its Base escrow case; evidence submission and the bonded challenge were paused by StudioNet's 500-requests/hour limit.",
     "The seven-day settlement remains intentionally pending until its deadline; settlement and withdrawals are documented follow-up work."
   ]
 }

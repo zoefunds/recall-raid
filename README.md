@@ -58,7 +58,9 @@ separate, restrict both to testnet while testing, and see [Security](docs/SECURI
 
 Requirements: Node.js with npm, Python 3, PostgreSQL for API use, and Foundry
 for Solidity tests. GenLayer CLI / GenVM tools are needed to lint, deploy, and
-interact with the contract. Copy `.env.example` into the appropriate ignored
+interact with the contract. Install the GenLayer Testing Suite (`pip install
+genlayer-test`) to run the contract's direct-mode security tests. Copy
+`.env.example` into the appropriate ignored
 local environment files; use fresh test credentials. Public `NEXT_PUBLIC_*`
 values go in `apps/web/.env.local`; server secrets go only in `apps/api/.env`.
 Do not commit either file.
@@ -78,6 +80,7 @@ using chain-dependent features.
 
 ```bash
 npm run test:api
+npm run test:genlayer
 npm run build:api
 npm run build:web
 npm run compile:base

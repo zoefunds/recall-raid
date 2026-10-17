@@ -1,0 +1,84 @@
+{
+  "schema": "recallraid-hardened-challenge-rollout-check/v1",
+  "observedWindow": {
+    "start": "2026-10-17T12:10:00Z",
+    "end": "2026-10-17T12:20:00Z"
+  },
+  "repository": {
+    "sourceCommit": "7f3e5e1",
+    "hardenedGenLayerSourceSha256": "e7ca95221338bd213448be1cd18e0483eccd97312a8ba81a5c3fac94ef4daee0",
+    "worktreeCleanBeforeThisEvidenceAndTestAddition": true
+  },
+  "baseSepolia": {
+    "chainId": 84532,
+    "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+    "runtimeBytecodeHash": "0xa7919e068cf4d9a0172ad8d8b888ff3770f3c45da94c6b195cb2009e5c20b370",
+    "sourceHash": "0x90e7562eeb84dcd0738b61d3dba8ff406761e8d4f8581caf2b3800909aac0fc6",
+    "relayer": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+    "decisionSigner": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C",
+    "verified": true
+  },
+  "studioNet": {
+    "chainId": 61999,
+    "hostedContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+    "hostedSourceSha256": "d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5",
+    "hostedChallengeMethod": "open_challenge(investigation_id, reason, stake_usdc_base_units, base_tx_hash)",
+    "hostedSourceHasAdminOnlyChallengeOpening": false,
+    "successorAddress": null,
+    "latestDeploymentAttempt": {
+      "attemptedAt": "2026-10-17T12:20:00Z",
+      "result": "rate_limited",
+      "error": "Rate limit exceeded: 500 requests per hour",
+      "retryAfterSeconds": 56,
+      "transactionHash": null
+    }
+  },
+  "hostedApplication": {
+    "fly": {
+      "app": "recallraid-usdc-api",
+      "image": "recallraid-usdc-api:deployment-01M54QJ6JVBCQVTT8NYVQN3C26",
+      "health": "ok",
+      "database": "ok",
+      "genlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+      "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+      "relayer": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+      "decisionSigner": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C",
+      "cachedInvestigations": [1, 2, 3],
+      "allCachedInvestigationsUnsettled": true
+    },
+    "vercel": {
+      "route": "https://recall-raid.vercel.app/hunts/3",
+      "pageStatus": 200,
+      "javascriptAssetsChecked": 16,
+      "allAssetsStatus200": true,
+      "bundleContainsHostedGenLayerContract": true,
+      "bundleContainsVerifiedBaseEscrow": true,
+      "huntDetailUsesDirectOpenChallengeCall": true,
+      "huntDetailUsesHardenedOpenStatusApi": false
+    }
+  },
+  "localVerification": {
+    "apiTests": 47,
+    "directModeGenVmTests": 2,
+    "foundryTests": 9,
+    "apiBuild": "passed",
+    "webBuild": "passed",
+    "genLayerContractLint": "passed",
+    "solidityCompile": "passed",
+    "pythonCompile": "passed"
+  },
+  "liveSettlement": {
+    "caseId": "0x010e6a1d581e35182fc4385350d449c2c34e068d36bc63fa8deb8bd5c483a51c",
+    "investigationId": 3,
+    "sevenDayDeadline": "2026-10-24T10:31:44Z",
+    "settled": false,
+    "withdrawalsCompleted": false,
+    "writesSentDuringObservedWindow": false
+  },
+  "limitations": [
+    "The deployed EDFF contract and hosted frontend/backend do not yet include the hardened challenge-opening path.",
+    "No StudioNet successor deployment transaction was accepted; the RPC rate limit remains active.",
+    "The hosted EDFF investigation records were preserved because their Base registrations cannot be reassigned.",
+    "The seven-day settlement remains intentionally pending until its deadline."
+  ]
+}

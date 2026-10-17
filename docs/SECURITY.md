@@ -142,14 +142,23 @@ GenLayer verdict. The deployed `EDFF...` source was subsequently queried and its
 schema and protocol windows were inspected. The current checkout now additionally
 makes challenge opening admin-only, with API-side Base receipt verification.
 That challenge-opening change is **not present in the deployed `EDFF...` source**;
-it requires a successor deployment and hosted API rollout after the current
-registered case is safely settled or reconciled. The Base branch transactions
-also did not consume that deployment's consensus result.
+it requires a successor deployment and hosted API rollout. Existing Base
+registrations must continue to route to `EDFF...` until safely settled or
+reconciled, because the escrow permanently binds each case to its registered
+GenLayer contract. The Base branch transactions also did not consume that
+deployment's consensus result.
 
-Local API tests, Foundry tests, compilation, and web builds are useful checks,
-not substitutes for independent contract review, key management review,
-production deployment validation, or a complete wallet-driven cross-chain
-exercise.
+Local API tests (47), direct-mode GenVM tests (2), Foundry tests (9),
+compilation, and web builds are useful checks, not substitutes for independent
+contract review, key management review, production deployment validation, or a
+complete wallet-driven cross-chain exercise. The GenVM direct-mode tests verify
+that an unrelated caller is rejected before it can occupy the challenge slot
+and that an authorized admin call records the explicit challenger. Direct mode
+does not simulate Base receipts or StudioNet consensus; those properties remain
+covered separately by API/escrow tests and live deployment evidence.
+The latest hosted source/configuration check and failed successor-deployment
+attempt are captured in
+[`e2e-evidence/hardened-challenge-rollout-check.json`](e2e-evidence/hardened-challenge-rollout-check.json).
 
 On 2026-10-17 the hosted Fly API and Vercel frontend were configured to the
 `EDFF...` adjudicator and verified Base escrow. The hosted web bundle contains
@@ -176,8 +185,9 @@ documents a placeholder challenge transaction hash and is explicitly not
 valid payout evidence.
 
 The deployed `EDFF...` source was retrieved with `genlayer code` on
-2026-10-17 at 11:47Z and compared with the checkout as it existed at that
-time. After removing the CLI's `Result:` wrapper, the deployed source SHA-256 is
+2026-10-17 at 12:10Z and compared with the checkout. After removing the CLI's
+`Result:` wrapper and normalizing the trailing newline, the deployed source
+SHA-256 is
 `d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5`. The
 that point-in-time comparison found the URL validator difference: checkout
 required HTTPS and rejected URL credentials, while deployed `EDFF...` checked

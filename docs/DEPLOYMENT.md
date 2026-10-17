@@ -4,16 +4,21 @@ This repository documents the RecallRaid testnet deployment on StudioNet and
 Base Sepolia. The contracts are test deployments, not production contracts.
 The Base escrow deployment is verified below. The currently hosted pair uses
 the accepted `EDFF...` StudioNet adjudicator and the verified Base escrow.
-The repository adds a stricter HTTPS check for official regulator URLs after
-that adjudicator was deployed; deploy a successor adjudicator only after the
-currently bound live case has completed settlement, because Base registration
-is immutable.
+The repository now adds both a stricter HTTPS check for official regulator URLs
+and admin-relayed, Base-receipt-verified challenge opening. These source changes
+are not on the hosted `EDFF...` adjudicator. A successor deployment must not
+replace the hosted default until the application can continue to route existing
+Base registrations to `EDFF...`; Base registration is immutable. The current
+seven-day settlement is intentionally documented as pending, not executed early.
 The deployed `EDFF...` source was retrieved with `genlayer code` on
 2026-10-17. Its normalized source hash is
 `d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5`; the sole
-semantic difference from the checked-out source is that the deployed URL
-validator does not require HTTPS or reject URL credentials. The successful
-live challenge used a version-pinned HTTPS CPSC PDF.
+semantic differences from the current source are that the deployed URL
+validator does not require HTTPS or reject URL credentials, and it accepts
+direct wallet `open_challenge` calls with a caller-declared challenger. The
+checked-out source closes the latter path by requiring the admin relay; the API
+verifies Base funding first. The successful live challenge used a version-pinned
+HTTPS CPSC PDF and followed the older deployed challenge-opening path.
 
 ## Networks and recorded deployments
 
@@ -29,6 +34,7 @@ here is StudioNet (`61999`), served through `https://studio.genlayer.com/api`.
 | Corrected escrow | Base Sepolia | `0x861d5D4E903805cbE283A86f08E10D031601774E` | `0xf50fe9f4af945ab79208eaf3895347ea1d0b85b7fb4f641bfa0be7f499d460c7`; source verified 2026-10-17 |
 | Earlier corrected adjudicator | StudioNet | `0xa239189c2921b592dBa1eccde830977edbfD1CB5` | `0x2bb98b6e3897235a7ae96790b565e5fa38c269e493a209a2595485e42474ecb0`; accepted; superseded by next row |
 | Latest source with challenge rebuttal controls | StudioNet | `0xEDFFB4B4999D65A248441438233c18717515973d` | `0xe457b81502a2a9f66ab4f620f7d0ad738e27cac3f07ff23696ff61fef52ab350`; accepted; `get_protocol_info` reports 604800s challenge / 172800s resolution |
+| Hardened challenge-opening successor | StudioNet | Not deployed | Repeated deployment attempts on 2026-10-17 were rejected by StudioNet's 500-requests/hour RPC limit; no attempt returned a transaction hash |
 
 The live Base accounting branch checks and limitations are recorded in
 [`e2e-evidence/live-base-security-branches.json`](e2e-evidence/live-base-security-branches.json).
@@ -296,8 +302,11 @@ with no legacy A239 address. The StudioNet source comparison at that time found
 the authoritative-URL validator difference (deployed accepts any scheme; that
 checkout required HTTPS and rejected credentials). The current checkout has
 since added admin-only challenge opening and authenticated API verification;
-those changes also require a successor deployment and hosted rollout. The current checkout passes 47 API tests, 9 Foundry tests, API and web production
-builds, GenLayer contract lint, and both Solidity and Python compilation.
+those changes also require a successor deployment and hosted rollout. The
+current checkout passes 47 API tests, 2 direct-mode GenVM tests, 9 Foundry
+tests, API and web production builds, GenLayer contract lint, and both Solidity
+and Python compilation. `npm run test:genlayer` uses local direct mode; it does
+not consume StudioNet RPC quota or prove StudioNet consensus.
 
 A successor deployment of the checked-out HTTPS-only source was attempted on
 StudioNet. RPC rate limiting returned errors during gas estimation and
@@ -331,6 +340,25 @@ source hash `0x90e7562eeb84dcd0738b61d3dba8ff406761e8d4f8581caf2b3800909aac0fc6`
 USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e`, relayer
 `0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb`, and decision signer
 `0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C`.
+
+Fresh checks at approximately 12:10–12:16Z reconfirmed the current external
+state. The structured record is
+[`e2e-evidence/hardened-challenge-rollout-check.json`](e2e-evidence/hardened-challenge-rollout-check.json).
+The Base verifier again matched the deployed escrow. The hosted Fly
+process reports `EDFF...`, escrow `0x861d...`, Base Sepolia chain id 84532,
+relayer `0x7401...`, and decision signer `0x6C76...`; `/health` reports API and
+database `ok`. Fly's active image remains deployment
+`01M54QJ6JVBCQVTT8NYVQN3C26`. The production Vercel `/hunts/3` page and all 16
+JavaScript assets returned HTTP 200; the rendered bundle contains `EDFF...` and
+the verified escrow, and the hunt-detail bundle still contains the direct
+`open_challenge` client flow rather than the new `/challenges/open-status` API
+flow. This confirms the hardened frontend/API change has not been rolled out.
+The hosted feed still contains investigations 1–3, all unsettled and bound to
+EDFF; they were preserved. The current StudioNet source retrieval still shows
+the old four-argument, caller-as-challenger `open_challenge` implementation.
+Successor deployment retries again returned the RPC's 500-requests/hour error
+at both gas estimation and transaction submission and produced no transaction
+hash. No contract write or hosted cutover occurred during these checks.
 
 At 11:51Z, direct read-only StudioNet/Base Sepolia reads confirmed case 3 is
 still unsettled on both chains, with finalized overturned challenge 3,

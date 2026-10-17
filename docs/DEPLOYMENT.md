@@ -78,6 +78,12 @@ investigation from the superseded `A239...` deployment remains in the current
 feed, while one deleted legacy Base registration remains on-chain as documented
 in the cleanup record.
 
+At 2026-10-17 10:48Z, the Fly API was rolled to image
+`recallraid-usdc-api:deployment-01M54QJ6JVBCQVTT8NYVQN3C26`, built from API
+source commit `3c77c28`. Both version-14 machines passed health checks.
+After rollout, `/health`, `/challenges/3`, and `/investigations/3` returned
+HTTP 200 with the expected finalized challenge and case-3 cache state.
+
 The Base escrow verifier compiled the checked-out Solidity with solc
 `0.8.37+commit.f401782d`, optimizer runs `200`, and `viaIR: true`. It verified
 the deployed runtime bytecode (masking compiler-reported immutable slots) and

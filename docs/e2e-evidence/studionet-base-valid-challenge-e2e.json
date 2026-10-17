@@ -186,6 +186,23 @@
       "message": "GenLayer adjudication is not terminal",
       "baseTransactionSent": false,
       "baseCaseFinalized": false
+    },
+    "decisionSignerCodeDeployment": {
+      "verifiedAt": "2026-10-17T10:48:12Z",
+      "flyApp": "recallraid-usdc-api",
+      "image": "recallraid-usdc-api:deployment-01M54QJ6JVBCQVTT8NYVQN3C26",
+      "machineVersion": 14,
+      "sourceCommit": "3c77c28",
+      "machinesHealthy": 2,
+      "postDeployChecks": {
+        "health": 200,
+        "challenge3": 200,
+        "investigation3": 200
+      },
+      "decisionSignerRegressionTests": {
+        "apiTestsPassed": 46,
+        "foundryTestsPassed": 9
+      }
     }
   },
   "adjudication": {},

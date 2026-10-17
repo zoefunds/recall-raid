@@ -303,7 +303,13 @@
       "transactionHash": null,
       "contractAddress": null,
       "sourceParityResolved": false,
-      "hostedCutoverPerformed": false
+      "hostedCutoverPerformed": false,
+      "explorerCheck": {
+        "checkedAt": "2026-10-17T11:31:38Z",
+        "account": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+        "method": "Read-only public StudioNet explorer address transaction table",
+        "result": "Latest listed project transactions were the earlier EDFF investigation calls; no successor deployment transaction appeared."
+      }
     }
   },
   "credentialRemediation": {
@@ -319,6 +325,9 @@
     "githubMainReachableBlobsContainingKey": 0,
     "localGitObjectsContainingKey": 0,
     "studioNetAssetTransfer": "unconfirmed; RPC rate limiting prevented obtaining a transaction hash or receipt",
+    "studioNetExplorerBalanceAtCheck": "998.795000 GEN",
+    "studioNetExplorerTransferCheck": "No newer transfer from the exposed wallet appeared; listed wallet transactions were about two months old.",
+    "studioNetExplorerCheckedAt": "2026-10-17T11:31:38Z",
     "freshReceiverKeyPath": "/private/tmp/recallraid-rotated-diagnostic-wallet.json"
   }
 }

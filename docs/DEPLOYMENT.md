@@ -272,6 +272,9 @@ protocol info are verified, and cases registered on `EDFF...` have been
 settled or otherwise safely reconciled. `genvm-lint` static lint passed, but
 SDK validation could not load the pinned archive (`py-genlayer/...tar`
 missing), so full local schema validation also remains pending.
+The public StudioNet explorer account page for the deployment wallet was
+checked at 11:31Z; it shows the existing EDFF calls as the newest project
+transactions and no successor deployment transaction.
 
 To finish the recorded case after its deadline, run the settlement runner from
 the repository root with the API key material in ignored `apps/api/.env` and

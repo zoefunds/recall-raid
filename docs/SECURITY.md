@@ -108,7 +108,8 @@ attested relay design, not a trustless bridge.
   confirmed it is not either configured Fly Base signer and held zero Base
   Sepolia native token or USDC. It held 998.795 GEN on StudioNet at the time of
   the check. Recovery to a fresh wallet is pending because StudioNet RPC
-  returned its 500-requests-per-hour limit before transfer submission. Do not
+  returned its 500-requests-per-hour limit; a subsequent public-explorer check
+  still showed 998.795 GEN and no transfer from that wallet. Do not
   reuse the exposed wallet; the generated receiver key is held locally at
   `/private/tmp/recallraid-rotated-diagnostic-wallet.json` with mode 0600 and is
   not committed. Confirm the transfer receipt and balances after StudioNet

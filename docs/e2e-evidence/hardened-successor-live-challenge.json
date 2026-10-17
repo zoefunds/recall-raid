@@ -326,6 +326,28 @@
         "byteForByteParityWithCheckedInSource": true
       },
       "interpretation": "Hosted production configuration and deployed successor source/schema were freshly verified after the transient local DNS failure."
+    },
+    "latestHostedReadOnlyRecheck": {
+      "checkedAt": "2026-10-17T16:56:52Z",
+      "productionFrontend": {
+        "url": "https://recall-raid.vercel.app/submit",
+        "httpStatus": 200,
+        "uniqueJavaScriptAssets": 16,
+        "allAssetsHttp200": true,
+        "successorAddressPresent": true,
+        "candidateApiPresent": true,
+        "edffAddressPresent": false
+      },
+      "candidateApi": {
+        "url": "https://recallraid-candidate-api.fly.dev/health",
+        "httpStatus": 200,
+        "status": "ok",
+        "database": "ok",
+        "corsPreflightStatus": 204,
+        "corsAllowOrigin": "https://recall-raid.vercel.app",
+        "corsAllowCredentials": true
+      },
+      "interpretation": "Fresh hosted routing/configuration and API health recheck. The StudioNet source parity check remains the separately timestamped 15:35Z record above."
     }
   },
   "liveUnauthorizedChallengeAttempt": {

@@ -604,3 +604,11 @@ overturned challenge unchanged; no Base transaction was sent. The exact receipt
 and post-call state are recorded in the live-challenge JSON. This verifies the
 deployed successor's direct-call gate and does not substitute for the still
 pending Base settlement after the seven-day deadline.
+
+Fresh hosted read-only recheck at 2026-10-17 16:56Z: production `/submit`
+returned HTTP 200 and all 16 unique JavaScript assets returned HTTP 200. The
+bundles include the hardened successor, Base escrow, USDC, and candidate API;
+EDFF is absent. Candidate API `/health` returned `ok` with database `ok`, and
+credentialed CORS preflight returned HTTP 204 for the production origin. The
+15:35Z deployed StudioNet source/schema parity result remains separately
+recorded above; this check did not re-fetch source.

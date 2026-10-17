@@ -27,6 +27,16 @@ GenLayer reference. The Base transactions did not consume the revised
 adjudicator's consensus result. They are accounting and signature-binding
 checks, not end-to-end adjudication evidence.
 
+A CLI-driven cross-chain run against the corrected contract pair is recorded
+in [`e2e-evidence/studionet-base-cli-e2e.json`](e2e-evidence/studionet-base-cli-e2e.json).
+It verified real Base USDC funding, successful finalized GenLayer registration,
+another wallet's evidence submission and validator-confirmed fetch/hash, a
+finalized `RECALL_CONFIRMED` decision, and a separately funded challenge whose
+actual finalized resolution upheld that verdict. It did not produce a
+successful overturn. The case remains inside its seven-day post-challenge
+window until 2026-10-24 08:08:09 UTC, so no Base settlement or wallet
+withdrawal was attempted. The relay correctly refused an early settlement.
+
 The Base escrow verifier compiled the checked-out Solidity with solc
 `0.8.37+commit.f401782d`, optimizer runs `200`, and `viaIR: true`. It verified
 the deployed runtime bytecode (masking compiler-reported immutable slots) and
@@ -138,8 +148,10 @@ not prove the decision-signing service accepted an actual successful GenLayer
 consensus transaction and executed the resulting settlement on Base. A full
 browser-originated flow covering funding, authenticated registration,
 evidence, validator adjudication, a bonded overturned challenge, final
-settlement, and wallet withdrawals remains unverified. The seven-day orphan
-recovery delay is covered by local time-warp tests; no live seven-day wait was
-performed. Do not describe these remaining scenarios as completed evidence.
+settlement, and wallet withdrawals remains unverified. The live CLI run
+reached challenge resolution but validators upheld the original verdict. The
+seven-day orphan recovery delay is covered by local time-warp tests; no live
+seven-day wait was performed. Do not describe these remaining scenarios as
+completed evidence.
 Private key material stays in ignored local configuration and hosting secret
 stores; never add it to this repository.

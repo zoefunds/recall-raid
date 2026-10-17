@@ -127,6 +127,17 @@ confirm deployment configuration and reachability; they do not establish a
 browser-originated funding-to-settlement transaction using an actual finalized
 GenLayer decision.
 
+A subsequent CLI run used the corrected pair for real Base funding and
+authenticated registration, StudioNet evidence submission and fetch/hash
+verification, an actual finalized `RECALL_CONFIRMED` verdict, Base-funded
+challenge opening, and actual finalized challenge resolution. StudioNet
+upheld the original verdict, so the successful-overturn branch, final Base
+relay, and withdrawals remain unverified. The details and transaction hashes
+are in [`e2e-evidence/studionet-base-cli-e2e.json`](e2e-evidence/studionet-base-cli-e2e.json).
+The updated API receipt normalization was validated locally against these real
+receipts; the hosted Fly image still needs that source deployed before its
+receipt gate is validated in production.
+
 The current source also contains an independent challenge-backing check in
 both the relay path and decision signer. The test suite covers the deterministic
 rule that only a Base-backed challenge changes verdict/stake allocation; a

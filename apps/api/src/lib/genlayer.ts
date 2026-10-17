@@ -1,4 +1,4 @@
-import { createClient } from "genlayer-js";
+import { createClient, decodeInputData } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 import { config, assertGenlayerConfigured } from "./config.js";
 
@@ -52,7 +52,48 @@ export async function readContractView<T = unknown>(functionName: string, args: 
 export async function getTransactionStatus(txHash: string) {
   const gl = getClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK's Hash type is a fixed-length branded string; runtime value is always well-formed
-  return gl.getTransaction({ hash: txHash as any });
+  const transaction = await gl.getTransaction({ hash: txHash as any });
+  return normalizeGenLayerTransaction(transaction);
+}
+
+/**
+ * Normalize the StudioNet RPC transaction into the receipt shape consumed by
+ * the settlement authorization checks. The RPC response uses snake_case and
+ * embeds success in the leader receipt (`execution_result: SUCCESS` and
+ * `result.status: return`); calldata is CBOR encoded and the SDK decodes it to
+ * a Map. Preserve the raw fields and add only values derived from that receipt.
+ */
+export function normalizeGenLayerTransaction<T extends Record<string, unknown>>(transaction: T) {
+  const consensus = transaction.consensus_data as {
+    leader_receipt?: Array<{
+      mode?: unknown;
+      execution_result?: unknown;
+      error?: unknown;
+      result?: { status?: unknown } | null;
+    }>;
+  } | undefined;
+  const leader = consensus?.leader_receipt?.find((receipt) => receipt.mode === "leader");
+  const successfulReturn = leader?.execution_result === "SUCCESS"
+    && !leader.error
+    && leader.result?.status === "return";
+
+  const rawTxData = transaction.tx_data ?? transaction.txData;
+  const recipient = String(transaction.recipient ?? transaction.to_address ?? "");
+  const decoded = typeof rawTxData === "string"
+    ? decodeInputData((rawTxData.startsWith("0x") ? rawTxData : `0x${rawTxData}`) as `0x${string}`, recipient as `0x${string}`)
+    : null;
+  const decodedCallData = decoded && "callData" in decoded ? decoded.callData : undefined;
+  const callData = decodedCallData instanceof Map
+    ? Object.fromEntries(decodedCallData.entries())
+    : decodedCallData;
+
+  return {
+    ...transaction,
+    statusName: transaction.statusName ?? transaction.status_name,
+    resultName: transaction.resultName ?? transaction.result_name,
+    txExecutionResultName: successfulReturn ? "FINISHED_WITH_RETURN" : String(leader?.execution_result ?? ""),
+    txDataDecoded: decoded && "callData" in decoded ? { ...decoded, callData } : decoded,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,89 @@
+{
+  "schema": "recallraid-studionet-base-cli-e2e/v1",
+  "runDate": "2026-10-17",
+  "network": {
+    "genlayer": "StudioNet",
+    "genlayerChainId": 61999,
+    "base": "Base Sepolia",
+    "baseChainId": 84532
+  },
+  "contractPair": {
+    "genlayer": "0xa239189c2921b592dBa1eccde830977edbfD1CB5",
+    "baseEscrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+  },
+  "case": {
+    "caseId": "0xf10b16b005e9f6fe5b0a433d0dfb042e7086e880bb6bb15cb0c9ac41ec72f864",
+    "investigationId": 2,
+    "submitter": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+    "bountyUsdcBaseUnits": "100000",
+    "baseFundingTx": "0x2d650aa2a4866cb85267aa8d70aa8784c6cbbfe7bc23ff2bb17059500ba2e076",
+    "baseRegistrationTx": "0xcdc07c5fc2e6f4a8ab5e65365375e8cfaf57313070b61fc1c37ebed8d7671b87",
+    "genlayerSubmitTx": "0x40bbac6506c1b73a08feb5b5b76cca14160a6ca65bf1e3fd28d19a44a1c1df6f",
+    "genlayerSubmitStatus": "FINALIZED",
+    "genlayerSubmitConsensus": "MAJORITY_AGREE",
+    "genlayerSubmitExecution": "FINISHED_WITH_RETURN"
+  },
+  "evidence": {
+    "evidenceId": 2,
+    "submitter": "0x19e7e376e7c213b7e7e7e46cc70a5dd086daff2a",
+    "url": "https://recall-raid.vercel.app/e2e-evidence/fisher-price-rock-n-play",
+    "sha256": "d64e9a7483130f148e974fc5eb1034834b699cdc4ee90e2ee02edc95a43bbac0",
+    "addEvidenceTx": "0x07baaddcb3037f374324609357f9d5964e52d3e64232adf8965e202496764a51",
+    "verifyEvidenceTx": "0xf8dff73bc23447b61502490b3a767bee5049bfcd66bbf50ca3c0be3a846e9c92",
+    "verifyConsensus": "MAJORITY_AGREE",
+    "urlReachable": true,
+    "contentHashVerified": true
+  },
+  "adjudication": {
+    "requestVerdictTx": "0xe5f0b662b019c1d24bde69936c31d22302be060673ab3fc30820227d0061cfb4",
+    "status": "FINALIZED",
+    "consensus": "MAJORITY_AGREE",
+    "genvmExecution": "FINISHED_WITH_RETURN",
+    "verdict": "RECALL_CONFIRMED",
+    "verdictCode": 3,
+    "confidenceBps": 9500,
+    "challengeWindowSeconds": 604800
+  },
+  "challenge": {
+    "challengeId": 1,
+    "challenger": "0x90d5ECeFc77889569931AaD7EdeF2C8E557ED065",
+    "stakeUsdcBaseUnits": "20000",
+    "baseFundingTx": "0xd39c0644d1bdd956b6eaf4b9ccf399737620d85d13b5c917fe5e19b96144430f",
+    "openChallengeTx": "0xe49c983b62a737c3ad9317620f162062def646477ea25713b133f6b5acdf21b5",
+    "resolveChallengeTx": "0x316731cb507589a93357258190fcfbc3eaa41e38d89f240303295db55ee02041",
+    "resolveStatus": "FINALIZED",
+    "resolveConsensus": "MAJORITY_AGREE",
+    "resolveExecution": "FINISHED_WITH_RETURN",
+    "priorVerdict": "RECALL_CONFIRMED",
+    "finalVerdict": "RECALL_CONFIRMED",
+    "outcome": "UPHELD",
+    "challengeStatusCode": 2,
+    "openChallengeId": 0,
+    "lastChallengeId": 1,
+    "challengeUsed": true,
+    "settlementChallengeDeadlineUnix": 1792829289,
+    "settlementChallengeDeadlineUtc": "2026-10-24T08:08:09Z"
+  },
+  "settlement": {
+    "baseRelaySent": false,
+    "reason": "The challenge was upheld and the seven-day challenge window restarted. The corrected relay correctly refused because the GenLayer case is not terminal.",
+    "claimTransactions": [],
+    "walletWithdrawalsVerified": false,
+    "settlementReadyAfter": "2026-10-24T08:08:09Z"
+  },
+  "result": {
+    "realBaseFundingAndRegistration": true,
+    "realStudioNetFinalizedDecision": true,
+    "realBaseFundedChallenge": true,
+    "realStudioNetChallengeResolution": true,
+    "successfulOverturn": false,
+    "endToEndSettlementAndWithdrawals": false
+  },
+  "notes": [
+    "The first registration attempt using the GenLayer CLI parser treated a 0x-prefixed case ID as an integer and finalized with GenVM execution error; it did not alter contract state. The subsequent SDK submission preserved the case ID string and finalized successfully.",
+    "The first inaccurate fixture case finalized as NEEDS_MORE_EVIDENCE and was not challenged.",
+    "The API receipt-normalization fix was exercised locally against real finalized StudioNet receipts. The hosted API still needs deployment of that code before the hosted relay can be considered validated.",
+    "No challenge outcome was synthesized. The validator network upheld the real challenge, so the successful-challenger payout and wallet withdrawal path remain unverified against this corrected pair."
+  ]
+}

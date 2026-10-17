@@ -2,14 +2,17 @@
 
 This repository documents the RecallRaid testnet deployment on StudioNet and
 Base Sepolia. The contracts are test deployments, not production contracts.
-The Base escrow deployment is verified below. The currently hosted pair uses
-the accepted `EDFF...` StudioNet adjudicator and the verified Base escrow.
-The repository now adds both a stricter HTTPS check for official regulator URLs
-and admin-relayed, Base-receipt-verified challenge opening. The hardened source
-is deployed as a fresh successor, documented below, but Fly and Vercel still
-serve the earlier `EDFF...` adjudicator. Existing Base registrations remain
-bound to `EDFF...`; do not switch those records to the successor. The current
-seven-day settlement is intentionally documented as pending, not executed early.
+The Base escrow deployment is verified below. The public Vercel production
+alias now serves the hardened successor and candidate API. The former
+production deployment remains available to project members at its immutable
+URL with the EDFF adjudicator and original Fly API, preserving historical case
+access.
+The repository adds a stricter HTTPS check for official regulator URLs and
+admin-relayed, Base-receipt-verified challenge opening. The public frontend now
+uses the hardened successor for new investigations; existing Base registrations
+remain bound to their original adjudicator and must not be reassigned. The
+current seven-day settlement is intentionally documented as pending, not
+executed early.
 The deployed `EDFF...` source was retrieved with `genlayer code` on
 2026-10-17. Its normalized source hash is
 `d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5`; known
@@ -55,15 +58,16 @@ account remains the depositor for historical cases and is retained only in a
 local mode-0600 E2E environment as the case claimant. The 551f diagnostic
 wallet is a different key and its 998.795 GEN recovery remains unresolved.
 
-The successor is a fresh deployment with zero investigations and zero seller
-bonds at verification time. It is not the hosted application default: Fly and
-Vercel still use `EDFF...`, which owns the existing Base registrations. A
-read-only `get_protocol_info` call verified the successor admin, unpaused
+The successor had zero investigations and seller bonds at source verification;
+the current live challenge exercise is investigation 1. It is now the production
+frontend default; existing Base registrations remain owned by their original
+EDFF or A239 deployment. A read-only `get_protocol_info` call verified the
+successor admin, unpaused
 state, and protocol windows. The schema query was rate-limited by StudioNet at
 the 500-requests/hour ceiling and remains a documented verification item; do
 not spend further StudioNet requests on retries while that limit is exhausted.
 
-An isolated hosted preview is now available for the successor. Fly app
+At the initial isolated-preview rollout, Fly app
 `recallraid-candidate-api` runs the candidate API image with the successor
 address, a candidate-only database, and a separate JWT secret; all repository
 migrations were applied, and its health endpoint returned API/database `ok`.
@@ -71,9 +75,27 @@ Vercel preview deployment `dpl_FRHqacHsYQbwYaLJwzRuSYRvPcJ6` is READY at
 `https://recall-raid-2k364g3a6-adebiyi2002gmailcoms-projects.vercel.app`, built
 with the candidate API URL and successor contract address. Its preview access
 protection remains enabled (anonymous requests redirect to Vercel SSO). The
-candidate API CORS allowlist is set to this exact preview origin. Neither
-production service nor its database was changed. See
+candidate API CORS allowlist is set to this exact preview origin. See
 [`e2e-evidence/hardened-challenge-rollout-check.json`](e2e-evidence/hardened-challenge-rollout-check.json).
+
+### Public frontend cutover
+
+On 2026-10-17 production Vercel deployment
+`dpl_DQtVdvHcoMXoZujc27p3Ye9NB3ye` was promoted to the public alias
+`https://recall-raid.vercel.app`. The production build was created from
+`apps/web` with candidate API `https://recallraid-candidate-api.fly.dev` and
+successor `0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA`; its `/submit` page and
+compiled assets were fetched and inspected. The successor/API strings are
+present and EDFF is absent. Persistent Vercel Production variables now match
+that build. Candidate API CORS allows both this production origin and the
+successor preview, verified by credentialed preflight responses.
+
+The former production build is preserved at
+`https://recall-raid-ou77oyqjz-adebiyi2002gmailcoms-projects.vercel.app` and
+uses the original EDFF API and database. Vercel CLI authenticated access to
+both the legacy page and the new production page returned HTTP 200. The legacy
+immutable URL is project-member protected; its origin was added to the EDFF
+API's explicit CORS allowlist. No existing Base registration was rewritten.
 
 ### Hardened successor live challenge
 

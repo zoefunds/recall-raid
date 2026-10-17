@@ -204,6 +204,13 @@
         "apiTestsPassed": 46,
         "foundryTestsPassed": 9
       }
+    },
+    "corsCutoverCheck": {
+      "verifiedAt": "2026-10-17T15:00:00Z",
+      "candidateProductionOriginStatus": 204,
+      "candidatePreviewOriginStatus": 204,
+      "legacyDeploymentOriginStatus": 204,
+      "credentialsAllowed": true
     }
   },
   "adjudication": {},
@@ -277,7 +284,11 @@
       "health": 200,
       "database": "ok",
       "configuredGenlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
-      "activeInvestigations": [1, 2, 3]
+      "activeInvestigations": [
+        1,
+        2,
+        3
+      ]
     },
     "hostedFrontend": {
       "url": "https://recall-raid.vercel.app/submit",
@@ -367,7 +378,10 @@
   },
   "liveReadOnlyRecheck": {
     "checkedAt": "2026-10-17T11:43:05Z",
-    "apiHealth": { "status": "ok", "database": "ok" },
+    "apiHealth": {
+      "status": "ok",
+      "database": "ok"
+    },
     "hostedSubmitPageHttpStatus": 200,
     "frontendBundleCheck": {
       "scriptAssets": 16,
@@ -378,7 +392,11 @@
     },
     "hostedInvestigations": {
       "total": 3,
-      "ids": [3, 2, 1],
+      "ids": [
+        3,
+        2,
+        1
+      ],
       "caseIds": [
         "0x010e6a1d581e35182fc4385350d449c2c34e068d36bc63fa8deb8bd5c483a51c",
         "0xda5c94f66e9fdf2680d44c626e383bffc7aad309d2f3c02be189efc85b9aedc1",
@@ -467,5 +485,21 @@
       "investigationId": 3
     },
     "writesSent": false
+  },
+  "publicSuccessorCutover": {
+    "verifiedAt": "2026-10-17T15:00:00Z",
+    "vercelProductionDeployment": "dpl_DQtVdvHcoMXoZujc27p3Ye9NB3ye",
+    "productionAlias": "https://recall-raid.vercel.app",
+    "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+    "api": "https://recallraid-candidate-api.fly.dev",
+    "httpStatus": 200,
+    "compiledAssetCount": 16,
+    "successorAndCandidateApiPresent": true,
+    "EDFFAbsent": true,
+    "persistentProductionEnvironmentUpdated": true,
+    "legacyDeployment": "https://recall-raid-ou77oyqjz-adebiyi2002gmailcoms-projects.vercel.app",
+    "legacyProjectMemberFetchStatus": 200,
+    "legacyApi": "https://recallraid-usdc-api.fly.dev",
+    "legacyCaseRegistrationPreserved": true
   }
 }

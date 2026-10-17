@@ -1,7 +1,7 @@
 {
   "schema": "recallraid-studionet-base-challenge-e2e/v1",
   "startedAt": "2026-10-17T13:05:06.747Z",
-  "updatedAt": "2026-10-17T14:50:25Z",
+  "updatedAt": "2026-10-17T15:00:00Z",
   "networks": {
     "genlayer": "StudioNet/61999",
     "base": "Base Sepolia/84532"
@@ -27,11 +27,11 @@
   },
   "pause": {
     "checkedAt": "2026-10-17T14:50:25Z",
-    "reason": "The candidate API confirmation fix was deployed and health checks pass. One authenticated retry reached StudioNet and was stopped by its 500-requests/hour quota. The challenge record has not yet synchronized into the candidate API cache; no additional funding or challenge-opening transaction is needed.",
+    "reason": "Successor public production cutover is complete and both APIs are healthy. The candidate challenge confirmation, challenge evidence, and challenge resolution remain blocked by StudioNet 500-requests/hour quota; no duplicate funding or opening was sent.",
     "blockers": [
-      "StudioNet RPC quota for transaction/challenge verification and subsequent rebuttal evidence and resolution"
+      "StudioNet RPC quota for exact challenge confirmation and subsequent rebuttal evidence and resolution"
     ],
-    "nextAction": "After StudioNet quota recovers, resume with the exact saved challenge funding and open transaction hashes; confirm cache sync, then continue challenge evidence and adjudication."
+    "nextAction": "After StudioNet quota recovers, resume with the recorded challenge stake/open transaction hashes and complete API confirmation, rebuttal evidence, and resolution."
   },
   "base": {
     "bountyFundingTx": "0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf",
@@ -170,13 +170,18 @@
         "status": "ok",
         "db": "ok"
       },
-      "status": "pending StudioNet RPC quota recovery"
+      "status": "pending StudioNet RPC quota recovery",
+      "latestRetry": {
+        "checkedAt": "2026-10-17T15:02:29Z",
+        "httpStatus": 500,
+        "error": "Rate limit exceeded: 500 requests per hour"
+      }
     }
   },
   "adjudication": {},
   "settlement": {},
   "deployment": {
-    "candidateApiImage": "deployment-01M555BTMXRNNNSND406M6W0JK",
+    "candidateApiImage": "deployment-01M555NYAFTKYC2BPNT9MJAE9N",
     "candidateApiHealth": {
       "status": "ok",
       "db": "ok"
@@ -186,6 +191,48 @@
       "count": 2,
       "healthy": true,
       "note": "Fly deploy completed; final DNS check timed out against 8.8.8.8, but service health is confirmed directly."
-    }
+    },
+    "publicProduction": {
+      "deploymentId": "dpl_DQtVdvHcoMXoZujc27p3Ye9NB3ye",
+      "deploymentUrl": "https://recall-raid-94mftnf29-adebiyi2002gmailcoms-projects.vercel.app",
+      "alias": "https://recall-raid.vercel.app",
+      "httpStatus": 200,
+      "compiledAssets": 16,
+      "successorAddressPresent": true,
+      "candidateApiPresent": true,
+      "edffAddressAbsent": true,
+      "persistentProductionVariablesUpdated": true
+    },
+    "legacyFrontend": {
+      "immutableUrl": "https://recall-raid-ou77oyqjz-adebiyi2002gmailcoms-projects.vercel.app",
+      "projectMemberFetchStatus": 200,
+      "genlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+      "api": "https://recallraid-usdc-api.fly.dev",
+      "productionApiHealth": {
+        "status": "ok",
+        "db": "ok"
+      }
+    },
+    "corsPreflight": [
+      {
+        "api": "https://recallraid-candidate-api.fly.dev",
+        "origin": "https://recall-raid.vercel.app",
+        "status": 204,
+        "credentials": true
+      },
+      {
+        "api": "https://recallraid-candidate-api.fly.dev",
+        "origin": "https://recall-raid-2k364g3a6-adebiyi2002gmailcoms-projects.vercel.app",
+        "status": 204,
+        "credentials": true
+      },
+      {
+        "api": "https://recallraid-usdc-api.fly.dev",
+        "origin": "https://recall-raid-ou77oyqjz-adebiyi2002gmailcoms-projects.vercel.app",
+        "status": 204,
+        "credentials": true
+      }
+    ],
+    "productionApiImage": "deployment-01M555RGD3ZER0AKYG9WFG0ENT"
   }
 }

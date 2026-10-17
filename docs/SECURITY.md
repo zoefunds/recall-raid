@@ -191,8 +191,18 @@ in a local mode-0600 E2E environment. The candidate API historical challenge
 confirmation fix was deployed as `deployment-01M555BTMXRNNNSND406M6W0JK` and
 both machines pass health checks. A direct HTTPS `/health` check returned API
 and database `ok`; Fly's final public DNS probe timed out. The subsequent
-challenge sync retry was rate-limited by StudioNet. The separate exposed 551f diagnostic key has not been recovered;
-its transfer to the fresh wallet is still pending.
+challenge sync retry was rate-limited by StudioNet. The separate exposed 551f
+diagnostic key has not been recovered; its transfer to the fresh wallet is
+still pending.
+
+Update at 2026-10-17 15:00Z: public Vercel production now serves the hardened
+successor and isolated candidate API. Its assets were fetched and checked for
+the successor address and candidate API; EDFF is absent. The former production
+deployment remains available to project members at its immutable URL, backed
+by the original EDFF API and database. Both API services now accept explicit
+exact-origin lists; candidate production/preview and legacy preflight checks
+returned 204 with credentials enabled. The candidate challenge confirmation
+is still waiting on StudioNet's `500 requests/hour` limit.
 
 On 2026-10-17 the hosted Fly API and Vercel frontend were configured to the
 `EDFF...` adjudicator and verified Base escrow. The hosted web bundle contains

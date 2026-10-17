@@ -65,5 +65,20 @@
     "withdrawalsVerified": false,
     "reason": "Settlement is intentionally deferred until the seven-day challenge period expires; no payout has been attempted."
   },
-  "pauseReason": "A StudioNet read returned the 500-requests/hour limit after the finalized registration and API synchronization. Evidence submission, adjudication, and the bonded challenge have not yet run; resume this exact case without duplicate Base funding or GenLayer registration."
+  "pauseReason": "A StudioNet read returned the 500-requests/hour limit after the finalized registration and API synchronization. Evidence submission, adjudication, and the bonded challenge have not yet run; resume this exact case without duplicate Base funding or GenLayer registration.",
+  "latestReadOnlyVerification": {
+    "checkedAt": "2026-10-17T13:02:47Z",
+    "genlayerSubmitReceipt": "FINALIZED",
+    "genlayerSubmitConsensus": "MAJORITY_AGREE",
+    "baseCase": {
+      "registered": true,
+      "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+      "investigationId": 1,
+      "bountyBaseUnits": "100000",
+      "finalized": false,
+      "challengeDepositBaseUnits": "0"
+    },
+    "candidateApi": {"httpStatus": 200, "api": "ok", "database": "ok"},
+    "studioNetContractCalls": "still rejected at 500 requests/hour; no additional contract write was sent"
+  }
 }

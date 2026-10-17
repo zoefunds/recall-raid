@@ -59,7 +59,6 @@ export async function confirmFundedChallenge(input: {
   stake: string;
   baseTxHash: string;
 }) {
-  const { address } = getChallengeRelayer();
   const transaction = await getTransactionStatus(input.txHash);
   const status = String(transaction.statusName ?? "").toUpperCase();
   if (status !== "FINALIZED") return { status: "pending" as const };
@@ -68,7 +67,10 @@ export async function confirmFundedChallenge(input: {
   assertGenLayerTransactionIdentity({
     transaction,
     expectedContract: config.genlayer.contractAddress,
-    expectedSender: address,
+    // Do not compare with today's admin address here. A valid finalized
+    // open_challenge may predate an admin rotation; the contract's admin gate
+    // already enforced the caller at execution time. Exact calldata and the
+    // resulting funded challenge record are checked below.
   });
   assertGenLayerCall({
     transaction,

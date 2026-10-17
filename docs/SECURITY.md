@@ -181,6 +181,18 @@ exact origin. The preview is ready but was not opened through the user's
 authenticated browser session for wallet interaction testing. The production
 Fly/Vercel pair remains on `EDFF...`, preserving three indexed unsettled cases.
 
+Update at 2026-10-17 14:47Z: the former `0x7401...` account is no longer a
+GenLayer administrator on EDFF or the successor, nor the Base escrow owner or
+relayer. A fresh wallet `0xE3F1A34307349be94f3657276ebcF51eaB810730` now holds
+those roles, and both Fly relayer secrets were rotated to it. The distinct
+decision signer remains unchanged. The old account is still the depositor on
+funded historical cases, so it remains available only for those claim rights
+in a local mode-0600 E2E environment. The candidate API historical challenge
+confirmation fix was deployed as `deployment-01M5556ME6W83FHBGTXV3C7J6Q` and
+its health check passes. The subsequent challenge sync retry was rate-limited
+by StudioNet. The separate exposed 551f diagnostic key has not been recovered;
+its transfer to the fresh wallet is still pending.
+
 On 2026-10-17 the hosted Fly API and Vercel frontend were configured to the
 `EDFF...` adjudicator and verified Base escrow. The hosted web bundle contains
 `EDFF...` and no longer contains `a239...`; Fly health reports both API and

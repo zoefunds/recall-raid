@@ -36,6 +36,25 @@ here is StudioNet (`61999`), served through `https://studio.genlayer.com/api`.
 | Latest source with challenge rebuttal controls | StudioNet | `0xEDFFB4B4999D65A248441438233c18717515973d` | `0xe457b81502a2a9f66ab4f620f7d0ad738e27cac3f07ff23696ff61fef52ab350`; accepted; `get_protocol_info` reports 604800s challenge / 172800s resolution |
 | Hardened challenge-opening successor | StudioNet | `0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA` | `0xfc7aceb0a2d8eea60db169363bdb711b81fac216f0008c4452ac227bc58fa25c`; finalized `MAJORITY_AGREE`; retrieved source matches checked-in SHA-256 `e7ca95221338bd213448be1cd18e0483eccd97312a8ba81a5c3fac94ef4daee0`; protocol info reports 604800s challenge / 172800s resolution |
 
+### Current signer and administrator state
+
+On 2026-10-17 the former `0x7401...` operational account was removed from
+privileged roles. A fresh wallet `0xE3F1A34307349be94f3657276ebcF51eaB810730`
+is now the GenLayer administrator on both EDFF and the successor, and the Base
+escrow owner and relayer. Base relayer rotation finalized in transaction
+`0x12f0cd955db5b6316fd326c8bbc804668cea483cb7ed912968a6b2dd92779723`, and
+escrow ownership transfer finalized in
+`0xcfdbfe2fef0d20b89500530a9bf307249c3bff5ed84e556e034e164d0ff79d4b`.
+StudioNet administrator transfers finalized on EDFF in
+`0x73a4016de5babdfa0e5a645bcdd1b9e77cd36524fd6a6f05fa7eb1bd7e4d71dc` and on
+the successor in
+`0x6480a440d1184e4c10357fa85149c6fb3296086066681959cfa9527fdde2a54a`.
+The distinct Base decision signer remains `0x6C76...`. Fly production and
+candidate relayer secrets were rotated to the fresh operational key; the old
+account remains the depositor for historical cases and is retained only in a
+local mode-0600 E2E environment as the case claimant. The 551f diagnostic
+wallet is a different key and its 998.795 GEN recovery remains unresolved.
+
 The successor is a fresh deployment with zero investigations and zero seller
 bonds at verification time. It is not the hosted application default: Fly and
 Vercel still use `EDFF...`, which owns the existing Base registrations. A
@@ -48,8 +67,8 @@ An isolated hosted preview is now available for the successor. Fly app
 `recallraid-candidate-api` runs the candidate API image with the successor
 address, a candidate-only database, and a separate JWT secret; all repository
 migrations were applied, and its health endpoint returned API/database `ok`.
-Vercel preview deployment `dpl_51ACa4Mrd2qWwnNCsLrpek7Vxw1e` is READY at
-`https://recall-raid-nhv1p5dax-adebiyi2002gmailcoms-projects.vercel.app`, built
+Vercel preview deployment `dpl_FRHqacHsYQbwYaLJwzRuSYRvPcJ6` is READY at
+`https://recall-raid-2k364g3a6-adebiyi2002gmailcoms-projects.vercel.app`, built
 with the candidate API URL and successor contract address. Its preview access
 protection remains enabled (anonymous requests redirect to Vercel SSO). The
 candidate API CORS allowlist is set to this exact preview origin. Neither
@@ -58,21 +77,41 @@ production service nor its database was changed. See
 
 ### Hardened successor live challenge
 
-The successor-pair CLI exercise has begun and is being resumed from its exact
-on-chain state. Base case
+The successor-pair CLI exercise is being resumed from its exact on-chain state. Base case
 `0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987` was
 funded with 100,000 USDC base units by its submitter, finalized as GenLayer
 investigation 1 at the successor, and authenticated registration was confirmed
-on Base and in the candidate API. The guarded resume added control evidence
-(GenLayer evidence id 1) and verified its URL and SHA-256 through successful
-finalized GenVM writes (`0xde9959…77def4` and `0xf54a75…04c5e8`). The next
-investigation read encountered StudioNet's 500-requests/hour and 30-requests/
-minute limits before verdict request, challenger funding, or challenge opening.
-Do not repeat the funding, registration, or evidence writes; resume this case using the checkpoint in
+on Base and in the candidate API. Control evidence id 1 was added and verified
+through successful finalized GenVM writes (`0xde9959…77def4` and
+`0xf54a75…04c5e8`). The initial `NO_ISSUE` verdict was finalized at transaction
+`0xebcf8ce730fac66e3ec309ea9caac326c50046124a90a963196c468cf37a46ca` with
+7,800 confidence basis points. The challenger funded 20,000 USDC base units in
+Base transaction `0xa4689db52e8b97353e70f72eff30f96845a9c91cab1cfd5a3221bd9299dc68d0`.
+The GenLayer challenge opening finalized in transaction
+`0x916f5c93bab7da2d35cf2acd7d3b953c49c7f47353d63a92f717051f6cd8352a`;
+the candidate API returned HTTP 202 but its confirmation endpoint failed
+because it compared the transaction sender against the newly rotated current
+admin. The source now validates finalized execution, exact call arguments, and
+the funded on-chain challenge record without requiring the current admin to
+equal the historical sender. This is safe because `open_challenge` itself is
+admin-gated at execution. The corrected candidate API image
+`deployment-01M5556ME6W83FHBGTXV3C7J6Q` is deployed; both Fly machines are
+healthy and `/health` reports API and database `ok`. A single confirmation
+retry reached StudioNet but was rejected by its `500 requests per hour` rate
+limit, so the challenge is not yet confirmed in the candidate cache. Resume
+this case using the checkpoint in
 [`e2e-evidence/hardened-successor-live-challenge.json`](e2e-evidence/hardened-successor-live-challenge.json)
-after StudioNet read access returns. No challenge stake has been deposited on
-this case. Settlement and withdrawals are not claimed and remain deferred to
-the recorded seven-day deadline.
+after StudioNet read access returns. Do not repeat funding, registration,
+evidence, or challenge opening. The successor case remains unsettled while its
+challenge proceeds. A read-only Base Sepolia recheck at 14:30Z confirmed the
+successor case has the exact 100,000-unit bounty and 20,000-unit challenger
+deposit. The EDFF case 3 still holds its 100,000-unit bounty and
+20,000-unit funded challenge stake; the A239 case 2 still holds its separate
+100,000-unit bounty and 20,000-unit stake. All three are bound to their
+original GenLayer addresses, remain unsettled, and have zero claimable USDC.
+These on-chain snapshots are recorded in the evidence file. Settlement and
+withdrawals are not claimed and remain deferred to the recorded seven-day
+deadline.
 
 The runner now has an explicit `RECALLRAID_HARDENED_SUCCESSOR_RESUME=1` mode.
 It refuses to start unless the successor address, case id, finalized submit
@@ -85,12 +124,14 @@ after RPC access returns with:
 RECALLRAID_HARDENED_SUCCESSOR_RESUME=1 \
 GENLAYER_CONTRACT_ADDRESS=0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA \
 RECALLRAID_API_BASE_URL=https://recallraid-candidate-api.fly.dev \
-RECALLRAID_E2E_ORIGIN=https://recall-raid-nhv1p5dax-adebiyi2002gmailcoms-projects.vercel.app \
+RECALLRAID_E2E_ORIGIN=https://recall-raid-2k364g3a6-adebiyi2002gmailcoms-projects.vercel.app \
 RECALLRAID_E2E_REPORT=docs/e2e-evidence/hardened-successor-live-challenge.json \
 RECALLRAID_E2E_CASE_ID=0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987 \
 RECALLRAID_E2E_INVESTIGATION_ID=1 \
 RECALLRAID_E2E_SUBMIT_TX=0x5c7081620580dcac4f430a8a1f6d519ab9072a219b767007f685296ec9c8e1a5 \
 RECALLRAID_E2E_BASE_FUNDING_TX=0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf \
+RECALLRAID_E2E_CHALLENGE_FUNDING_TX=0xa4689db52e8b97353e70f72eff30f96845a9c91cab1cfd5a3221bd9299dc68d0 \
+RECALLRAID_E2E_OPEN_CHALLENGE_TX=0x916f5c93bab7da2d35cf2acd7d3b953c49c7f47353d63a92f717051f6cd8352a \
 RECALLRAID_GENLAYER_READ_WAIT_MS=3600000 \
 node --env-file=apps/api/.env scripts/studionet_base_challenge_e2e.mjs
 ```

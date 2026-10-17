@@ -18,7 +18,7 @@ const usdcAddress = process.env.BASE_SEPOLIA_USDC_ADDRESS || "0x036CbD53842c5426
 const apiBase = process.env.RECALLRAID_API_BASE_URL || "http://localhost:8081";
 const testOrigin = process.env.RECALLRAID_E2E_ORIGIN || "http://localhost:3001";
 const challengerKeyFile = process.env.RECALLRAID_CHALLENGER_KEY_FILE || "/private/tmp/recallraid-challenger-key.json";
-const submitterKey = process.env.BASE_SEPOLIA_RELAYER_PRIVATE_KEY;
+const submitterKey = process.env.RECALLRAID_E2E_SUBMITTER_PRIVATE_KEY || process.env.BASE_SEPOLIA_RELAYER_PRIVATE_KEY;
 const decisionSignerKey = process.env.BASE_SEPOLIA_DECISION_SIGNER_PRIVATE_KEY;
 if (!genlayerAddress || !escrowAddress || !submitterKey || !decisionSignerKey) {
   throw new Error("GenLayer/Base contract addresses and the configured testnet keys are required");
@@ -91,7 +91,8 @@ const reportStartedAt = checkpointReport?.startedAt ?? startedAt;
 const generatedCaseId = ethers.id(`recallraid:challenge-e2e:${randomUUID()}`);
 const executionCaseId = activeCaseId || generatedCaseId;
 let reportInvestigationId = resumeInvestigationId || null;
-let reportProgress = "initialized";
+let reportProgress = checkpointReport?.progress?.stage ?? "initialized";
+let reportPause = checkpointReport?.pause;
 const results = { base: {}, genlayer: {}, api: {}, adjudication: {}, settlement: {} };
 if (checkpointReport) {
   Object.assign(results.base, checkpointReport.base ?? {});
@@ -102,7 +103,15 @@ if (checkpointReport) {
 }
 
 function checkpoint(stage) {
-  reportProgress = stage;
+  const order = [
+    "initialized", "services-healthy", "base-bounty-funded", "authenticated-registration-synced",
+    "initial-evidence-verified", "initial-verdict-finalized", "base-challenge-funded",
+    "genlayer-challenge-open", "challenge-evidence-added", "challenge-evidence-verified",
+    "challenge-resolution-finalized", "settlement-wait",
+  ];
+  const currentOrder = order.indexOf(reportProgress);
+  const requestedOrder = order.indexOf(stage);
+  if (currentOrder < 0 || requestedOrder >= currentOrder) reportProgress = stage;
   const report = {
     schema: "recallraid-studionet-base-challenge-e2e/v1",
     startedAt: reportStartedAt,
@@ -112,6 +121,7 @@ function checkpoint(stage) {
     wallets: { submitter: submitter.address, challenger: challenger.address },
     case: { caseId: executionCaseId, investigationId: reportInvestigationId, bountyUsdcBaseUnits: bounty.toString(), baseFundingTx: results.base.bountyFundingTx },
     progress: { stage: reportProgress, complete: false },
+    ...(reportPause ? { pause: reportPause } : {}),
     ...results,
   };
   writeFileSync(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`);
@@ -444,7 +454,7 @@ if (![3, 4].includes(Number(initialState.status)) || ![1, 2, 3].includes(Number(
 if (Number(initialState.status) === 4 && existingOpenChallengeId <= 0) {
   throw new Error("Investigation reports an open challenge without its active challenge id");
 }
-if (Number(initialState.last_challenge_id) > 0) {
+if (Number(initialState.last_challenge_id) > 0 && existingOpenChallengeId <= 0) {
   throw new Error("This investigation already has or had a challenge; use a fresh case for another live attempt");
 }
 checkpoint("initial-verdict-finalized");
@@ -452,6 +462,21 @@ if (existingOpenChallengeId > 0) {
   const existingChallenge = await glRead(challengerClient, "get_challenge", [existingOpenChallengeId]);
   if (Number(existingChallenge.status) !== 1 || existingChallenge.challenger.toLowerCase() !== challenger.address.toLowerCase()) {
     throw new Error("Existing open challenge does not belong to the funded test challenger");
+  }
+  const existingOpenTx = process.env.RECALLRAID_E2E_OPEN_CHALLENGE_TX;
+  if (/^0x[a-fA-F0-9]{64}$/.test(existingOpenTx ?? "")) {
+    const request = {
+      reason: existingChallenge.reason,
+      stakeUsdcBaseUnits: challengeStake.toString(),
+      baseTxHash: results.base.challengeFundingTx,
+      txHash: existingOpenTx,
+    };
+    const confirmation = await apiPost(`/investigations/${investigationId}/challenges/open-status`, request, await authenticate(challenger));
+    if (confirmation.status !== "confirmed" || Number(confirmation.challengeId) !== existingOpenChallengeId) {
+      throw new Error("Hosted API did not confirm the exact already-open funded challenge");
+    }
+    results.api.challengeConfirmation = confirmation;
+    reportPause = undefined;
   }
 }
 
@@ -610,6 +635,7 @@ const report = {
   contracts: { genlayer: genlayerAddress, escrow: escrowAddress, usdc: usdcAddress },
   wallets: { submitter: submitter.address, challenger: challenger.address },
   case: { caseId: executionCaseId, investigationId, bountyUsdcBaseUnits: bounty.toString(), baseFundingTx: results.base.bountyFundingTx },
+  ...(reportPause ? { pause: reportPause } : {}),
   ...results,
 };
 writeFileSync(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`);

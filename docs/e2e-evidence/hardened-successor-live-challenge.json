@@ -1,7 +1,7 @@
 {
   "schema": "recallraid-studionet-base-challenge-e2e/v1",
   "startedAt": "2026-10-17T13:05:06.747Z",
-  "updatedAt": "2026-10-17T13:47:33.458Z",
+  "updatedAt": "2026-10-17T14:47:21Z",
   "networks": {
     "genlayer": "StudioNet/61999",
     "base": "Base Sepolia/84532"
@@ -22,8 +22,16 @@
     "baseFundingTx": "0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf"
   },
   "progress": {
-    "stage": "initial-evidence-verified",
+    "stage": "genlayer-challenge-open",
     "complete": false
+  },
+  "pause": {
+    "checkedAt": "2026-10-17T14:47:21Z",
+    "reason": "The candidate API confirmation fix was deployed and health checks pass. One authenticated retry reached StudioNet and was stopped by its 500-requests/hour quota. The challenge record has not yet synchronized into the candidate API cache; no additional funding or challenge-opening transaction is needed.",
+    "blockers": [
+      "StudioNet RPC quota for transaction/challenge verification and subsequent rebuttal evidence and resolution"
+    ],
+    "nextAction": "After StudioNet quota recovers, resume with the exact saved challenge funding and open transaction hashes; confirm cache sync, then continue challenge evidence and adjudication."
   },
   "base": {
     "bountyFundingTx": "0x45d0d80a71cb717ca2cf226aef602800926ab0d0e83146449d9c500ae76f3caf",
@@ -37,6 +45,58 @@
       "registered": true,
       "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
       "investigationId": 1
+    },
+    "liveRecheck": {
+      "checkedAt": "2026-10-17T14:30:00Z",
+      "method": "Read-only ethers calls to Base Sepolia RPC https://sepolia.base.org; getCase, getChallengeDeposit and claimable",
+      "cases": {
+        "hardenedSuccessor": {
+          "caseId": "0xd370cf1ea5d45edace9ba669f396d6ab139dc4566a9933b8f5e738b0f8953987",
+          "registered": true,
+          "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+          "investigationId": 1,
+          "bountyBaseUnits": "100000",
+          "challengerDepositBaseUnits": "20000",
+          "finalized": false,
+          "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+          "challengeStakeBaseUnits": "20000"
+        },
+        "edffOverturned": {
+          "caseId": "0x010e6a1d581e35182fc4385350d449c2c34e068d36bc63fa8deb8bd5c483a51c",
+          "registered": true,
+          "genlayerContract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+          "investigationId": 3,
+          "bountyBaseUnits": "100000",
+          "challengeStakeBaseUnits": "20000",
+          "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+          "challengerDepositBaseUnits": "20000",
+          "finalized": false
+        },
+        "legacyA239": {
+          "caseId": "0xf10b16b005e9f6fe5b0a433d0dfb042e7086e880bb6bb15cb0c9ac41ec72f864",
+          "registered": true,
+          "genlayerContract": "0xa239189c2921b592dBa1eccde830977edbfD1CB5",
+          "investigationId": 2,
+          "bountyBaseUnits": "100000",
+          "challengeStakeBaseUnits": "20000",
+          "challenger": "0x90d5ECeFc77889569931AaD7EdeF2C8E557ED065",
+          "challengerDepositBaseUnits": "20000",
+          "finalized": false
+        }
+      },
+      "claimableBaseUnits": {
+        "submitter": "0",
+        "edffChallenger": "0",
+        "legacyA239Challenger": "0"
+      },
+      "result": "Successor escrow registration still binds case to the hardened contract; bounty and challenge deposit are funded and the case remains unsettled. EDFF and A239 cases remain separate, unsettled liabilities bound to their original deployments."
+    },
+    "challengeFundingTx": "0xa4689db52e8b97353e70f72eff30f96845a9c91cab1cfd5a3221bd9299dc68d0",
+    "challengeFunding": {
+      "transactionHash": "0xa4689db52e8b97353e70f72eff30f96845a9c91cab1cfd5a3221bd9299dc68d0",
+      "blockNumber": 48239578,
+      "from": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+      "amount": "20000"
     }
   },
   "genlayer": {
@@ -58,6 +118,27 @@
       "addTx": "0xde9959bb34fac31a9f7fe84371599f232fd11a4cfa878788e66ca0e77877def4",
       "verifyTx": "0xf54a753321c5b9d9fe65595bda5591c3f32c0bae3b5a4892859eca55ea04c5e8",
       "hashVerified": true
+    },
+    "initialAdjudication": {
+      "txHash": "0xebcf8ce730fac66e3ec309ea9caac326c50046124a90a963196c468cf37a46ca",
+      "status": "FINALIZED",
+      "consensus": "MAJORITY_AGREE",
+      "execution": "FINISHED_WITH_RETURN",
+      "verdict": 1,
+      "verdictLabel": "NO_ISSUE",
+      "confidenceBps": 7800,
+      "challengeDeadline": 1792852094
+    },
+    "challenge": {
+      "id": 1,
+      "openTx": "0x916f5c93bab7da2d35cf2acd7d3b953c49c7f47353d63a92f717051f6cd8352a",
+      "status": "FINALIZED",
+      "consensus": "MAJORITY_AGREE",
+      "execution": "FINISHED_WITH_RETURN",
+      "challenger": "0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d",
+      "stakeBaseUnits": "20000",
+      "baseFundingTx": "0xa4689db52e8b97353e70f72eff30f96845a9c91cab1cfd5a3221bd9299dc68d0",
+      "confirmation": "The candidate API challenge-opening request returned HTTP 202. Its open-status confirmation returned HTTP 500 due to a current-admin versus historical-sender comparison; chain record synchronization awaits deployment of the confirmation fix."
     }
   },
   "api": {
@@ -66,29 +147,40 @@
       "db": "ok"
     },
     "registrationPreviouslyRecorded": true,
-    "registrationAlreadyRecordedOnBase": true
+    "registrationAlreadyRecordedOnBase": true,
+    "challengeOpening": {
+      "httpStatus": 202,
+      "txHash": "0x916f5c93bab7da2d35cf2acd7d3b953c49c7f47353d63a92f717051f6cd8352a"
+    },
+    "challengeConfirmation": {
+      "attempts": [
+        {
+          "httpStatus": 500,
+          "error": "GenVM transaction sender does not match the investigation submitter",
+          "status": "resolved by deployed source change"
+        },
+        {
+          "httpStatus": 500,
+          "error": "Rate limit exceeded: 500 requests per hour",
+          "status": "pending StudioNet quota recovery"
+        }
+      ],
+      "candidateApiDeployment": "deployment-01M5556ME6W83FHBGTXV3C7J6Q",
+      "health": {
+        "status": "ok",
+        "db": "ok"
+      },
+      "status": "pending StudioNet RPC quota recovery"
+    }
   },
   "adjudication": {},
   "settlement": {},
-  "pause": {
-    "checkedAt": "2026-10-17T13:47:33.458Z",
-    "reason": "StudioNet get_investigation was rate-limited after the existing investigation received finalized add_evidence and verify_evidence transactions. The script stopped before verdict request, Base challenger stake funding, or challenge opening.",
-    "rpcLimits": [
-      "500 requests per hour",
-      "30 requests per minute"
-    ],
-    "lastSuccessfulWrites": [
-      {
-        "method": "add_evidence",
-        "txHash": "0xde9959bb34fac31a9f7fe84371599f232fd11a4cfa878788e66ca0e77877def4",
-        "evidenceId": 1
-      },
-      {
-        "method": "verify_evidence",
-        "txHash": "0xf54a753321c5b9d9fe65595bda5591c3f32c0bae3b5a4892859eca55ea04c5e8",
-        "hashVerified": true
-      }
-    ],
-    "nextAction": "Resume this exact case after StudioNet RPC quota recovers; do not repeat bounty funding, registration, or evidence writes."
+  "deployment": {
+    "candidateApiImage": "deployment-01M5556ME6W83FHBGTXV3C7J6Q",
+    "candidateApiHealth": {
+      "status": "ok",
+      "db": "ok"
+    },
+    "preview": "https://recall-raid-2k364g3a6-adebiyi2002gmailcoms-projects.vercel.app"
   }
 }

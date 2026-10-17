@@ -34,11 +34,13 @@ checks, not end-to-end adjudication evidence.
 The earlier CLI record in
 [`e2e-evidence/studionet-base-cli-e2e.json`](e2e-evidence/studionet-base-cli-e2e.json)
 used `a239...` and demonstrated an upheld challenge. The live `EDFF...` run
-is currently paused after adding official CPSC rebuttal evidence: a fresh
-digest from the production API was obtained after the page bytes changed, but
-the GenLayer RPC hourly request cap rejected the replacement evidence write
-before submission. The Base challenge stake is deposited and the challenge
-remains open; no settlement or withdrawal has occurred. See
+has a funded challenge. A replacement evidence item for the dynamic 2019 CPSC
+HTML page finalized, but validator-side fetch/hash verification returned
+false for both reachability and hash match. A version-pinned CPSC PDF had
+stable bytes in repeated production API and direct-fetch checks, but a new
+evidence write has not been submitted because StudioNet reached its hourly
+RPC limit. The challenge remains open; no settlement or withdrawal has
+occurred. See
 [`e2e-evidence/studionet-base-challenge-e2e.json`](e2e-evidence/studionet-base-challenge-e2e.json).
 
 On 2026-10-17 the production PostgreSQL cache was pruned of four stale hunts

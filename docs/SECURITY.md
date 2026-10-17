@@ -132,19 +132,21 @@ Base-bound test case settles.
 The earlier CLI run used `a239...` and validators upheld its challenge. The
 current run on `EDFF...` used real Base USDC and the production authenticated
 API. The 20,000-unit challenge stake and official CPSC rebuttal evidence are
-recorded. The source page changed bytes after the original digest was
-submitted; the production API returned a fresh digest, but the StudioNet RPC
-hourly request cap rejected a replacement evidence write before submission.
-The challenge is still open; no verdict change, settlement, or withdrawal is
-claimed. See
+recorded. A replacement evidence write for the dynamic 2019 CPSC HTML page
+finalized, but the contract's independent fetch/hash verification returned
+false for reachability and hash match. A version-pinned CPSC PDF produced a
+stable digest across production API and direct-fetch checks, but the next
+write was blocked by the StudioNet hourly RPC limit. The challenge is still
+open; no verdict change, settlement, or withdrawal is claimed. See
 [`e2e-evidence/studionet-base-challenge-e2e.json`](e2e-evidence/studionet-base-challenge-e2e.json).
 The production API at commit
-`17492f1b9f41a07ec847c2eaeefdc74f86c6cdcf` is healthy and its authenticated
-challenge-source digest endpoint successfully returned the current page
-digest. The hosted relay refused the case with HTTP 400 because adjudication
-was not terminal. This validates production receipt parsing and early-relay
-rejection, not successful settlement; challenge overturn, Base payout, and
-wallet withdrawal remain unverified.
+`17492f1b9f41a07ec847c2eaeefdc74f86c6cdcf` is healthy. Its authenticated
+challenge-source endpoint returned a digest for the CPSC HTML page, then
+later requests were blocked when its authoritative on-chain challenger check
+hit the StudioNet hourly RPC limit. The hosted relay refused the case with
+HTTP 400 because adjudication was not terminal. This validates production
+receipt parsing and early-relay rejection, not successful settlement;
+challenge overturn, Base payout, and wallet withdrawal remain unverified.
 
 The Fly PostgreSQL cache was cleared of four stale investigation entries and
 their dependent cache data. The current EDFF investigation and its live

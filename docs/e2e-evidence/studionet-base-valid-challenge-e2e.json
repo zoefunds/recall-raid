@@ -340,7 +340,9 @@
     "studioNetExplorerTransferCheck": "No newer transfer from the exposed wallet appeared; listed wallet transactions were about two months old.",
     "studioNetExplorerCheckedAt": "2026-10-17T11:35:45Z",
     "studioNetRecoveryAttempt": {
+      "recheckedAt": "2026-10-17T11:41:22Z",
       "readOnlyBatch": {
+        "chainId": "0xf22f",
         "sourceBalanceWei": "998795000000000001000",
         "sourceNonce": 265,
         "destinationBalanceWei": "0",
@@ -350,7 +352,16 @@
       "transactionHash": null,
       "postAttemptExplorerSourceBalance": "998.795000 GEN",
       "postAttemptExplorerReceiverTransferVisible": false,
-      "result": "Recovery remains pending; the RPC rejected the signed transaction at its hourly rate limit."
+      "result": "Recovery remains pending; the StudioNet RPC again rejected the signed transaction at its hourly rate limit, despite successful read-only calls and a matching source balance/nonce. No transaction hash was returned.",
+      "alternateUnderlyingChainRpcCheck": {
+        "checkedAt": "2026-10-17T11:41:22Z",
+        "endpoint": "https://rpc.testnet-chain.genlayer.com",
+        "chainId": "0x107d",
+        "sourceBalanceWei": "0",
+        "sourceNonce": 0,
+        "usedForTransfer": false,
+        "result": "This is a separate ledger for this address; it does not hold the StudioNet funds and was not used as a rate-limit workaround."
+      }
     },
     "freshReceiverKeyPath": "/private/tmp/recallraid-rotated-diagnostic-wallet.json"
   }

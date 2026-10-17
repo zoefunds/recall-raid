@@ -61,6 +61,17 @@ transaction string; do not use it as settlement evidence. StudioNet's hosted
 RPC quota intermittently blocked Fly sync requests, although authenticated
 registration sync and the final hosted cache reads subsequently succeeded.
 
+At 2026-10-17 11:41Z the exposed diagnostic wallet was rechecked through
+StudioNet's canonical RPC: chain id `61999`, balance `998.795 GEN`, and nonce
+`265` matched the prepared recovery transfer. A single submission again
+returned HTTP 429 (`500 requests per hour`) without a transaction hash. The
+documented underlying GenLayer Chain RPC was checked read-only as a possible
+supported wallet endpoint; it reported chain id `4221` and zero balance for
+this address, so it is a separate ledger and was not used to bypass the
+StudioNet write limit. The diagnostic funds remain unrecovered until the
+canonical StudioNet endpoint accepts a transaction and its receipt and both
+balances are verified.
+
 On 2026-10-17 the production PostgreSQL cache was pruned of four stale hunts
 from the superseded contract era, along with four dependent evidence rows, two
 pending evidence uploads, and two notifications. The exact active `EDFF...`

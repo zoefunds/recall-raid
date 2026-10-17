@@ -88,6 +88,9 @@ file is also mode `0600`, and the required deployment variables are present.
 This confirms the withdrawal runner has its local credentials when the
 recorded challenge deadline passes; it does not claim settlement readiness
 before that deadline.
+At 11:48Z the runner itself was invoked and exited at its report-deadline
+guard with the expected `2026-10-24T10:31:44Z` message, before making a GenLayer
+or Base RPC call. No settlement or withdrawal write was sent.
 
 On 2026-10-17 the production PostgreSQL cache was pruned of four stale hunts
 from the superseded contract era, along with four dependent evidence rows, two

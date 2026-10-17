@@ -417,6 +417,12 @@
     "challengerKeyFileMode": "0600",
     "apiEnvFileMode": "0600",
     "requiredDeploymentVariablesPresent": true,
+    "preDeadlineGuardCheck": {
+      "checkedAt": "2026-10-17T11:48:53Z",
+      "command": "node --env-file=apps/api/.env scripts/settle_studionet_base_e2e.mjs",
+      "result": "Exited at the report-deadline guard with the expected 2026-10-24T10:31:44Z message before any GenLayer/Base RPC call.",
+      "writesSent": false
+    },
     "writesSent": false
   },
   "studioNetSourceParityCheck": {

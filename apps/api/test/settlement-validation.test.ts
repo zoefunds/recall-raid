@@ -6,6 +6,7 @@ import {
   assertChallengeOpenAuthorized,
   assertChallengeFundingMatches,
   assertGenLayerCall,
+  assertFundedChallengeOpeningTransaction,
   assertGenLayerChallengeOutcome,
   assertChallengeUsageConsistent,
   assertGenLayerTransactionIdentity,
@@ -67,6 +68,26 @@ describe("settlement cross-chain validation", () => {
     expect(() => assertGenLayerCall({ transaction, method: "submit_investigation", args: [caseId, BigInt(amount)] })).not.toThrow();
     expect(() => assertGenLayerCall({ transaction, method: "settle_investigation", args: [4] })).toThrow(/not a settle_investigation/);
     expect(() => assertGenLayerCall({ transaction, method: "submit_investigation", args: [caseId, "1"] })).toThrow(/argument 1/);
+  });
+
+  it("confirms a finalized funded challenge opened by the previous admin after role rotation", () => {
+    const previousAdmin = "0x00000000000000000000000000000000000000c3";
+    const reason = "Verified funded challenge";
+    const baseTxHash = ethers.id("exact base challenge funding");
+    const transaction = {
+      recipient: escrow,
+      sender: previousAdmin,
+      statusName: "FINALIZED",
+      resultName: "MAJORITY_AGREE",
+      txExecutionResultName: "FINISHED_WITH_RETURN",
+      txDataDecoded: { callData: { method: "open_challenge", args: [4, challenger, reason, amount, baseTxHash] } },
+    };
+    const exact = { transaction, expectedContract: escrow, investigationId: 4, challenger, reason, stake: amount, baseTxHash };
+    expect(() => assertFundedChallengeOpeningTransaction(exact)).not.toThrow();
+    expect(() => assertFundedChallengeOpeningTransaction({ ...exact, expectedContract: payer })).toThrow(/different contract/);
+    expect(() => assertFundedChallengeOpeningTransaction({ ...exact, challenger: payer })).toThrow(/argument 1/);
+    expect(() => assertFundedChallengeOpeningTransaction({ ...exact, stake: "1" })).toThrow(/argument 3/);
+    expect(() => assertFundedChallengeOpeningTransaction({ ...exact, transaction: { ...transaction, txExecutionResultName: "FINISHED_WITH_ERROR" } })).toThrow(/did not finish successfully/);
   });
 
   it("authenticates a final overturned challenge against its investigation and verdict", () => {

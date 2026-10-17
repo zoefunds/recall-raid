@@ -4,7 +4,7 @@ import { studionet } from "genlayer-js/chains";
 import { config } from "./config.js";
 import { chain, getTransactionStatus } from "./genlayer.js";
 import { syncChallenge, syncInvestigation } from "./sync.js";
-import { assertGenLayerCall, assertGenLayerTransactionIdentity, assertSuccessfulFinalizedGenVmExecution } from "./settlement-validation.js";
+import { assertFundedChallengeOpeningTransaction } from "./settlement-validation.js";
 
 function getChallengeRelayer() {
   if (!config.baseSepolia.relayerPrivateKey) throw new Error("The GenLayer challenge relayer is not configured");
@@ -63,19 +63,14 @@ export async function confirmFundedChallenge(input: {
   const status = String(transaction.statusName ?? "").toUpperCase();
   if (status !== "FINALIZED") return { status: "pending" as const };
 
-  assertSuccessfulFinalizedGenVmExecution(transaction);
-  assertGenLayerTransactionIdentity({
+  assertFundedChallengeOpeningTransaction({
     transaction,
     expectedContract: config.genlayer.contractAddress,
-    // Do not compare with today's admin address here. A valid finalized
-    // open_challenge may predate an admin rotation; the contract's admin gate
-    // already enforced the caller at execution time. Exact calldata and the
-    // resulting funded challenge record are checked below.
-  });
-  assertGenLayerCall({
-    transaction,
-    method: "open_challenge",
-    args: [input.investigationId, input.challenger, input.reason, BigInt(input.stake), input.baseTxHash],
+    investigationId: input.investigationId,
+    challenger: input.challenger,
+    reason: input.reason,
+    stake: input.stake,
+    baseTxHash: input.baseTxHash,
   });
 
   const investigation = await chain.getInvestigation(input.investigationId);

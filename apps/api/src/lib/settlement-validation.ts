@@ -75,6 +75,30 @@ export function assertGenLayerCall(input: {
   }
 }
 
+/**
+ * Validate a previously submitted funded challenge opening. The transaction
+ * may predate an admin rotation, so its sender is not compared with the
+ * current configured admin; successful execution of the admin-gated contract
+ * call, exact calldata, and the resulting challenge record prove authorization.
+ */
+export function assertFundedChallengeOpeningTransaction(input: {
+  transaction: Parameters<typeof assertSuccessfulFinalizedGenVmExecution>[0] & Parameters<typeof assertGenLayerTransactionIdentity>[0]["transaction"];
+  expectedContract: string;
+  investigationId: number;
+  challenger: string;
+  reason: string;
+  stake: string;
+  baseTxHash: string;
+}) {
+  assertSuccessfulFinalizedGenVmExecution(input.transaction);
+  assertGenLayerTransactionIdentity({ transaction: input.transaction, expectedContract: input.expectedContract });
+  assertGenLayerCall({
+    transaction: input.transaction,
+    method: "open_challenge",
+    args: [input.investigationId, input.challenger, input.reason, BigInt(input.stake), input.baseTxHash],
+  });
+}
+
 export function assertGenLayerChallengeOutcome(input: {
   investigationId: number;
   investigationStatus: number;

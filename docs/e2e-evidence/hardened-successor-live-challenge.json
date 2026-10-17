@@ -271,7 +271,7 @@
     "expectedChallengeStakeBaseUnits": "20000",
     "reason": "The seven-day post-resolution window has not elapsed. No settlement or withdrawal is sent before 2026-10-24T15:22:12Z."
   },
-  "updatedAt": "2026-10-17T15:35:01Z",
+  "updatedAt": "2026-10-17T15:39:00Z",
   "latestEnvironmentCheck": {
     "checkedAt": "2026-10-17T15:35:01Z",
     "productionFrontend": {
@@ -327,5 +327,35 @@
       },
       "interpretation": "Hosted production configuration and deployed successor source/schema were freshly verified after the transient local DNS failure."
     }
+  },
+  "liveUnauthorizedChallengeAttempt": {
+    "transactionHash": "0x6ed41f2f7a4d30a7db2f14369ce66bdfc2cc68cb05faea334e6fcf8c25ebbacd",
+    "timestampUtc": "2026-10-17T15:38:37Z",
+    "caller": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+    "target": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+    "method": "open_challenge",
+    "investigationId": 1,
+    "receiptStatus": "FINALIZED",
+    "consensus": "MAJORITY_AGREE",
+    "leaderExecution": "ERROR",
+    "executionOutcome": "rollback",
+    "error": "[EXPECTED] caller is not the protocol admin",
+    "postAttemptInvestigation": {
+      "status": 3,
+      "verdict": 2,
+      "openChallengeId": 0,
+      "lastChallengeId": 1,
+      "challengeUsed": true,
+      "settled": false
+    },
+    "postAttemptChallenge": {
+      "id": 1,
+      "status": 3,
+      "priorVerdict": 1,
+      "newVerdict": 2,
+      "challenger": "0xa0e30f264f4db37cddcfed0c93a6bcdff5c70f8d"
+    },
+    "candidateApiChallengeUnchanged": true,
+    "baseTransactionsSent": false
   }
 }

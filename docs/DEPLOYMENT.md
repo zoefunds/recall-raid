@@ -585,3 +585,14 @@ each completed stage in the live evidence JSON so an interrupted withdrawal
 can be resumed and checked without claiming the same balance twice.
 Private key material stays in ignored local configuration and hosting secret
 stores; never add it to this repository.
+
+Direct-call authorization check at 2026-10-17 15:38Z: an unrelated wallet
+called `open_challenge(1, ...)` on the hardened successor in transaction
+`0x6ed41f2f7a4d30a7db2f14369ce66bdfc2cc68cb05faea334e6fcf8c25ebbacd`.
+The receipt finalized with `MAJORITY_AGREE`, while the leader execution
+returned `ERROR` and rolled back with `[EXPECTED] caller is not the protocol
+admin`. Fresh chain and API reads showed the investigation and retained
+overturned challenge unchanged; no Base transaction was sent. The exact receipt
+and post-call state are recorded in the live-challenge JSON. This verifies the
+deployed successor's direct-call gate and does not substitute for the still
+pending Base settlement after the seven-day deadline.

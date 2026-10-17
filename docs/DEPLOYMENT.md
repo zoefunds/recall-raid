@@ -309,6 +309,19 @@ The public StudioNet explorer account page for the deployment wallet was
 checked at 11:31Z; it shows the existing EDFF calls as the newest project
 transactions and no successor deployment transaction.
 
+At 11:47Z the deployed `EDFF...` source was retrieved once more from the
+canonical StudioNet RPC. Its normalized SHA-256 remains
+`d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5`; the
+only semantic difference remains URL validation (the deployed source accepts
+any scheme while checkout requires HTTPS and rejects credentials). No
+successor deployment or hosted cutover is recorded. The same-time Base verifier
+again matched the escrow runtime to the checked-out Solidity source: runtime
+hash `0xa7919e068cf4d9a0172ad8d8b888ff3770f3c45da94c6b195cb2009e5c20b370`,
+source hash `0x90e7562eeb84dcd0738b61d3dba8ff406761e8d4f8581caf2b3800909aac0fc6`,
+USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e`, relayer
+`0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb`, and decision signer
+`0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C`.
+
 To finish the recorded case after its deadline, run the settlement runner from
 the repository root with the API key material in ignored `apps/api/.env` and
 the separate challenger key file already used by the challenge test:

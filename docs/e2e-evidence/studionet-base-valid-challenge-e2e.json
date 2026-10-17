@@ -394,6 +394,18 @@
       "apiTests": "46 passed",
       "foundryTests": "9 passed"
     },
+    "baseEscrowVerification": {
+      "checkedAt": "2026-10-17T11:47:02Z",
+      "command": "node --env-file=apps/api/.env contracts/base/verify.mjs",
+      "verified": true,
+      "networkChainId": 84532,
+      "address": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+      "runtimeBytecodeHash": "0xa7919e068cf4d9a0172ad8d8b888ff3770f3c45da94c6b195cb2009e5c20b370",
+      "sourceHash": "0x90e7562eeb84dcd0738b61d3dba8ff406761e8d4f8581caf2b3800909aac0fc6",
+      "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "relayer": "0x7401c129EDfc26E68FE19309fE461eb3Db1058Eb",
+      "decisionSigner": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C"
+    },
     "writesSent": false
   },
   "settlementRunnerPreflight": {
@@ -406,5 +418,15 @@
     "apiEnvFileMode": "0600",
     "requiredDeploymentVariablesPresent": true,
     "writesSent": false
+  },
+  "studioNetSourceParityCheck": {
+    "checkedAt": "2026-10-17T11:47:02Z",
+    "contract": "0xEDFFB4B4999D65A248441438233c18717515973d",
+    "sourceRetrievedWith": "genlayer code --rpc https://studio.genlayer.com/api",
+    "normalizedSourceSha256": "d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5",
+    "matchesCheckout": false,
+    "semanticDifference": "Deployed URL validation checks only the regulator hostname; checkout also requires HTTPS and rejects URL credentials.",
+    "successorDeploymentAccepted": false,
+    "hostedCutoverPerformed": false
   }
 }

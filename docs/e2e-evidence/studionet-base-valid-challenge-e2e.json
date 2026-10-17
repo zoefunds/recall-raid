@@ -530,5 +530,14 @@
     "challengeStakeBaseUnits": "20000",
     "challengerDepositBaseUnits": "20000",
     "finalized": false
+  },
+  "latestCredentialRemediation": {
+    "verifiedAt": "2026-10-17T15:41:52Z",
+    "evidence": "diagnostic-wallet-recovery.json",
+    "transactionHash": "0x3159771506004c57508b7da5bf6f35915edea75e7311bd12eb54d47838abf275",
+    "sourceBalanceAfterWei": "0",
+    "receiverBalanceAfterWei": "999795000000000001000",
+    "sourceAddressHasNoCurrentGenLayerAdminOrBaseEscrowRole": true,
+    "priorCredentialRemediationFieldsAreHistoricalSnapshot": true
   }
 }

@@ -56,8 +56,10 @@ the successor in
 The distinct Base decision signer remains `0x6C76...`. Fly production and
 candidate relayer secrets were rotated to the fresh operational key; the old
 account remains the depositor for historical cases and is retained only in a
-local mode-0600 E2E environment as the case claimant. The 551f diagnostic
-wallet is a different key and its 998.795 GEN recovery remains unresolved.
+local mode-0600 E2E environment as the case claimant. The separate 551f
+diagnostic wallet's balance was recovered to the rotated role wallet at
+15:41Z; its source now holds zero GEN. See the
+[recovery receipt and role checks](e2e-evidence/diagnostic-wallet-recovery.json).
 
 The successor had zero investigations and seller bonds at source verification;
 the current live challenge exercise is investigation 1. It is now the production
@@ -224,9 +226,11 @@ returned HTTP 429 (`500 requests per hour`) without a transaction hash. The
 documented underlying GenLayer Chain RPC was checked read-only as a possible
 supported wallet endpoint; it reported chain id `4221` and zero balance for
 this address, so it is a separate ledger and was not used to bypass the
-StudioNet write limit. The diagnostic funds remain unrecovered until the
-canonical StudioNet endpoint accepts a transaction and its receipt and both
-balances are verified.
+StudioNet write limit. This 11:41Z snapshot was superseded at 15:41Z: the canonical StudioNet
+endpoint accepted recovery transaction
+`0x3159771506004c57508b7da5bf6f35915edea75e7311bd12eb54d47838abf275`, and
+its successful receipt plus zero source balance and exact receiver delta are
+recorded in [`e2e-evidence/diagnostic-wallet-recovery.json`](e2e-evidence/diagnostic-wallet-recovery.json).
 
 A further read-only production check at 11:43Z returned API and database
 health `ok`, `/submit` HTTP 200, and three cached investigations (IDs 1–3).
@@ -296,9 +300,11 @@ history was rewritten. For deployment records, API source commit
 `622fa5383407acbfea4edf5609c179a6e2f6a707`. Tree content was unchanged by the
 redaction. History rewriting cannot invalidate copies in forks or clones; the
 key remains compromised. Its StudioNet test wallet held 998.795 GEN and no
-Base Sepolia ETH or USDC. A transfer to a fresh key has not been confirmed;
-StudioNet RPC rate limiting interrupted the recovery attempt before a
-transaction hash or receipt could be verified.
+Base Sepolia ETH or USDC at the time of the history rewrite. The transfer was
+still unconfirmed in this earlier snapshot because RPC rate limiting had
+interrupted the first attempt. A later retry finalized at 15:41Z; the transfer
+receipt, zero source balance, exact receiver delta, and role checks are recorded
+in [`e2e-evidence/diagnostic-wallet-recovery.json`](e2e-evidence/diagnostic-wallet-recovery.json).
 
 The Base escrow verifier compiled the checked-out Solidity with solc
 `0.8.37+commit.f401782d`, optimizer runs `200`, and `viaIR: true`. It verified
@@ -476,14 +482,16 @@ first-evidence wallet key in protected `RECALLRAID_A239_HUNTER_PRIVATE_KEY`
 and verifies its exact USDC balance delta. Do not put that key in a command
 argument or repository file.
 
-The separate exposed diagnostic wallet `0x551f5b8b2c517bfd780f2e005be2dd2754b7aa85`
-was last verified with 998.795 GEN. Its private key was not present among the
-configured local environment keys, temporary recovery keyfiles, or GenLayer
-account inventory checked during this session. The fresh receiver exists, but
-without the exposed source key no transfer can be signed; its funds must not be
-reported as recovered. This environment's DNS failure was transient: read-only
-StudioNet, Base Sepolia, and candidate API probes later succeeded, and the
-successor continuation completed.
+Later diagnostic-wallet recovery at 2026-10-17 15:41Z: the exposed wallet
+`0x551f5b8b2c517bfd780f2e005be2dd2754b7aa85` transferred its exact remaining
+998.795000000000001 GEN to the rotated role wallet in finalized transaction
+`0x3159771506004c57508b7da5bf6f35915edea75e7311bd12eb54d47838abf275`.
+The source balance is zero and receiver balance increased from 1 to
+999.795000000000001 GEN. Live reads verified the old address has no administrator
+role on EDFF, the successor, or A239 and no Base escrow role. The two temporary
+scripts holding the compromised source key were deleted; a local content scan
+and unreachable-Git scan found no other copy. See
+[`e2e-evidence/diagnostic-wallet-recovery.json`](e2e-evidence/diagnostic-wallet-recovery.json).
 
 The live Base accounting branches in
 [`e2e-evidence/live-base-security-branches.json`](e2e-evidence/live-base-security-branches.json)

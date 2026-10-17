@@ -1,0 +1,62 @@
+{
+  "checkedAtUtc": "2026-10-17T15:41:43Z",
+  "network": {
+    "name": "GenLayer StudioNet",
+    "chainId": 61999
+  },
+  "source": {
+    "address": "0x551f5b8b2c517bfd780f2e005be2dd2754b7aa85",
+    "balanceBeforeWei": "998795000000000001000",
+    "balanceBeforeGen": "998.795000000000001",
+    "balanceAfterWei": "0",
+    "balanceAfterGen": "0",
+    "nonceAfter": 266
+  },
+  "destination": {
+    "address": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+    "balanceBeforeWei": "1000000000000000000",
+    "balanceBeforeGen": "1",
+    "balanceAfterWei": "999795000000000001000",
+    "balanceAfterGen": "999.795000000000001"
+  },
+  "transfer": {
+    "transactionHash": "0x3159771506004c57508b7da5bf6f35915edea75e7311bd12eb54d47838abf275",
+    "receiptStatus": 1,
+    "blockNumber": 0,
+    "blockTimestampUtc": "2026-10-17T15:41:52Z",
+    "valueWei": "998795000000000001000",
+    "valueGen": "998.795000000000001",
+    "gasPriceWei": "0"
+  },
+  "roleChecks": {
+    "genlayerAdministrators": {
+      "0xEDFFB4B4999D65A248441438233c18717515973d": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+      "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+      "0xa239189c2921b592dBa1eccde830977edbfD1CB5": "0x7452084E1Cf767bf19C743051cFf27D9F7A87a4D"
+    },
+    "baseEscrow": {
+      "address": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+      "owner": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+      "relayer": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+      "decisionSigner": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C"
+    },
+    "sourceHasNoListedPrivilegedRole": true
+  },
+  "keyHygiene": {
+    "sourceKeyScriptsDeleted": [
+      "/private/tmp/rotate_recallraid_diagnostic_wallet.mjs",
+      "/private/tmp/submit_recallraid_diagnostic_recovery.mjs"
+    ],
+    "unreachableGitTreeScanMatches": 0,
+    "workspaceAndTempScanMatchesAfterDeletion": 0,
+    "scannerCounts": {
+      "unreachableDiagnosticBlobsChecked": 55,
+      "workspaceAndTempFilesScanned": 4654,
+      "candidatePrivateKeysChecked": 4785
+    }
+  },
+  "limitations": [
+    "The exposed key remains compromised despite the zero source balance and must never be used again.",
+    "Local scans cannot establish that no external clone, backup, cache, or copy exists."
+  ]
+}

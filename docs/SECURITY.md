@@ -112,20 +112,22 @@ attested relay design, not a trustless bridge.
 - A private key formerly embedded in `scripts/diagnostic_test.mjs` was exposed
   in repository history. The script now requires `PRIVATE_KEY` from the
   environment, and on 2026-10-17 `main` history was rewritten to redact the
-  exact value; the rewritten remote `main` was scanned and contains no matching
-  blob. The key must still be treated as compromised: history rewriting does
-  not revoke it or erase clones, forks, caches, or copies made before cleanup.
-  The derived wallet is `0x551f5b8b2c517bfd780f2e005be2dd2754b7aa85`; checks
-  confirmed it is not either configured Fly Base signer and held zero Base
-  Sepolia native token or USDC. It held 998.795 GEN on StudioNet at the time of
-  the check. Recovery to a fresh wallet is pending because StudioNet RPC
-  returned its 500-requests-per-hour limit; a subsequent public-explorer check
-  still showed 998.795 GEN and no transfer from that wallet. Do not
-  reuse the exposed wallet; the generated receiver key is held locally at
-  `/private/tmp/recallraid-rotated-diagnostic-wallet.json` with mode 0600 and is
-  not committed. Confirm the transfer receipt and balances after StudioNet
-  rate limiting clears. Rotate any service configuration if further checks
-  identify use of this key.
+  exact value; the rewritten remote `main` and unreachable Git objects were
+  scanned with no remaining matching blob. The key remains compromised: history
+  rewriting cannot erase clones, forks, caches, or copies made before cleanup.
+  The derived wallet is `0x551f5b8b2c517bfd780f2e005be2dd2754b7aa85`; on
+  2026-10-17 at 15:41 UTC, its remaining 998.795000000000001 GEN was transferred
+  to the rotated role wallet `0xE3F1A34307349be94f3657276ebcF51eaB810730` in
+  transaction `0x3159771506004c57508b7da5bf6f35915edea75e7311bd12eb54d47838abf275`.
+  The successful receipt and post-transfer RPC reads show source balance 0,
+  nonce 266, and receiver balance 999.795000000000001 GEN (1 GEN was already
+  present). The old address is not admin on EDFF, the hardened successor, or
+  A239, and is not owner, relayer, or decision signer on the Base escrow. Its
+  temporary key-bearing recovery scripts were deleted after confirmation; the
+  workspace and unreachable Git objects were scanned with no matching key
+  remaining. Treat the old key as compromised regardless of its zero balance.
+  Full transfer and role evidence is in
+  [`e2e-evidence/diagnostic-wallet-recovery.json`](e2e-evidence/diagnostic-wallet-recovery.json).
 - PostgreSQL is a derived cache, not a ledger. The API watcher serializes its
   sweep with a database advisory lock and retries terminal relays. Base
   idempotency makes duplicate relay attempts safe.
@@ -192,9 +194,9 @@ in a local mode-0600 E2E environment. The candidate API historical challenge
 confirmation fix was deployed as `deployment-01M555BTMXRNNNSND406M6W0JK` and
 both machines pass health checks. A direct HTTPS `/health` check returned API
 and database `ok`; Fly's final public DNS probe timed out. The subsequent
-challenge sync retry was rate-limited by StudioNet. The separate exposed 551f
-diagnostic key has not been recovered; its transfer to the fresh wallet is
-still pending.
+challenge sync retry was rate-limited by StudioNet. This was the 14:47Z
+snapshot; the separate diagnostic-wallet sweep finalized at 15:41Z, as recorded
+in the current remediation evidence below.
 
 Snapshot at 2026-10-17 15:00Z: public Vercel production now serves the hardened
 successor and isolated candidate API. Its assets were fetched and checked for

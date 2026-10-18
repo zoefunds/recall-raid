@@ -16,6 +16,9 @@ immutable historical cases can be settled through their original contracts.
 Live reads report `CHALLENGE_OVERTURN_BONUS_BPS = 1500`; existing cases retain
 their version-specific settlement paths. See the
 [rollout evidence](docs/e2e-evidence/bonus-aware-rollout-2026-10-18.json).
+The deployed runtime/source equivalence, live constants, role separation, and
+exact 0.100/0.020 USDC allocation test are independently recorded in the
+[Base equivalence evidence](docs/e2e-evidence/base-escrow-source-equivalence-2026-10-18.json).
 
 The hardened GenLayer successor is deployed at
 `0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA`. The public application at

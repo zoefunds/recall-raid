@@ -160,6 +160,49 @@ contract RecallRaidEscrowTest {
         require(escrow.claimable(HUNTER) + escrow.claimable(CHALLENGER) == bounty + stake, "rounded deposits not conserved");
     }
 
+    function testExactPointOneUsdcOverturnAllocatesPointZeroThreeFiveAndPointZeroEightFive() public {
+        bytes32 id = keccak256("exact-reviewer-allocation");
+        uint256 bounty = 100_000; // 0.100 USDC at six decimals
+        uint256 stake = 20_000;   // 0.020 USDC
+        token.mint(PAYER, bounty);
+        vm.prank(PAYER); escrow.fundInvestigation(id, bounty);
+        vm.prank(RELAYER); escrow.registerGenLayerCase(
+            id,
+            PAYER,
+            bounty,
+            GENLAYER_CONTRACT,
+            INVESTIGATION_ID,
+            _signRegistration(id, PAYER, bounty)
+        );
+        vm.prank(CHALLENGER); escrow.fundChallenge(id, stake);
+
+        bytes32 decision = keccak256("exact-reviewer-overturn");
+        bytes memory authorization = _signAdjudication(id, 2, HUNTER, 10, CHALLENGER, true, decision);
+        vm.prank(RELAYER); escrow.relayAdjudication(
+            id,
+            GENLAYER_CONTRACT,
+            INVESTIGATION_ID,
+            2,
+            HUNTER,
+            10,
+            CHALLENGER,
+            true,
+            bytes32(0),
+            0,
+            decision,
+            authorization
+        );
+
+        require(escrow.claimable(CHALLENGER) == 35_000, "challenger must receive 0.035 USDC");
+        require(escrow.claimable(HUNTER) == 85_000, "bounty recipient must receive 0.085 USDC");
+        require(escrow.claimable(CHALLENGER) + escrow.claimable(HUNTER) == 120_000, "funded USDC not conserved");
+        require(token.balanceOf(address(escrow)) == 120_000, "escrow backing differs from claims");
+
+        vm.prank(CHALLENGER); escrow.claim();
+        vm.prank(HUNTER); escrow.claim();
+        require(token.balanceOf(address(escrow)) == 0, "escrow retained USDC after claims");
+    }
+
     function testNoIssueRefundsSubmitterWithAttestedVerdict() public {
         bytes32 id = keccak256("no-issue-refund");
         _fund(id); _register(id);

@@ -158,7 +158,7 @@ reconciled, because the escrow permanently binds each case to its registered
 GenLayer contract. The synthetic Base branch transactions did not consume the
 EDFF deployment's consensus result.
 
-Local API tests (50), direct-mode GenVM tests (2), Foundry tests (10),
+Local API tests (50), direct-mode GenVM tests (2), Foundry tests (11),
 compilation, and web builds are useful checks, not substitutes for independent
 contract review, key management review, production deployment validation, or a
 complete wallet-driven cross-chain exercise. The GenVM direct-mode tests verify
@@ -289,7 +289,7 @@ The current source also contains an independent challenge-backing check in
 both the relay path and decision signer. The API suite has 50 passing tests,
 including explicit decision-signer rejection of modified verdict, hunter,
 challenge id/challenger/overturn flag, seller-bond id/slash, and decision hash.
-The Foundry suite has 10 passing tests covering registration ownership, exact
+The Foundry suite has 11 passing tests covering registration ownership, exact
 Base challenge receipt binding, signature tampering, seller-bond slashing,
 orphan recovery, successful Base-backed challenger allocation, 15% bonus
 rounding, and conservation of all funded USDC. The
@@ -297,6 +297,13 @@ tested signer comparison is deployed to Fly; its health and live case-3 cache
 were verified after rollout. The live `EDFF...` run verifies the real
 finalized GenLayer outcome and hosted cache; settlement and wallet withdrawal
 remain pending until the recorded deadline.
+
+The exact reviewer-sized allocation test funds a 100,000-unit bounty and a
+20,000-unit successful challenge stake. It asserts 35,000 claimable units for
+the challenger, 85,000 for the ordinary bounty recipient, 120,000 total claims,
+full token backing before claims, and zero escrow residue after both claims.
+The independently rerun deployed-code equivalence check is recorded in
+[`e2e-evidence/base-escrow-source-equivalence-2026-10-18.json`](e2e-evidence/base-escrow-source-equivalence-2026-10-18.json).
 
 Previous workstation check at 2026-10-17 15:19Z: API tests pass (50), GenVM
 direct-mode tests pass (2), and Foundry tests pass (9). A guarded read/resume

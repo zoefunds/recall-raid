@@ -1,0 +1,74 @@
+{
+  "schema": "recallraid-base-source-equivalence/v1",
+  "recordedAt": "2026-10-18T01:13:00+01:00",
+  "network": "Base Sepolia",
+  "chainId": 84532,
+  "verificationBlock": 48257048,
+  "contract": {
+    "address": "0xBf74703d38cc83DE796B174efFdC02FaD69dE0dB",
+    "deploymentTx": "0x7a095758a6aa678d235103a54c31e468be043bb6d2f2cb6b944b17ccef433ed8",
+    "source": "contracts/base/RecallRaidEscrow.sol",
+    "sourceHash": "0xac9b080d27653056fe9e777e35e4eb46f4619fe53afd47ade115b6699fa79dc7",
+    "runtimeByteLength": 12091,
+    "deployedRuntimeBytecodeHash": "0xf4a0dfbb23ac86463f6f4ef51581aa0fd47164d75204133c06b94efed2cdbb11",
+    "compiledRuntimeBytecodeHashBeforeImmutables": "0xa6f7e6b088719cd96c7ec6b4ff0532a3f184257d5a8061d31233d494f4ab20ea",
+    "maskedDeployedRuntimeBytecodeHash": "0xa6f7e6b088719cd96c7ec6b4ff0532a3f184257d5a8061d31233d494f4ab20ea",
+    "maskedCompiledRuntimeBytecodeHash": "0xa6f7e6b088719cd96c7ec6b4ff0532a3f184257d5a8061d31233d494f4ab20ea",
+    "equivalence": "immutable-aware byte-for-byte runtime match",
+    "compiler": "0.8.37+commit.f401782d.Emscripten.clang",
+    "optimizer": {
+      "enabled": true,
+      "runs": 200,
+      "viaIR": true
+    }
+  },
+  "liveConfiguration": {
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "owner": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+    "relayer": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+    "decisionSigner": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C",
+    "basisPointDenominator": "10000",
+    "challengeOverturnBonusBps": "1500",
+    "independentDecisionSigner": true
+  },
+  "verification": {
+    "script": "contracts/base/verify.mjs",
+    "checks": [
+      "RPC chain id is Base Sepolia 84532",
+      "deployed code exists at the configured address",
+      "compiled and deployed runtime bytecode match after masking compiler-reported immutable references",
+      "USDC, owner, relayer, and decision signer match the expected deployment configuration",
+      "deployed BPS_DENOMINATOR equals 10000",
+      "deployed CHALLENGE_OVERTURN_BONUS_BPS equals 1500"
+    ],
+    "result": "PASS"
+  },
+  "exactAllocationTest": {
+    "test": "testExactPointOneUsdcOverturnAllocatesPointZeroThreeFiveAndPointZeroEightFive",
+    "bountyBaseUnits": "100000",
+    "successfulChallengeStakeBaseUnits": "20000",
+    "challengerBonusBaseUnits": "15000",
+    "challengerTotalClaimBaseUnits": "35000",
+    "ordinaryBountyRecipientClaimBaseUnits": "85000",
+    "totalFundedBaseUnits": "120000",
+    "totalClaimsBaseUnits": "120000",
+    "escrowBalanceAfterClaimsBaseUnits": "0",
+    "result": "PASS"
+  },
+  "hostedConfiguration": {
+    "publicFrontend": "https://recall-raid.vercel.app",
+    "frontendHttpStatus": 200,
+    "inspectedJavascriptAssets": 12,
+    "bundledGenlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+    "bundledBaseEscrow": "0xBf74703d38cc83DE796B174efFdC02FaD69dE0dB",
+    "bundledApi": "https://recallraid-candidate-api.fly.dev",
+    "apiHealth": { "status": "ok", "db": "ok" },
+    "visibleInvestigationIds": [3, 2, 1],
+    "result": "PASS"
+  },
+  "historicalCases": {
+    "rule": "Existing registrations remain bound to their original non-upgradeable escrow and GenLayer contract.",
+    "legacySuccessfulOverturnCorrection": "After the original escrow settlement and claims, transfer exactly 15% of the funded bounty from the ordinary bounty recipient to the successful challenger and record both balance deltas.",
+    "status": "Time-locked until the recorded October 24, 2026 deadlines; no premature settlement is claimed."
+  }
+}

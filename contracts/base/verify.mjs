@@ -69,11 +69,27 @@ if (relayer.toLowerCase() !== expectedRelayer.toLowerCase()) throw new Error(`De
 if (decisionSigner.toLowerCase() !== expectedDecisionSigner.toLowerCase()) throw new Error(`Deployed decision signer ${decisionSigner} does not match DECISION_SIGNER_ADDRESS`);
 const expectedOwner = process.env.DEPLOYER_ADDRESS;
 if (expectedOwner && owner.toLowerCase() !== expectedOwner.toLowerCase()) throw new Error(`Deployed owner ${owner} does not match DEPLOYER_ADDRESS`);
+const [basisPointDenominator, challengeOverturnBonusBps, verificationBlock] = await Promise.all([
+  escrow.BPS_DENOMINATOR(),
+  escrow.CHALLENGE_OVERTURN_BONUS_BPS(),
+  provider.getBlockNumber(),
+]);
+if (basisPointDenominator !== 10_000n) throw new Error(`Unexpected deployed BPS denominator ${basisPointDenominator}`);
+if (challengeOverturnBonusBps !== 1_500n) throw new Error(`Unexpected deployed overturn bonus ${challengeOverturnBonusBps}`);
+const maskedCompiled = maskImmutables(expected);
+const maskedDeployed = maskImmutables(deployed);
 console.log(JSON.stringify({
   verified: true,
+  equivalence: "immutable-aware byte-for-byte runtime match",
   network: "Base Sepolia",
+  chainId: Number(network.chainId),
   address: ethers.getAddress(address),
+  verificationBlock,
+  runtimeByteLength: deployed.length / 2,
   runtimeBytecodeHash: ethers.keccak256(`0x${deployed}`),
+  compiledRuntimeBytecodeHash: ethers.keccak256(`0x${expected}`),
+  maskedRuntimeBytecodeHash: ethers.keccak256(`0x${maskedDeployed}`),
+  maskedCompiledRuntimeBytecodeHash: ethers.keccak256(`0x${maskedCompiled}`),
   sourceHash: ethers.keccak256(ethers.toUtf8Bytes(source)),
   compiler: solc.version(),
   optimizerRuns: 200,
@@ -83,4 +99,6 @@ console.log(JSON.stringify({
   relayer,
   decisionSigner,
   usdc,
+  basisPointDenominator: basisPointDenominator.toString(),
+  challengeOverturnBonusBps: challengeOverturnBonusBps.toString(),
 }, null, 2));

@@ -44,6 +44,11 @@ investigation 3 is registered in transaction
 The exact funding, registration, GenLayer submission, API, and frontend checks
 are in
 [`e2e-evidence/bonus-aware-rollout-2026-10-18.json`](e2e-evidence/bonus-aware-rollout-2026-10-18.json).
+An independent immutable-aware runtime comparison at Base Sepolia block
+48,257,048 produced identical masked compiled/deployed bytecode hashes and
+confirmed the live 1,500-bps constant, USDC address, owner, relayer, and
+separate decision signer. See
+[`e2e-evidence/base-escrow-source-equivalence-2026-10-18.json`](e2e-evidence/base-escrow-source-equivalence-2026-10-18.json).
 
 ## Networks and recorded deployments
 

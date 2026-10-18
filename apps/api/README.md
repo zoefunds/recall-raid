@@ -78,10 +78,15 @@ Reads from the cache can lag until an explicit sync or watcher pass.
 
 ## Deployment
 
-The Fly app name in `apps/api/fly.toml` is `recallraid-usdc-api`. That file
-configures a continuously running machine and `/health` check. Set runtime
-secrets with Fly's secret store, deploy with the repository instructions in
-[`docs/DEPLOYMENT.md`](../../docs/DEPLOYMENT.md), then run migrations after a
-schema change. Verify the actual deployed health URL and environment before
-directing the frontend to it; local `.env.example` values are templates, not
-evidence that a particular remote deployment is current.
+The public frontend uses `recallraid-candidate-api.fly.dev`, configured for the
+hardened GenLayer successor and bonus-aware Base escrow. The separately named
+`recallraid-usdc-api.fly.dev` service is pinned to the legacy escrow only for
+historical settlement and must not accept new public registrations.
+
+`apps/api/fly.toml` provides the shared machine and `/health` configuration;
+the target app is selected explicitly during deployment. Set runtime secrets in
+Fly's secret store, follow [`docs/DEPLOYMENT.md`](../../docs/DEPLOYMENT.md), and
+run migrations after schema changes. Confirm the target app's GenLayer and Base
+addresses, database, health endpoint, and CORS allowlist before directing a
+frontend to it. Local `.env.example` values are templates, not deployment
+evidence.

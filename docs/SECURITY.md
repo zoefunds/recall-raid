@@ -1,355 +1,222 @@
 # Security model
 
-This document describes the repository's current testnet implementation. The
-testnet protections are useful defense-in-depth but do not establish a
-production security review or trustless cross-chain settlement.
+This document describes the current RecallRaid testnet implementation as of
+October 18, 2026. These controls are defense in depth; they do not constitute a
+production audit or a trustless cross-chain bridge.
 
-## Assets and authority
+## Assets and sources of truth
 
-- **Base Sepolia USDC:** funded bounties, challenger stakes, seller bond
-  balances, claimable credits.
-- **GenLayer state:** investigation, evidence metadata and verification,
-  verdict, challenge, and reputation records.
-- **API credentials:** database access, upload-signing credentials, JWT
-  signing secret, Base relayer key, and Base decision-signer key.
-- **Evidence files:** off-chain bytes served from Cloudinary or public URLs.
+- GenLayer StudioNet is authoritative for investigation metadata, evidence,
+  verdicts, challenges, timeouts, and reputation.
+- Base Sepolia escrow and the USDC token are authoritative for bounties,
+  challenge deposits, seller bonds, claimable balances, and withdrawals.
+- PostgreSQL is a derived cache. It can delay display but cannot authorize a
+  financial operation.
+- Evidence bytes are stored off-chain. GenLayer stores their URLs and committed
+  SHA-256 hashes and records validator verification results.
 
-The Base escrow owner can rotate the relayer and decision signer. The relayer
-submits transactions; a separate EIP-712 decision signer must authorize the
-exact registration, settlement, cancellation, or recovery instruction. This
-split limits a relayer-only compromise, but the decision signer remains a
-privileged authority over settlement. Base verifies the signature and stored
-case data; it does not independently verify GenLayer consensus. This is an
-attested relay design, not a trustless bridge.
+## Current deployed security boundary
 
-## Base escrow controls
+New public cases use:
 
-- The USDC token is immutable at deployment. Funding uses `transferFrom`
-  after the wallet approves the escrow.
-- A nonzero `bytes32` case id can be funded once. Its payer and exact amount
-  are retained on Base.
-- Registration authorization binds the case id, payer, bounty, GenLayer
-  contract, and investigation id. The escrow records that reference once.
-- Settlement authorization binds the registered GenLayer reference, verdict,
-  recipient, challenge id and wallet, overturn result, and decision hash. A
-  case can finalize only once; the stored registration must match.
-- A challenge requires exactly 20% of the bounty (minimum one token base unit)
-  and is recorded under the individual challenger address. In the current
-  source, the API authenticates the challenger and checks the successful Base
-  receipt, `fundChallenge` calldata, case id, challenger, exact amount,
-  registration, and challenge window before it relays `open_challenge` as the
-  GenLayer admin. GenLayer rejects direct wallet calls to that method, removing
-  the path for an unrelated wallet to occupy the one challenge slot with a
-  fabricated transaction hash. The API is the intended challenge-opening
-  path, but the contract cannot constrain its admin to that path: the admin key
-  can call the write directly. A compromised admin can therefore bypass API
-  checks. Keep it
-  server-side, match it to the deployed GenLayer admin, monitor its use, and
-  rotate it if exposed. The separate EIP-712 signer still independently
-  reconstructs the finalized challenge and checks Base funding before it signs
-  settlement.
-  GenLayer permits one challenge per investigation. If another wallet makes a
-  direct Base challenge deposit, that unmatched deposit cannot occupy the
-  GenLayer challenge record and is recoverable by its depositor after terminal
-  settlement. A finalized GenLayer challenge with absent or mismatched Base
-  funding cannot alter the Base payout verdict or claim a stake: settlement
-  falls back to the challenge's snapshotted `prior_verdict`, signs no challenge
-  id, and leaves any Base deposit recoverable by its owner after finalization.
-  If the Base transaction or receipt is temporarily unavailable, both relay
-  and signer fail closed and retry rather than treating uncertainty as an
-  invalid challenge.
-- A successful overturn returns the selected challenger's full Base-funded
-  stake and pays a 15% bonus carved from the investigation bounty. The normal
-  bounty recipient receives the exact remainder after integer rounding. An
-  upheld or expired challenge pays no bonus and sends its stake to the ordinary
-  bounty recipient. Bounty shares therefore sum to the exact funded bounty and
-  stake shares sum to the exact funded stakes; seller bonds remain separate.
-- Seller-bond slashing is capped by remaining bond and bounty. Linked bonds
-  cannot be withdrawn while their cases remain open.
-- Claims use checks-effects-interactions and a reentrancy guard. USDC claims
-  are pull payments from per-address balances.
-- Orphan recovery requires the original payer, an unregistered and
-  unfinalized case, seven elapsed days, and a decision-signer authorization.
-  The API checks GenLayer for the matching payer/case registration before
-  issuing it. A matching live investigation blocks recovery. Foundry tests
-  cover the time-dependent path; live validation did not wait seven days.
-- Unmatched challenge deposits can be recovered by their depositor after case
-  finalization, or after seven days if the case was never registered.
+- GenLayer: `0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA`;
+- Base escrow: `0xBf74703d38cc83DE796B174efFdC02FaD69dE0dB`;
+- relayer/owner: `0xE3F1A34307349be94f3657276ebcF51eaB810730`;
+- decision signer: `0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C`.
 
-## GenLayer controls
+The relayer and decision signer are separate keys. The relayer submits Base
+registrations and settlements, but the escrow requires an EIP-712 signature by
+the decision signer over every exact financial instruction. A compromised
+relayer alone cannot change an authorized verdict, recipient, challenge,
+seller-bond slash, cancellation, or recovery.
 
-- GenLayer stores no USDC and has no user-value transfer path.
-- The same wallet cannot register the same Base case id more than once.
-- Settlement uses the retained last challenge id after resolution or expiry.
-- Only one challenge can be opened for an investigation. Resolution must occur
-  before its 48-hour deadline; after that, anyone can expire the challenge and
-  the original verdict stands. Both paths retain the closed challenge id.
-- Verdict agreement requires the same verdict bucket; confidence has a
-  separate 15 percentage-point tolerance.
-- Validators fetch evidence URLs and compare SHA-256 of fetched raw bytes to
-  the committed hash. URL reachability and byte-hash comparison are recorded
-  as verification results. Text excerpts are best-effort and are not the
-  byte-integrity proof.
-- A supplied official-recall source must match the explicit regulator-domain
-  allowlist in the contract. This is a hostname check and does not prove that
-  a page's content is accurate or remains available.
-- Challenge resolution re-fetches and re-adjudicates evidence. The code's
-  current StudioNet windows are 72 hours for evidence, 48 hours to request or
-  resolve the initial verdict after that window, seven days to challenge, and
-  48 hours to resolve a challenge.
+The decision signer remains a trusted attestation authority. It reconstructs
+the instruction from live GenLayer and Base state, but Base does not verify a
+GenLayer consensus proof or light-client commitment. Compromise or collusion of
+the decision signer can authorize incorrect financial state. This trusted
+attestation boundary must remain disclosed until replaced by a cryptographic
+cross-chain verification mechanism.
 
-## API, browser, and operations
+## Registration controls
 
-- Wallet sessions begin with a one-time nonce, verified EVM signature, and
-  HTTP-only session cookie. Sensitive API routes require an authenticated
-  session; authorization remains separate from chain-state validation.
-- Chain reads and writes are not trusted to PostgreSQL cache contents. The API
-  re-reads GenLayer and Base records before registration, settlement, and
-  recovery authorization.
-- Cloudinary upload signatures are issued server-side. The browser uploads
-  file bytes directly; Cloudinary credentials and JWT/private keys must never
-  be placed in `NEXT_PUBLIC_*` variables or committed to Git.
-- Production startup fails when `JWT_SIGNING_SECRET` is absent. Use a unique,
-  high-entropy secret and separate testnet relayer and decision-signer keys.
-- `.env`, `apps/api/.env`, and `apps/web/.env.local` are local-only. Use the
-  ignored files as appropriate; deploy secrets via the hosting provider's
-  secret store. If a key was exposed, rotate it on-chain where applicable and
-  replace the secret before further use.
-- A private key formerly embedded in `scripts/diagnostic_test.mjs` was exposed
-  in repository history. The script now requires `PRIVATE_KEY` from the
-  environment, and on 2026-10-17 `main` history was rewritten to redact the
-  exact value; the rewritten remote `main` and unreachable Git objects were
-  scanned with no remaining matching blob. The key remains compromised: history
-  rewriting cannot erase clones, forks, caches, or copies made before cleanup.
-  The derived wallet is `0x551f5b8b2c517bfd780f2e005be2dd2754b7aa85`; on
-  2026-10-17 at 15:41 UTC, its remaining 998.795000000000001 GEN was transferred
-  to the rotated role wallet `0xE3F1A34307349be94f3657276ebcF51eaB810730` in
-  transaction `0x3159771506004c57508b7da5bf6f35915edea75e7311bd12eb54d47838abf275`.
-  The successful receipt and post-transfer RPC reads show source balance 0,
-  nonce 266, and receiver balance 999.795000000000001 GEN (1 GEN was already
-  present). The old address is not admin on EDFF, the hardened successor, or
-  A239, and is not owner, relayer, or decision signer on the Base escrow. Its
-  temporary key-bearing recovery scripts were deleted after confirmation; the
-  workspace and unreachable Git objects were scanned with no matching key
-  remaining. Treat the old key as compromised regardless of its zero balance.
-  Full transfer and role evidence is in
-  [`e2e-evidence/diagnostic-wallet-recovery.json`](e2e-evidence/diagnostic-wallet-recovery.json).
-- PostgreSQL is a derived cache, not a ledger. The API watcher serializes its
-  sweep with a database advisory lock and retries terminal relays. Base
-  idempotency makes duplicate relay attempts safe.
+The browser funds a random nonzero Base case id and submits the same case id,
+wallet, and six-decimal bounty amount to GenLayer. Before signing registration,
+the backend re-reads both chains and requires:
 
-## Validation evidence and limitations
+- Base depositor equals GenLayer submitter;
+- Base bounty equals the GenLayer bounty;
+- case id, GenLayer contract, and investigation id match;
+- Base case is neither finalized nor previously registered;
+- Base and GenLayer report the same challenge bonus policy.
 
-The live validation record is
-[`e2e-evidence/live-base-security-branches.json`](e2e-evidence/live-base-security-branches.json).
-It documents Base Sepolia funding, registration, EIP-712 settlement, and USDC
-claims for refund, recall/bond-slash, and overturned-challenge branches. The
-attestations used test inputs, including a synthetic GenLayer reference; they
-validate Base accounting and signature binding, not the authenticity of a
-GenLayer verdict. The deployed `EDFF...` source was subsequently queried and its
-schema and protocol windows were inspected. The current checkout now additionally
-makes challenge opening admin-only, with API-side Base receipt verification.
-That challenge-opening change is **not present in the deployed `EDFF...` source**;
-the hardened successor is deployed and the public frontend has since been cut
-over to its candidate API. The status notes below are timestamped snapshots, so
-earlier production and preview descriptions are historical. Existing Base
-registrations must continue to route to `EDFF...` until safely settled or
-reconciled, because the escrow permanently binds each case to its registered
-GenLayer contract. The synthetic Base branch transactions did not consume the
-EDFF deployment's consensus result.
+The registration signature binds all of those fields. The escrow stores the
+GenLayer contract and investigation id once. Existing registrations cannot be
+rebound to a newer contract.
 
-Local API tests (50), direct-mode GenVM tests (2), Foundry tests (11),
-compilation, and web builds are useful checks, not substitutes for independent
-contract review, key management review, production deployment validation, or a
-complete wallet-driven cross-chain exercise. The GenVM direct-mode tests verify
-that an unrelated caller is rejected before it can occupy the challenge slot
-and that an authorized admin call records the explicit challenger. Direct mode
-does not simulate Base receipts or StudioNet consensus; those properties remain
-covered separately by API/escrow tests and live deployment evidence.
-The hosted source/configuration check and successor rollout findings are captured in
-[`e2e-evidence/hardened-challenge-rollout-check.json`](e2e-evidence/hardened-challenge-rollout-check.json).
+## Challenge controls
 
-Historical snapshot at 2026-10-17 12:33Z: the hardened source was deployed to StudioNet at
-`0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA` in transaction
-`0xfc7aceb0a2d8eea60db169363bdb711b81fac216f0008c4452ac227bc58fa25c`.
-The receipt is `FINALIZED` with `MAJORITY_AGREE`; the deployed source hash
-matches the checked-in contract, and a read-only protocol-info call reports
-604800 seconds for the challenge window and 172800 seconds for challenge
-resolution. This deployment has no investigations or seller bonds yet. The
-schema query hit the StudioNet 500-requests/hour limit and remains unverified.
-Fly and Vercel still point to `EDFF...`, and its funded records were preserved.
-The existing 100,000-unit bounty and 20,000-unit challenge stake remain in Base
-escrow until the recorded deadline `2026-10-24T10:31:44Z`; settlement and wallet
-withdrawals are documented follow-up steps and were not executed early.
+A challenge requires exactly 20% of the bounty, with a minimum of one token
+base unit. Deposits are keyed by case and challenger so unrelated deposits
+cannot be consumed as the selected challenge stake.
 
-Historical snapshot at 2026-10-17 12:44Z: an isolated Fly candidate API and protected Vercel
-preview were deployed against the successor. The candidate API has its own
-database and JWT secret; migrations and health checks passed. The preview build
-used the candidate API URL and successor address, and candidate CORS allows its
-exact origin. The preview is ready but was not opened through the user's
-authenticated browser session for wallet interaction testing. The production
-Fly/Vercel pair remains on `EDFF...`, preserving three indexed unsettled cases.
+The backend authenticates the challenger wallet and verifies the successful
+Base receipt, transaction target, `fundChallenge` calldata, case id, wallet,
+amount, stored deposit, registration, deadline, and empty challenge slot. Only
+then may the configured GenLayer administrator relay `open_challenge` with the
+explicit challenger. The hardened GenLayer contract rejects direct calls by
+ordinary wallets. A live unauthorized direct call finalized with a GenVM error
+and did not change challenge state.
 
-Historical snapshot at 2026-10-17 14:47Z: the former `0x7401...` account is no longer a
-GenLayer administrator on EDFF or the successor, nor the Base escrow owner or
-relayer. A fresh wallet `0xE3F1A34307349be94f3657276ebcF51eaB810730` now holds
-those roles, and both Fly relayer secrets were rotated to it. The distinct
-decision signer remains unchanged. The old account is still the depositor on
-funded historical cases, so it remains available only for those claim rights
-in a local mode-0600 E2E environment. The candidate API historical challenge
-confirmation fix was deployed as `deployment-01M555BTMXRNNNSND406M6W0JK` and
-both machines pass health checks. A direct HTTPS `/health` check returned API
-and database `ok`; Fly's final public DNS probe timed out. The subsequent
-challenge sync retry was rate-limited by StudioNet. This was the 14:47Z
-snapshot; the separate diagnostic-wallet sweep finalized at 15:41Z, as recorded
-in the current remediation evidence below.
+The administrator remains privileged and can call the GenLayer method outside
+the API if compromised. The independent Base decision signer therefore repeats
+the Base-funding and finalized-challenge checks before settlement. A challenge
+with a confirmed missing or mismatched Base deposit cannot change the Base
+payout or consume a stake. Unavailable receipt data is treated as uncertainty
+and stops settlement.
 
-Historical snapshot at 2026-10-17 15:00Z: public Vercel production served the hardened
-successor and isolated candidate API. Its assets were fetched and checked for
-the successor address and candidate API; EDFF is absent. The former production
-deployment remains available to project members at its immutable URL, backed
-by the original EDFF API and database. Both API services now accept explicit
-exact-origin lists; candidate production/preview and legacy preflight checks
-returned 204 with credentials enabled. Later verification completed the exact
-challenge confirmation and synchronized the finalized result.
+GenLayer retains `last_challenge_id` after clearing `open_challenge_id`, so the
+backend can retrieve the actual finalized challenge. One challenge is allowed
+per investigation. Unmatched Base deposits remain recoverable by their owners
+after finalization, or after seven days if the case was never registered.
 
-Snapshot at 2026-10-17 15:14Z: both Fly APIs now run commit `7cb64e0`. API build
-passes and 50 API tests pass, including a regression that accepts the exact
-successful admin-gated challenge transaction submitted before the admin
-rotation while rejecting altered target, challenger, stake, or failed GenVM
-execution. `GENLAYER_CHALLENGE_OPEN_ADMIN_GATED=true` is enabled only on the
-candidate API for the verified successor; the legacy EDFF API leaves it false
-and requires the configured relay sender. Candidate and legacy APIs both
-reported healthy. The later finalized challenge record supersedes the
-incomplete synchronization state in this snapshot.
+## Settlement and accounting
 
-Direct Base Sepolia reads at 15:15Z confirmed the rotated owner/relayer, the
-separate decision signer, and the still-unsettled successor escrow case with
-its exact bounty and challenger deposit. No settlement or withdrawal was sent.
+The EIP-712 adjudication binds:
 
-Earlier on 2026-10-17 the hosted Fly API and Vercel frontend were configured to the
-`EDFF...` adjudicator and verified Base escrow. The historic web bundle contains
-`EDFF...` and no longer contains `a239...`; Fly health reports both API and
-database healthy. The E2E record
-[`e2e-evidence/studionet-base-valid-challenge-e2e.json`](e2e-evidence/studionet-base-valid-challenge-e2e.json)
-now documents an authenticated registration sync, real Base Sepolia USDC
-funding, a valid challenger-owned stake receipt, a StudioNet-finalized
-`NO_ISSUE` verdict overturned to `POTENTIAL_ISSUE`, and matching verified CPSC
-evidence. The hosted API cache independently reports challenge 3 as
-`OVERTURNED` and retains `last_challenge_id = 3` with `open_challenge_id = 0`.
+- Base case id and registered GenLayer contract/investigation;
+- verdict and ordinary bounty recipient;
+- challenge id, challenger, and overturn flag;
+- seller-bond id and slash amount;
+- decision hash.
 
-The final Base relay and wallet withdrawals are not complete and must remain
-deferred until the user-approved seven-day period expires. Do not settle early.
-The seven-day post-resolution challenge period expires at `2026-10-24T10:31:44Z`; the escrow
-still holds the 100,000-unit bounty and 20,000-unit stake. No settlement write
-or withdrawal is claimed before that deadline. An authenticated production
-relay attempt returned HTTP 400 `GenLayer adjudication is not terminal` and
-sent no Base transaction. Fly's StudioNet RPC quota has
-intermittently returned 500 errors during sync; a later authenticated sync
-and hosted cache reads succeeded. A separate failed test record,
-[`e2e-evidence/studionet-base-clean-challenge-e2e.json`](e2e-evidence/studionet-base-clean-challenge-e2e.json),
-documents a placeholder challenge transaction hash and is explicitly not
-valid payout evidence.
+The escrow verifies the signature, stored registration, exact challenge
+deposit, allowed verdict fields, and one-time finalization before crediting
+pull-payment balances. Claims use checks-effects-interactions and a reentrancy
+guard.
 
-The deployed `EDFF...` source was retrieved with `genlayer code` on
-2026-10-17 at 12:10Z and compared with the checkout. After removing the CLI's
-`Result:` wrapper and normalizing the trailing newline, the deployed source
-SHA-256 is
-`d51ae75dbf23bcdb23c0ae1f83ef4df51933767c0108e631074a40ef766b23e5`. The
-that point-in-time comparison found the URL validator difference: checkout
-required HTTPS and rejected URL credentials, while deployed `EDFF...` checked
-only the authoritative hostname. The current checkout also now makes challenge
-opening admin-only and adds an API-verified relay, which is another source
-difference and is not live on `EDFF...`. The successor is deployed with source parity. The schema query was still
-pending at that historical snapshot, but was later retrieved successfully; see
-the 15:24Z source and schema verification below.
-Keep each deployment routed through settlement of its registered cases;
-on-chain registrations cannot be moved. The historical `A239...` registration
-is a valid Base liability, but the active hosted signer path is scoped to its
-configured adjudicator and does not currently support an A239-versioned
-settlement. Do not send it through the successor/EDFF path.
+For a successful challenge on the current escrow:
 
-The Fly PostgreSQL cache was cleared of four stale investigation entries and
-their dependent cache data. At cleanup time, the current EDFF investigation
-and live challenge remained. A removed old entry corresponds to an unfinalized
-100,000-unit Base escrow registration to A239; cache cleanup did not change
-the on-chain record. Live A239 state was rechecked on 2026-10-17 at 15:26Z: its
-GenLayer investigation 2 is `RECALL_CONFIRMED`, challenge 1 is `UPHELD`, and
-the seven-day deadline is `2026-10-24T08:08:09Z`; the Base case remains bound
-to A239, funded with 100,000 bounty units and 20,000 challenge units, and is
-unfinalized. Its admin is `0x7452084E1Cf767bf19C743051cFf27D9F7A87a4D`, present as
-the unlocked local GenLayer account `eventweaver`. The hosted API does not have a version-scoped A239 relay. The repository now
-contains `scripts/settle_legacy_a239_case.mjs`; its read-only preflight checked
-the exact on-chain registration and challenge receipt, and its early-relay
-guard stopped before signing or broadcasting. The actual post-deadline GenLayer
-settlement and Base relay remain unexecuted. See
-[`e2e-evidence/legacy-cache-cleanup.json`](e2e-evidence/legacy-cache-cleanup.json).
+- the challenger receives the original stake;
+- the challenger receives 15% of the funded bounty, rounded down;
+- the ordinary bounty recipient receives the exact remainder;
+- bounty shares equal the funded bounty;
+- stake shares equal funded stakes;
+- seller-bond funds remain separate.
 
-The current source also contains an independent challenge-backing check in
-both the relay path and decision signer. The API suite has 50 passing tests,
-including explicit decision-signer rejection of modified verdict, hunter,
-challenge id/challenger/overturn flag, seller-bond id/slash, and decision hash.
-The Foundry suite has 11 passing tests covering registration ownership, exact
-Base challenge receipt binding, signature tampering, seller-bond slashing,
-orphan recovery, successful Base-backed challenger allocation, 15% bonus
-rounding, and conservation of all funded USDC. The
-tested signer comparison is deployed to Fly; its health and live case-3 cache
-were verified after rollout. The live `EDFF...` run verifies the real
-finalized GenLayer outcome and hosted cache; settlement and wallet withdrawal
-remain pending until the recorded deadline.
+The exact 0.100 USDC bounty and 0.020 USDC stake test credits 0.035 USDC to the
+challenger and 0.085 USDC to the ordinary bounty recipient. It verifies 0.120
+USDC backing before claims and zero escrow residue after both withdrawals. The
+current Foundry suite has 11 passing tests, including rounding, conservation,
+authorization tampering, duplicate registration, wrong stakes, seller-bond
+slashing, cancellation, and orphan recovery.
 
-The exact reviewer-sized allocation test funds a 100,000-unit bounty and a
-20,000-unit successful challenge stake. It asserts 35,000 claimable units for
-the challenger, 85,000 for the ordinary bounty recipient, 120,000 total claims,
-full token backing before claims, and zero escrow residue after both claims.
-The independently rerun deployed-code equivalence check is recorded in
+The deployed escrow was independently compared to the checked-in build at Base
+Sepolia block 48,257,048. The compiler-reported immutable slots were masked and
+the remaining runtime matched byte for byte. Live reads confirmed the 1,500-bps
+bonus and the expected roles. See
 [`e2e-evidence/base-escrow-source-equivalence-2026-10-18.json`](e2e-evidence/base-escrow-source-equivalence-2026-10-18.json).
 
-Previous workstation check at 2026-10-17 15:19Z: API tests pass (50), GenVM
-direct-mode tests pass (2), and Foundry tests pass (9). A guarded read/resume
-attempt stopped before sending a transaction because DNS resolution failed for
-`studio.genlayer.com`, `sepolia.base.org`, and `recallraid-candidate-api.fly.dev`;
-an HTTPS probe to a numeric public IP also could not connect. This does not
-establish current hosted health or chain state. The earlier 500-requests/hour
-StudioNet quota errors are historical observations; refresh exact challenge
-confirmation and chain records after network connectivity returns. No duplicate
-funding/opening was sent, and no settlement or withdrawal was attempted. The
-retry helper retries only the same read-only challenge confirmation and has
-been committed as `9337cc7`.
+## Historical escrow obligations
 
-Live successor continuation at 2026-10-17 15:26Z: connectivity recovered. The
-authenticated API confirmed challenge 1, and GenLayer transaction
-`0x39247ac7480615388c4c1437aaeadefd6a7185072572dd1690fceea69fb0c62c`
-finalized with `MAJORITY_AGREE` / `FINISHED_WITH_RETURN`. The finalized state
-changed verdict 1 (`NO_ISSUE`) to 2 (`POTENTIAL_ISSUE`), closed
-`open_challenge_id`, and retained `last_challenge_id = 1`; the exact API
-challenge record is `OVERTURNED`, with challenger `0xA0E30f264f4Db37CdDcFED0C93A6BcDff5C70F8d`, 20,000 USDC base units, and the
-matching Base funding receipt. The official CPSC PDF evidence was reachable
-and hash-verified by GenLayer. Candidate API reads report the same terminal
-investigation and challenge. A Base Sepolia read at block 48241239 confirmed
-the case remains registered to the successor and unfinalized, with the exact
-100,000-unit bounty and 20,000-unit challenge deposit; both claimable balances
-are zero. Its post-resolution seven-day deadline is
-`2026-10-24T15:22:12Z`. No Base settlement or wallet withdrawal was attempted.
-The positive-verdict bounty follows the documented first-evidence policy. The
-legacy escrow first credits the original bounty result and returns the stake;
-the guarded settlement runner then transfers the 15,000-unit legacy correction
-from the bounty recipient to the overturned challenger, producing the same
-85,000/35,000 allocation as the current bonus-aware escrow. The user separately confirmed that the
-browser-wallet transaction flow succeeded; the continuation script resumed
-from existing on-chain funding and did not capture a new wallet-popup trace.
-See [`e2e-evidence/hardened-successor-live-challenge.json`](e2e-evidence/hardened-successor-live-challenge.json).
+Three funded cases remain on the immutable pre-bonus escrow
+`0x861d5D4E903805cbE283A86f08E10D031601774E`. They must settle through their
+original registered GenLayer contracts after their October 24, 2026 deadlines.
+They must not be migrated by rewriting registration state.
 
-Deployment/source refresh at 2026-10-17 15:35Z: public production `/submit`
-returned HTTP 200; all 16 JavaScript assets contain the hardened successor
-and candidate API, with EDFF absent. Candidate API CORS returned HTTP 204 for
-the production origin with credentials enabled. Candidate `/health` and its
-database returned `ok`. The deployed successor source was retrieved from
-StudioNet and is byte-for-byte identical to the checked-in contract after
-removing the CLI `Result:` wrapper and trailing newline (SHA-256
-`e7ca95221338bd213448be1cd18e0483eccd97312a8ba81a5c3fac94ef4daee0`); its
-schema was also retrieved. The A239 read-only preflight now exists at
-[`scripts/settle_legacy_a239_case.mjs`](../scripts/settle_legacy_a239_case.mjs)
-and verified its exact Base registration and challenge funding receipt. Its
-relay guard exited at the recorded deadline before signing or sending any
-transaction. The old A239 funds remain unfinalized; its case is not an orphan.
+For the two successful legacy overturns, the legacy escrow returns the stake
+but does not carve the promised 15% bonus from the bounty. The guarded runner
+therefore completes the original settlement and claims, then transfers exactly
+15% of the funded bounty from the ordinary bounty recipient to the challenger.
+For a 0.100/0.020 USDC case, final wallet increases must be 0.085 and 0.035 USDC.
+The evidence must show the EIP-712 payload, Base relay, both claims, correction
+transfer, before/after balances, and conservation.
+
+The A239 investigation is a separate historical liability with an upheld
+challenge and a version-specific runner. It must be settled through
+`0xa239189c2921b592dBa1eccde830977edbfD1CB5`, not through EDFF or the hardened
+successor. See [Deployment](DEPLOYMENT.md) for exact deadlines and commands.
+
+## Evidence and URL controls
+
+Evidence upload authorization is wallet authenticated and state checked.
+Challenge rebuttal preparation is restricted to the recorded challenger during
+an open challenge. Official-recall URLs must use HTTPS and an explicit
+regulator hostname, reject embedded credentials, follow bounded redirects, and
+respect a 10 MB response limit. GenLayer validators fetch the bytes and compare
+their SHA-256 hash to the committed value. Reachability and hash agreement are
+recorded; extracted text is best-effort context rather than the integrity
+proof.
+
+A hostname allowlist and content hash do not prove that a regulator statement
+is correct, complete, or permanently available. Validator retrieval remains
+dependent on external network access and source availability.
+
+## Authentication, secrets, and operations
+
+Wallet sessions use one-time nonces, EVM signatures, and HTTP-only cookies.
+Sensitive routes require authentication in addition to live chain checks.
+Production startup fails without a JWT signing secret. Private keys, database
+credentials, JWT secrets, and upload credentials belong only in provider secret
+stores or ignored mode-restricted local files. They must never appear in Git or
+`NEXT_PUBLIC_*` variables.
+
+The API watcher uses a PostgreSQL advisory lock so only one machine performs a
+sweep at a time. Base settlement is idempotent: a case can finalize once.
+Transient chain-read uncertainty must stop signing or relaying rather than
+being interpreted as a negative result.
+
+## Compromised diagnostic wallet remediation
+
+A private key previously embedded in `scripts/diagnostic_test.mjs` is treated
+as permanently compromised. The script now requires an environment variable,
+the value was removed from reachable and unreachable repository objects, and
+temporary recovery scripts were deleted.
+
+The affected address is
+`0x551f5b8b2c517bfd780f2e005be2dd2754b7aa85`. Its remaining
+998.795000000000001 GEN was transferred to the rotated role wallet in finalized
+transaction
+`0x3159771506004c57508b7da5bf6f35915edea75e7311bd12eb54d47838abf275`.
+The source balance is zero. It is not an administrator on A239, EDFF, or the
+hardened successor and is not a Base owner, relayer, or decision signer. It
+must never be restored to an operational role. See
+[`e2e-evidence/diagnostic-wallet-recovery.json`](e2e-evidence/diagnostic-wallet-recovery.json).
+
+## Validation status and limitations
+
+Current local validation:
+
+- 50 API tests pass;
+- 2 direct-mode GenLayer authorization tests pass;
+- 11 Foundry escrow tests pass;
+- API and frontend production builds pass;
+- the public API/database are healthy;
+- public frontend assets contain the hardened GenLayer contract, bonus-aware
+  escrow, and candidate API;
+- public investigations 1, 2, and 3 render through the live application.
+
+The live successor challenge demonstrated Base-funded challenge authentication,
+official CPSC evidence retrieval, SHA-256 verification, validator-backed
+overturn, persistent historical challenge identity, and API synchronization.
+The remaining three historical settlements are intentionally outstanding until
+their contractual deadlines. Until their finalized Base receipts, withdrawals,
+corrections, and balance increases are published, those liabilities remain
+open.
+
+Testnet validation does not replace independent contract review, key-management
+review, production infrastructure hardening, or trustless cross-chain proof.
+
+## Evidence index
+
+- Current deployed-code and accounting proof:
+  [`base-escrow-source-equivalence-2026-10-18.json`](e2e-evidence/base-escrow-source-equivalence-2026-10-18.json)
+- Current rollout and browser workflow:
+  [`bonus-aware-rollout-2026-10-18.json`](e2e-evidence/bonus-aware-rollout-2026-10-18.json)
+- Hardened challenge execution:
+  [`hardened-successor-live-challenge.json`](e2e-evidence/hardened-successor-live-challenge.json)
+- A239 state and guarded preflight:
+  [`legacy-cache-cleanup.json`](e2e-evidence/legacy-cache-cleanup.json)
+- Diagnostic-wallet remediation:
+  [`diagnostic-wallet-recovery.json`](e2e-evidence/diagnostic-wallet-recovery.json)
+- Historical synthetic Base branches and limitations:
+  [`live-base-security-branches.json`](e2e-evidence/live-base-security-branches.json)

@@ -6,7 +6,8 @@ addresses and earlier end-to-end transactions refer to the versions deployed
 at that time. For current repository behavior and later security remediation,
 see [Architecture](docs/ARCHITECTURE.md), [Security](docs/SECURITY.md),
 [Deployment](docs/DEPLOYMENT.md), and the
-[2026-10-17 live Base validation record](docs/e2e-evidence/live-base-security-branches.json).
+[current deployed escrow verification](docs/e2e-evidence/base-escrow-source-equivalence-2026-10-18.json)
+and [browser rollout record](docs/e2e-evidence/bonus-aware-rollout-2026-10-18.json).
 
 ## Milestone scope
 

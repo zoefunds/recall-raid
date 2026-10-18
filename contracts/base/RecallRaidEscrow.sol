@@ -94,6 +94,8 @@ contract RecallRaidEscrow {
     bytes32 private constant REGISTRATION_TYPEHASH = keccak256("Registration(bytes32 caseId,address submitter,uint256 bounty,address genlayerContract,uint32 investigationId)");
     bytes32 private constant ORPHAN_RECOVERY_TYPEHASH = keccak256("OrphanRecovery(bytes32 caseId,address submitter,uint256 bounty)");
     uint256 private constant SECP256K1_HALF_ORDER = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
+    uint256 public constant BPS_DENOMINATOR = 10_000;
+    uint256 public constant CHALLENGE_OVERTURN_BONUS_BPS = 1_500;
 
     constructor(address usdcToken, address relayer_, address decisionSigner_) {
         require(usdcToken != address(0) && relayer_ != address(0) && decisionSigner_ != address(0), "RecallRaid: zero address");
@@ -234,11 +236,18 @@ contract RecallRaidEscrow {
         item.genlayerDecisionHash = decisionHash;
 
         address bountyRecipient = verdictCode == uint8(Verdict.NoIssue) ? item.submitter : hunter;
-        claimable[bountyRecipient] += item.bounty;
+        // A successful challenger receives a 15% bonus carved out of the
+        // already-funded bounty. The separately funded stake is returned in
+        // full. Rounding dust stays with the ordinary bounty recipient, so
+        // bounty allocations always add up to exactly item.bounty.
+        uint256 challengeBonus = challengeOverturned
+            ? item.bounty * CHALLENGE_OVERTURN_BONUS_BPS / BPS_DENOMINATOR
+            : 0;
+        claimable[bountyRecipient] += item.bounty - challengeBonus;
 
         if (challengerStake > 0) {
             address stakeRecipient = challengeOverturned ? challenger : bountyRecipient;
-            claimable[stakeRecipient] += challengerStake;
+            claimable[stakeRecipient] += challengerStake + challengeBonus;
             item.challengeStake -= challengerStake;
         }
 

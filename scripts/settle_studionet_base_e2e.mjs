@@ -30,8 +30,14 @@ const challengerKey = JSON.parse(readFileSync(challengerKeyFile, "utf8")).privat
 const provider = new ethers.JsonRpcProvider(baseRpc);
 const submitter = new ethers.Wallet(submitterKey, provider);
 const challenger = new ethers.Wallet(challengerKey, provider);
-const token = new ethers.Contract(usdcAddress, ["function balanceOf(address) view returns (uint256)"], provider);
+const token = new ethers.Contract(usdcAddress, [
+  "function balanceOf(address) view returns (uint256)",
+  "function transfer(address,uint256) returns (bool)",
+  "event Transfer(address indexed from,address indexed to,uint256 value)",
+], provider);
 const escrow = new ethers.Contract(escrowAddress, [
+  "function BPS_DENOMINATOR() view returns (uint256)",
+  "function CHALLENGE_OVERTURN_BONUS_BPS() view returns (uint256)",
   "function getCase(bytes32) view returns ((address submitter,address challenger,address hunter,bytes32 sellerBondId,uint256 bounty,uint256 challengeStake,uint8 verdict,bool finalized,bytes32 genlayerDecisionHash,uint64 fundedAt,bool registered,address genlayerContract,uint32 genlayerInvestigationId))",
   "function getChallengeDeposit(bytes32,address) view returns ((uint256 amount,uint64 fundedAt))",
   "function claimable(address) view returns (uint256)",
@@ -172,6 +178,22 @@ const protocolInfo = await glRead("get_protocol_info", []);
 if (String(protocolInfo.admin).toLowerCase() !== glAdminAddress.toLowerCase()) {
   throw new Error("Configured GenLayer settlement key is not the deployed contract administrator");
 }
+const advertisedBonusBps = BigInt(protocolInfo.challenge_overturn_bonus_bps);
+let escrowBonusBps = 0n;
+try {
+  const denominator = await escrow.BPS_DENOMINATOR();
+  escrowBonusBps = await escrow.CHALLENGE_OVERTURN_BONUS_BPS();
+  if (denominator !== 10_000n) throw new Error(`unsupported Base BPS denominator ${denominator}`);
+} catch (error) {
+  // The already-funded 2026-10-17 escrow predates the bonus getter and pays
+  // its legacy claim split. The runner corrects that immutable allocation
+  // from the bounty recipient below and records both transactions.
+  if (String(error).includes("unsupported Base BPS")) throw error;
+  escrowBonusBps = 0n;
+}
+if (![0n, advertisedBonusBps].includes(escrowBonusBps)) {
+  throw new Error(`Base bonus policy (${escrowBonusBps} bps) differs from GenLayer (${advertisedBonusBps} bps)`);
+}
 
 const investigation = await glRead("get_investigation", [investigationId]);
 if (investigation.base_case_id.toLowerCase() !== caseId.toLowerCase()
@@ -247,9 +269,11 @@ if (!relayLog || relayLog.args.hunter.toLowerCase() !== hunter.toLowerCase()
   throw new Error("Base settlement event does not match the finalized hunter and decision hash");
 }
 
+const directBonus = BigInt(caseState.bounty) * escrowBonusBps / 10_000n;
+const advertisedBonus = BigInt(caseState.bounty) * advertisedBonusBps / 10_000n;
 const expected = new Map([
-  [challenger.address.toLowerCase(), BigInt(challenge.stake_deposited_wei)],
-  [hunter.toLowerCase(), BigInt(caseState.bounty)],
+  [challenger.address.toLowerCase(), BigInt(challenge.stake_deposited_wei) + directBonus],
+  [hunter.toLowerCase(), BigInt(caseState.bounty) - directBonus],
 ]);
 const withdrawals = report.settlement?.withdrawals ? [...report.settlement.withdrawals] : [];
 for (const wallet of [challenger, submitter]) {
@@ -314,6 +338,54 @@ for (const wallet of [challenger, submitter]) {
   writeFileSync(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`);
 }
 
+let bonusCorrection = report.settlement?.bonusCorrection ?? null;
+if (advertisedBonus > directBonus) {
+  const correction = advertisedBonus - directBonus;
+  if (hunter.toLowerCase() !== submitter.address.toLowerCase()) {
+    throw new Error("Legacy bonus correction requires the configured claimant to be the bounty recipient");
+  }
+  if (bonusCorrection) {
+    const receipt = await provider.getTransactionReceipt(bonusCorrection.txHash);
+    const transferVerified = receipt?.logs.some((log) => {
+      if (log.address.toLowerCase() !== usdcAddress.toLowerCase()) return false;
+      try {
+        const parsed = token.interface.parseLog(log);
+        return parsed.name === "Transfer"
+          && parsed.args.from.toLowerCase() === hunter.toLowerCase()
+          && parsed.args.to.toLowerCase() === challenger.address.toLowerCase()
+          && parsed.args.value === correction;
+      } catch { return false; }
+    });
+    if (!receipt || receipt.status !== 1 || !transferVerified || BigInt(bonusCorrection.amount) !== correction) {
+      throw new Error("Recorded legacy bonus correction cannot be verified");
+    }
+  } else {
+    const hunterBefore = await token.balanceOf(hunter);
+    const challengerBefore = await token.balanceOf(challenger.address);
+    const tx = await token.connect(submitter).transfer(challenger.address, correction);
+    const receipt = await tx.wait(1);
+    const hunterAfter = await token.balanceOf(hunter);
+    const challengerAfter = await token.balanceOf(challenger.address);
+    if (!receipt || receipt.status !== 1 || hunterBefore - hunterAfter !== correction
+      || challengerAfter - challengerBefore !== correction) {
+      throw new Error("Legacy bonus correction did not move the exact bounty-funded amount");
+    }
+    bonusCorrection = {
+      txHash: tx.hash,
+      amount: correction.toString(),
+      from: hunter,
+      to: challenger.address,
+      reason: "immutable pre-bonus escrow remediation",
+      hunterBefore: hunterBefore.toString(),
+      hunterAfter: hunterAfter.toString(),
+      challengerBefore: challengerBefore.toString(),
+      challengerAfter: challengerAfter.toString(),
+    };
+    report.settlement = { ...(report.settlement ?? {}), withdrawals, bonusCorrection };
+    writeFileSync(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`);
+  }
+}
+
 const finalReport = JSON.parse(readFileSync(resolve(reportPath), "utf8"));
 finalReport.completedAt = new Date().toISOString();
 finalReport.progress = { stage: "settled-and-withdrawn", complete: true };
@@ -327,12 +399,16 @@ finalReport.base.settlement = {
   genlayerDecisionHash: caseState.genlayerDecisionHash,
   challengerStakePaid: challenge.stake_deposited_wei,
   bountyPaid: caseState.bounty.toString(),
+  challengeBonusPaid: advertisedBonus.toString(),
+  escrowBonusBps: escrowBonusBps.toString(),
+  advertisedBonusBps: advertisedBonusBps.toString(),
 };
 finalReport.settlement = {
   relaySent: true,
   relayTxHash: relayReceipt.hash,
   withdrawalsVerified: true,
   withdrawals,
+  bonusCorrection,
   readyAfterUnix: report.settlement.readyAfterUnix,
   readyAfterUtc: report.settlement.readyAfterUtc,
 };

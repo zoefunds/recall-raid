@@ -39,6 +39,18 @@ async function assertDecisionSignerMatchesEscrow() {
   if (configured.toLowerCase() !== getDecisionSigner().address.toLowerCase()) throw new Error("Decision signer key does not match the escrow authorization signer");
 }
 
+async function assertChallengeEconomicsMatchGenLayer() {
+  const [protocol, baseBonusBps, baseDenominator] = await Promise.all([
+    chain.getProtocolInfo(),
+    getReadContract().CHALLENGE_OVERTURN_BONUS_BPS() as Promise<bigint>,
+    getReadContract().BPS_DENOMINATOR() as Promise<bigint>,
+  ]);
+  if (baseDenominator !== 10_000n
+    || baseBonusBps !== BigInt(protocol.challenge_overturn_bonus_bps)) {
+    throw new Error("Decision signer refuses registration: Base and GenLayer challenge reward policies differ");
+  }
+}
+
 async function signAdjudication(input: { caseId: string; genlayerContract: string; investigationId: number; verdict: number; hunter: string; challengeId: number; challenger: string; challengeOverturned: boolean; sellerBondId: string; sellerBondSlash: string; decisionHash: string }) {
   const signer = getDecisionSigner();
   const domain = { name: "RecallRaidEscrow", version: "1", chainId: config.baseSepolia.chainId, verifyingContract: config.baseSepolia.escrowAddress };
@@ -419,6 +431,7 @@ export async function registerGenLayerCase(caseId: string, submitter: string, bo
     expectedInvestigationId: investigationId,
   });
   if (escrowCase.registered || escrowCase.finalized) throw new Error("Decision signer refuses an already registered or finalized Base case");
+  await assertChallengeEconomicsMatchGenLayer();
   await assertDecisionSignerMatchesEscrow();
   const authorization = await signRegistration(caseId, submitter, bounty, genlayerContract, investigationId);
   const tx = await getRelayerContract().registerGenLayerCase(caseIdToBytes32(caseId), submitter, BigInt(bounty), genlayerContract, investigationId, authorization);

@@ -533,7 +533,7 @@ function BountyPanel({
         {isConnected && canOpenChallenge && (
           <div className="space-y-2 rounded border border-secondary/30 bg-secondary/5 p-3">
             <div className="font-mono text-label-caps uppercase text-secondary">Open a Challenge</div>
-            <p className="text-body-sm text-muted">Requires {usdcBaseUnitsToDisplay(requiredStake)} USDC on Base Sepolia (20% of bounty).</p>
+            <p className="text-body-sm text-muted">Requires {usdcBaseUnitsToDisplay(requiredStake)} USDC on Base Sepolia (20% of bounty). If you overturn the verdict, your full stake is returned plus 15% of the funded bounty; that bonus is deducted from the ordinary bounty recipient&apos;s share.</p>
             <textarea
               value={challengeReason}
               onChange={(e) => setChallengeReason(e.target.value)}

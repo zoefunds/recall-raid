@@ -93,12 +93,17 @@ recoverable by its depositor after the case finalizes. Missing RPC transaction
 or receipt data is treated as uncertainty and stops settlement for retry.
 
 At terminal settlement, `NO_ISSUE` refunds the bounty to the submitter;
-`POTENTIAL_ISSUE` and `RECALL_CONFIRMED` pay the hunter. The hunter is the first
+`POTENTIAL_ISSUE` and `RECALL_CONFIRMED` pay the hunter. When a challenge
+overturns the standing verdict, 15% of the funded bounty (rounded down in token
+base units) is instead paid to the successful challenger as a bonus, and the
+ordinary bounty recipient receives the exact remainder. The hunter is the first
 evidence submitter in GenLayer's evidence order. This is a declared first
 submitter policy, not an attribution score. A linked seller bond may be slashed
 on a confirmed recall, capped by both remaining bond and bounty. An overturned
-challenge returns its own stake to its challenger; otherwise the stake follows
-the adjudication allocation. The Base contract increments pull-payment
+challenge returns its separately funded stake to its challenger in addition to
+the bounty-funded bonus; otherwise the stake follows the adjudication
+allocation. Thus the bounty shares sum to the funded bounty and stake shares
+sum to funded stakes. The Base contract increments pull-payment
 balances, and recipients withdraw separately with `claim()`.
 
 ## Authorization boundary
@@ -122,3 +127,14 @@ must not authorize settlement, registration, or orphan recovery.
 
 Historical database columns ending in `_wei` retain their name for migration
 compatibility. For USDC they contain six-decimal token base units, not wei.
+
+## Current deployment mapping
+
+As of October 18, 2026, the public frontend uses the hardened GenLayer
+successor `0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA`, candidate API
+`https://recallraid-candidate-api.fly.dev`, and bonus-aware Base escrow
+`0xBf74703d38cc83DE796B174efFdC02FaD69dE0dB`. The legacy API is deliberately
+kept separate and pinned to the prior escrow for historical settlement only.
+It is not a registration target for new public cases. This version separation
+is part of the financial authorization boundary: an existing Base registration
+is never silently rebound to another GenLayer contract or escrow version.

@@ -24,6 +24,27 @@ verifies Base funding first. The earlier live EDFF challenge used the old direct
 successor challenge below used the authenticated admin relay and a version-pinned
 HTTPS CPSC PDF.
 
+## Current public configuration — October 18, 2026
+
+| Surface | Current value |
+|---|---|
+| Public frontend | `https://recall-raid.vercel.app` (`dpl_9f4swrixEisMkUUn14hhvbGKeHf5`) |
+| Public API | `https://recallraid-candidate-api.fly.dev` (`deployment-01M564HVPZA6F8N6ESYG4GGV3D`) |
+| GenLayer adjudicator | `0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA` |
+| Base Sepolia escrow for new cases | `0xBf74703d38cc83DE796B174efFdC02FaD69dE0dB` |
+| Overturn economics | challenger stake returned plus 15% of funded bounty; ordinary bounty recipient receives 85% |
+| Legacy settlement API | `https://recallraid-usdc-api.fly.dev`, pinned to escrow `0x861d5D4E903805cbE283A86f08E10D031601774E` only for historical settlement |
+
+The public Active Hunts page returns and renders all three successor records.
+Investigations 2 and 3 are browser-originated cases funded with 1,000,000 and
+500,000 USDC base units respectively. Investigation 2 is registered in Base
+transaction `0x2bfd1770bd1c78714ac8412ae8b9cf3c924a979aad416ac2334a8ca1bbaac66b`;
+investigation 3 is registered in transaction
+`0xab3f450b758fd69554e5197111ea1f2c6709cc3a76cd86ea5261499370c3d676`.
+The exact funding, registration, GenLayer submission, API, and frontend checks
+are in
+[`e2e-evidence/bonus-aware-rollout-2026-10-18.json`](e2e-evidence/bonus-aware-rollout-2026-10-18.json).
+
 ## Networks and recorded deployments
 
 Base Sepolia chain id is `84532`; the commonly used Base Sepolia USDC test
@@ -36,6 +57,7 @@ here is StudioNet (`61999`), served through `https://studio.genlayer.com/api`.
 | Prior milestone adjudicator (historical) | StudioNet | `0xa4e1D02aBaed368461870D1453d709d51183A119` | `0x0a9929c10a80cf39d590ff108a09da6d7bf0ec7cb6e9cda5f9c0341971f50e51` |
 | Remediation validation escrow (test only) | Base Sepolia | `0xea0973CbFf42F1B41A339103f133d3D43a24A54b` | `0xe8e2814512e4e49ec623551ee42358c797b467c531b30f21dfcb1b2bc975ec67` |
 | Corrected escrow | Base Sepolia | `0x861d5D4E903805cbE283A86f08E10D031601774E` | `0xf50fe9f4af945ab79208eaf3895347ea1d0b85b7fb4f641bfa0be7f499d460c7`; source verified 2026-10-17 |
+| Bonus-aware escrow (current for new cases) | Base Sepolia | `0xBf74703d38cc83DE796B174efFdC02FaD69dE0dB` | `0x7a095758a6aa678d235103a54c31e468be043bb6d2f2cb6b944b17ccef433ed8`; source/runtime verified 2026-10-18; 1,500-bps bounty-funded overturn bonus |
 | Earlier corrected adjudicator | StudioNet | `0xa239189c2921b592dBa1eccde830977edbfD1CB5` | `0x2bb98b6e3897235a7ae96790b565e5fa38c269e493a209a2595485e42474ecb0`; accepted; superseded by next row |
 | Latest source with challenge rebuttal controls | StudioNet | `0xEDFFB4B4999D65A248441438233c18717515973d` | `0xe457b81502a2a9f66ab4f620f7d0ad738e27cac3f07ff23696ff61fef52ab350`; accepted; `get_protocol_info` reports 604800s challenge / 172800s resolution |
 | Hardened challenge-opening successor | StudioNet | `0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA` | `0xfc7aceb0a2d8eea60db169363bdb711b81fac216f0008c4452ac227bc58fa25c`; finalized `MAJORITY_AGREE`; retrieved source matches checked-in SHA-256 `e7ca95221338bd213448be1cd18e0483eccd97312a8ba81a5c3fac94ef4daee0`; protocol info reports 604800s challenge / 172800s resolution |
@@ -85,6 +107,20 @@ candidate API CORS allowlist is set to this exact preview origin. See
 [`e2e-evidence/hardened-challenge-rollout-check.json`](e2e-evidence/hardened-challenge-rollout-check.json).
 
 ### Public frontend cutover
+
+On 2026-10-18, production deployment `dpl_9f4swrixEisMkUUn14hhvbGKeHf5`
+became READY and updated the public alias to the bonus-aware escrow
+`0xBf74703d38cc83DE796B174efFdC02FaD69dE0dB`. Its fetched JavaScript bundles
+contain that address, the hardened successor, the candidate API, and the full
+15% reward disclosure. The candidate API now runs image
+`deployment-01M564HVPZA6F8N6ESYG4GGV3D`; the production-named legacy API runs
+`deployment-01M5623WXJ3GRTTABH8E71SQ59`. Both health checks returned API and
+database `ok`. The public candidate API is pinned to the new escrow for all
+new registrations. The production-named EDFF API remains pinned to the legacy
+escrow solely so its immutable historical registration can settle after the
+deadline; the public frontend no longer uses that API. New registration on the
+public API fails closed if Base and GenLayer bonus parameters differ. Full evidence is in
+[`e2e-evidence/bonus-aware-rollout-2026-10-18.json`](e2e-evidence/bonus-aware-rollout-2026-10-18.json).
 
 On 2026-10-17 production Vercel deployment
 `dpl_DQtVdvHcoMXoZujc27p3Ye9NB3ye` was promoted to the public alias
@@ -160,7 +196,17 @@ signer roles. The seven-day deadline is
 `2026-10-24T15:22:12Z`. No Base settlement or wallet claim has been attempted.
 At eventual settlement, this positive-verdict bounty follows the documented
 first-evidence-submitter policy (the submitter wallet); the overturned
-challenger receives the separately funded 20,000-unit stake. The complete
+challenger must ultimately receive the separately funded 20,000-unit stake plus
+a 15,000-unit bonus carved from the 100,000-unit bounty, leaving 85,000 bounty
+units for the submitter. The resulting 85,000-unit submitter increase and
+35,000-unit challenger increase conserve the full 120,000 funded units. This
+case is locked in a non-upgradeable pre-bonus Base escrow. The guarded runner
+therefore records its legacy 100,000/20,000 claims and then transfers exactly
+15,000 units from the bounty recipient to the challenger as an explicit legacy
+correction. New registrations are rejected unless Base exposes the same 1,500
+bps policy as GenLayer, and the current Solidity source performs the split
+inside `relayAdjudication`.
+The complete
 receipts, current API reads, and Base snapshot are in
 [`e2e-evidence/hardened-successor-live-challenge.json`](e2e-evidence/hardened-successor-live-challenge.json).
 
@@ -180,9 +226,8 @@ RECALLRAID_E2E_INVESTIGATION_ID=1 \
 node --env-file=apps/api/.env scripts/settle_studionet_base_e2e.mjs
 ```
 
-The previous DNS failure and StudioNet quota errors were transient blockers;
-read access recovered and the exact challenge confirmation, evidence, and
-resolution completed. Do not rerun the challenge-opening flow for this case.
+The exact challenge confirmation, evidence, and resolution are complete. Do
+not rerun the challenge-opening flow for this case.
 
 The live Base accounting branch checks and limitations are recorded in
 [`e2e-evidence/live-base-security-branches.json`](e2e-evidence/live-base-security-branches.json).

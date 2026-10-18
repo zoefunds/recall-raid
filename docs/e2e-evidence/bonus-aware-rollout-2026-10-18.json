@@ -1,0 +1,86 @@
+{
+  "recordedAt": "2026-10-18T00:14:00+01:00",
+  "baseSepolia": {
+    "chainId": 84532,
+    "escrow": "0xBf74703d38cc83DE796B174efFdC02FaD69dE0dB",
+    "deploymentTx": "0x7a095758a6aa678d235103a54c31e468be043bb6d2f2cb6b944b17ccef433ed8",
+    "runtimeBytecodeHash": "0xf4a0dfbb23ac86463f6f4ef51581aa0fd47164d75204133c06b94efed2cdbb11",
+    "sourceHash": "0xac9b080d27653056fe9e777e35e4eb46f4619fe53afd47ade115b6699fa79dc7",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "owner": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+    "relayer": "0xE3F1A34307349be94f3657276ebcF51eaB810730",
+    "decisionSigner": "0x6C76E71a9AeEBE3A79D1b078122D2c42dC69Cd4C",
+    "basisPointDenominator": "10000",
+    "challengeOverturnBonusBps": "1500",
+    "verificationBlock": 48255328,
+    "verified": true
+  },
+  "api": {
+    "candidate": {
+      "url": "https://recallraid-candidate-api.fly.dev",
+      "escrow": "0xBf74703d38cc83DE796B174efFdC02FaD69dE0dB",
+      "image": "deployment-01M564HVPZA6F8N6ESYG4GGV3D",
+      "health": { "status": "ok", "db": "ok" }
+    },
+    "production": {
+      "url": "https://recallraid-usdc-api.fly.dev",
+      "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+      "image": "deployment-01M5623WXJ3GRTTABH8E71SQ59",
+      "health": { "status": "ok", "db": "ok" },
+      "purpose": "Version-pinned legacy EDFF settlement API; it is no longer used by the public frontend for new registrations."
+    },
+    "registrationGuard": "The public candidate API handles new registrations and fails closed unless Base BPS_DENOMINATOR is 10000 and its challenge bonus equals GenLayer challenge_overturn_bonus_bps. The separate production-named API is pinned to the legacy EDFF escrow solely for historical settlement."
+  },
+  "frontend": {
+    "publicUrl": "https://recall-raid.vercel.app",
+    "deploymentId": "dpl_9f4swrixEisMkUUn14hhvbGKeHf5",
+    "status": "READY",
+    "genlayerContract": "0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA",
+    "api": "https://recallraid-candidate-api.fly.dev",
+    "escrow": "0xBf74703d38cc83DE796B174efFdC02FaD69dE0dB",
+    "rewardCopyVerified": "If you overturn the verdict, your full stake is returned plus 15% of the funded bounty; that bonus is deducted from the ordinary bounty recipient's share."
+  },
+  "legacyCases": {
+    "escrow": "0x861d5D4E903805cbE283A86f08E10D031601774E",
+    "policy": "Existing registrations remain immutable on the legacy escrow and are settled through version-specific runners after their deadlines.",
+    "deadlinesUtc": {
+      "a239Investigation2": "2026-10-24T08:08:09Z",
+      "edffInvestigation3": "2026-10-24T10:31:44Z",
+      "successorInvestigation1": "2026-10-24T15:22:12Z"
+    },
+    "settlementEvidenceComplete": false
+  },
+  "browserWorkflow": {
+    "complete": true,
+    "submitter": "0x7401c129edfc26e68fe19309fe461eb3db1058eb",
+    "genlayerSubmissionTx": "0x2b081588ae852fed8f943903c87580f2d0564924d8938de4455676b5b3cd269b",
+    "baseApprovalTx": "0x0dd4ff071cf30f5a1671bc66e7bc07d0fa7934bffc57c904de7d59cc1113c53c",
+    "baseFundingTx": "0x098582c8aaa5b8f53392138ac865e385ef87e5e7fac5b1f806ff82d2f823872e",
+    "baseRegistrationTx": "0x2bfd1770bd1c78714ac8412ae8b9cf3c924a979aad416ac2334a8ca1bbaac66b",
+    "genlayerInvestigationId": 2,
+    "baseCaseId": "0x7733ea89c8e2382a60549b04966c8917fdfa359a59442ee96b3a9825d14543f0",
+    "fundedBountyMicroUsdc": "1000000",
+    "genlayerStatus": "FINALIZED",
+    "genlayerConsensus": "MAJORITY_AGREE",
+    "genlayerExecution": "FINISHED_WITH_RETURN",
+    "frontendVerification": {
+      "listUrl": "https://recall-raid.vercel.app/hunts",
+      "detailUrl": "https://recall-raid.vercel.app/hunts/2",
+      "listedInvestigationCount": 3,
+      "investigationVisible": true,
+      "displayedBounty": "1 USDC",
+      "displayedSubmitter": "0x7401...58eb"
+    },
+    "additionalVisibleInvestigation": {
+      "genlayerInvestigationId": 3,
+      "baseCaseId": "0x9effcf988d659074b571dec5f483ab5fd097d07a17372adc9cae4dd37591f844",
+      "fundedBountyMicroUsdc": "500000",
+      "baseFundingTx": "0x57c6db2683b2023d722c2fdd5de6033fa9d866333d48b66b3f31e1e55114455c",
+      "baseRegistrationTx": "0xab3f450b758fd69554e5197111ea1f2c6709cc3a76cd86ea5261499370c3d676",
+      "listUrl": "https://recall-raid.vercel.app/hunts",
+      "detailUrl": "https://recall-raid.vercel.app/hunts/3",
+      "displayedBounty": "0.5 USDC",
+      "visible": true
+    }
+  }
+}

@@ -7,11 +7,34 @@ and claims live in a Base Sepolia escrow. The API mirrors chain state in
 PostgreSQL, authenticates wallet sessions, issues signed evidence-upload
 parameters, and coordinates explicitly attested cross-chain operations.
 
-The hardened GenLayer successor is deployed at `0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA`, and the public production frontend now uses it with the isolated candidate API. Existing EDFF registrations remain bound to EDFF; the prior production deployment is preserved at its immutable URL for project members, backed by the original API and cache. The successor live case now has a finalized, validator-backed challenge overturn from `NO_ISSUE` to `POTENTIAL_ISSUE`; the hosted candidate API retains the exact resolved challenge record and Base-funded 20,000-unit stake. The Base escrow remains unfinalized. Its seven-day settlement deadline is `2026-10-24T15:22:12Z`, and no settlement or withdrawal will be sent before then. The earlier EDFF registration is separate and retains its own deadline, `2026-10-24T10:31:44Z`. The user confirmed the browser-wallet transaction flow succeeded; this CLI continuation resumed from its recorded on-chain funding and did not claim a second browser-signature capture. See [the validation record](docs/e2e-evidence/hardened-successor-live-challenge.json), [security model](docs/SECURITY.md), and [deployment notes](docs/DEPLOYMENT.md).
+The bonus-aware Base Sepolia escrow is deployed at
+`0xBf74703d38cc83DE796B174efFdC02FaD69dE0dB` in transaction
+`0x7a095758a6aa678d235103a54c31e468be043bb6d2f2cb6b944b17ccef433ed8`.
+The public frontend and candidate API use it for all new registrations. The
+production-named legacy API remains pinned to the prior escrow only so its
+immutable historical cases can be settled through their original contracts.
+Live reads report `CHALLENGE_OVERTURN_BONUS_BPS = 1500`; existing cases retain
+their version-specific settlement paths. See the
+[rollout evidence](docs/e2e-evidence/bonus-aware-rollout-2026-10-18.json).
 
-The isolated successor preview is [available on Vercel](https://recall-raid-2k364g3a6-adebiyi2002gmailcoms-projects.vercel.app) to project members and uses the same candidate API and database as the public production alias.
+The hardened GenLayer successor is deployed at
+`0xfAc47CB7eEbF95f3d043A0cd8112ecdb24486ecA`. The public application at
+[`recall-raid.vercel.app`](https://recall-raid.vercel.app) uses that contract,
+the candidate API, and the bonus-aware escrow. Its Active Hunts page currently
+shows three successor investigations: the earlier 0.100 USDC overturned case
+and browser-originated 1.000 and 0.500 USDC open cases. The latter two are
+registered to the new escrow as investigations 2 and 3. The complete browser
+transaction chain and live frontend verification are recorded in the
+[rollout evidence](docs/e2e-evidence/bonus-aware-rollout-2026-10-18.json).
 
-A CLI live run on the successor has funded and authenticated registration for investigation 1, verified control evidence, finalized the initial verdict, authenticated and confirmed the funded challenge, verified an official CPSC rebuttal, and finalized an overturn. The exact candidate API investigation and challenge reads agree with StudioNet state. The guarded resume command and checkpoint are documented in [deployment notes](docs/DEPLOYMENT.md#hardened-successor-live-challenge). Settlement and withdrawals are pending the seven-day deadline; the existing EDFF overturned challenge remains intact and unsettled.
+The three pre-rollout financial obligations remain bound to their original
+contracts and are intentionally unsettled until their deadlines on October 24,
+2026. The A239 case is eligible after 08:08:09 UTC, the EDFF case after
+10:31:44 UTC, and the hardened-successor legacy-escrow case after 15:22:12 UTC.
+The settlement runners apply the documented 15% correction to both successful
+legacy overturns and capture EIP-712 instructions, receipts, claims, correction
+transfers, and before/after USDC balances. See [deployment](docs/DEPLOYMENT.md)
+and [security](docs/SECURITY.md).
 
 ## Repository map
 
@@ -41,7 +64,10 @@ A CLI live run on the successor has funded and authenticated registration for in
    exact 20% of-bounty USDC stake, funded by the challenger on Base. GenLayer
    resolves or expires one challenge per investigation; the Base escrow keeps
    deposits keyed by each challenger's wallet. Unmatched direct deposits are
-   recoverable by their depositor after the case is finalized.
+   recoverable by their depositor after the case is finalized. A successful
+   challenger receives the full stake back plus 15% of the funded bounty; the
+   ordinary bounty recipient receives the remaining 85%, so no additional
+   treasury or seller-bond funds are created or consumed.
 5. The API reads terminal GenLayer state and Base funding, registration,
    challenge, and seller-bond records. For challenge creation, the API
    authenticates the funded challenger and verifies the exact Base receipt

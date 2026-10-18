@@ -58,6 +58,12 @@ attested relay design, not a trustless bridge.
   If the Base transaction or receipt is temporarily unavailable, both relay
   and signer fail closed and retry rather than treating uncertainty as an
   invalid challenge.
+- A successful overturn returns the selected challenger's full Base-funded
+  stake and pays a 15% bonus carved from the investigation bounty. The normal
+  bounty recipient receives the exact remainder after integer rounding. An
+  upheld or expired challenge pays no bonus and sends its stake to the ordinary
+  bounty recipient. Bounty shares therefore sum to the exact funded bounty and
+  stake shares sum to the exact funded stakes; seller bonds remain separate.
 - Seller-bond slashing is capped by remaining bond and bounty. Linked bonds
   cannot be withdrawn while their cases remain open.
 - Claims use checks-effects-interactions and a reentrancy guard. USDC claims
@@ -152,7 +158,7 @@ reconciled, because the escrow permanently binds each case to its registered
 GenLayer contract. The synthetic Base branch transactions did not consume the
 EDFF deployment's consensus result.
 
-Local API tests (50), direct-mode GenVM tests (2), Foundry tests (9),
+Local API tests (50), direct-mode GenVM tests (2), Foundry tests (10),
 compilation, and web builds are useful checks, not substitutes for independent
 contract review, key management review, production deployment validation, or a
 complete wallet-driven cross-chain exercise. The GenVM direct-mode tests verify
@@ -198,14 +204,14 @@ challenge sync retry was rate-limited by StudioNet. This was the 14:47Z
 snapshot; the separate diagnostic-wallet sweep finalized at 15:41Z, as recorded
 in the current remediation evidence below.
 
-Snapshot at 2026-10-17 15:00Z: public Vercel production now serves the hardened
+Historical snapshot at 2026-10-17 15:00Z: public Vercel production served the hardened
 successor and isolated candidate API. Its assets were fetched and checked for
 the successor address and candidate API; EDFF is absent. The former production
 deployment remains available to project members at its immutable URL, backed
 by the original EDFF API and database. Both API services now accept explicit
 exact-origin lists; candidate production/preview and legacy preflight checks
-returned 204 with credentials enabled. The candidate challenge confirmation
-is still waiting on StudioNet's `500 requests/hour` limit.
+returned 204 with credentials enabled. Later verification completed the exact
+challenge confirmation and synchronized the finalized result.
 
 Snapshot at 2026-10-17 15:14Z: both Fly APIs now run commit `7cb64e0`. API build
 passes and 50 API tests pass, including a regression that accepts the exact
@@ -214,7 +220,8 @@ rotation while rejecting altered target, challenger, stake, or failed GenVM
 execution. `GENLAYER_CHALLENGE_OPEN_ADMIN_GATED=true` is enabled only on the
 candidate API for the verified successor; the legacy EDFF API leaves it false
 and requires the configured relay sender. Candidate and legacy APIs both
-report healthy. Challenge sync remains waiting on StudioNet quota.
+reported healthy. The later finalized challenge record supersedes the
+incomplete synchronization state in this snapshot.
 
 Direct Base Sepolia reads at 15:15Z confirmed the rotated owner/relayer, the
 separate decision signer, and the still-unsettled successor escrow case with
@@ -282,9 +289,10 @@ The current source also contains an independent challenge-backing check in
 both the relay path and decision signer. The API suite has 50 passing tests,
 including explicit decision-signer rejection of modified verdict, hunter,
 challenge id/challenger/overturn flag, seller-bond id/slash, and decision hash.
-The Foundry suite has 9 passing tests covering registration ownership, exact
+The Foundry suite has 10 passing tests covering registration ownership, exact
 Base challenge receipt binding, signature tampering, seller-bond slashing,
-orphan recovery, and successful Base-backed challenger stake allocation. The
+orphan recovery, successful Base-backed challenger allocation, 15% bonus
+rounding, and conservation of all funded USDC. The
 tested signer comparison is deployed to Fly; its health and live case-3 cache
 were verified after rollout. The live `EDFF...` run verifies the real
 finalized GenLayer outcome and hosted cache; settlement and wallet withdrawal
@@ -316,9 +324,11 @@ the case remains registered to the successor and unfinalized, with the exact
 100,000-unit bounty and 20,000-unit challenge deposit; both claimable balances
 are zero. Its post-resolution seven-day deadline is
 `2026-10-24T15:22:12Z`. No Base settlement or wallet withdrawal was attempted.
-The positive-verdict bounty follows the documented first-evidence policy and
-is expected to go to the first evidence submitter; the overturned challenger
-is expected to receive their own stake. The user separately confirmed that the
+The positive-verdict bounty follows the documented first-evidence policy. The
+legacy escrow first credits the original bounty result and returns the stake;
+the guarded settlement runner then transfers the 15,000-unit legacy correction
+from the bounty recipient to the overturned challenger, producing the same
+85,000/35,000 allocation as the current bonus-aware escrow. The user separately confirmed that the
 browser-wallet transaction flow succeeded; the continuation script resumed
 from existing on-chain funding and did not capture a new wallet-popup trace.
 See [`e2e-evidence/hardened-successor-live-challenge.json`](e2e-evidence/hardened-successor-live-challenge.json).

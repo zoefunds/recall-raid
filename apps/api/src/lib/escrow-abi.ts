@@ -1,4 +1,6 @@
 export const RECALLRAID_ESCROW_ABI = [
+  "function BPS_DENOMINATOR() view returns (uint256)",
+  "function CHALLENGE_OVERTURN_BONUS_BPS() view returns (uint256)",
   "function usdc() view returns (address)",
   "function relayer() view returns (address)",
   "function decisionSigner() view returns (address)",

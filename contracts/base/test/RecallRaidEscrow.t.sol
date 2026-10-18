@@ -43,6 +43,7 @@ contract RecallRaidEscrowTest {
     address private constant GENLAYER_CONTRACT = address(0x2001);
     uint32 private constant INVESTIGATION_ID = 12;
     uint256 private constant BOUNTY = 100_000_000;
+    uint256 private constant OVERTURN_BONUS = BOUNTY * 1_500 / 10_000;
 
     MockUSDC private token;
     RecallRaidEscrow private escrow;
@@ -118,12 +119,13 @@ contract RecallRaidEscrowTest {
         vm.prank(RELAYER); vm.expectRevert(); escrow.relayAdjudication(id, GENLAYER_CONTRACT, INVESTIGATION_ID, 2, HUNTER, 7, address(0x999), true, bytes32(0), 0, decision, auth);
         vm.prank(RELAYER); vm.expectRevert(); escrow.relayAdjudication(id, GENLAYER_CONTRACT, INVESTIGATION_ID, 2, HUNTER, 7, CHALLENGER, false, bytes32(0), 0, decision, auth);
         vm.prank(RELAYER); escrow.relayAdjudication(id, GENLAYER_CONTRACT, INVESTIGATION_ID, 2, HUNTER, 7, CHALLENGER, true, bytes32(0), 0, decision, auth);
-        require(escrow.claimable(CHALLENGER) == BOUNTY / 5, "challenger stake misallocated");
-        require(escrow.claimable(HUNTER) == BOUNTY, "bounty misallocated");
+        require(escrow.claimable(CHALLENGER) == BOUNTY / 5 + OVERTURN_BONUS, "challenger stake and bonus misallocated");
+        require(escrow.claimable(HUNTER) == BOUNTY - OVERTURN_BONUS, "net bounty misallocated");
+        require(escrow.claimable(CHALLENGER) + escrow.claimable(HUNTER) == BOUNTY + BOUNTY / 5, "selected deposits not conserved");
         vm.prank(CHALLENGER); escrow.claim();
         vm.prank(HUNTER); escrow.claim();
-        require(token.balanceOf(CHALLENGER) == BOUNTY, "challenger USDC balance did not recover stake");
-        require(token.balanceOf(HUNTER) == BOUNTY, "hunter USDC bounty not transferred");
+        require(token.balanceOf(CHALLENGER) == BOUNTY + OVERTURN_BONUS, "challenger USDC balance missing bonus");
+        require(token.balanceOf(HUNTER) == BOUNTY - OVERTURN_BONUS, "hunter net USDC bounty not transferred");
         require(escrow.getChallengeDeposit(id, address(0x999)).amount == BOUNTY / 5, "unrelated stake overwritten");
         // Deposits that do not match the attested GenLayer challenger remain
         // independently recoverable as soon as the case is finalized.
@@ -131,6 +133,7 @@ contract RecallRaidEscrowTest {
         require(escrow.claimable(address(0x999)) == BOUNTY / 5, "unmatched deposit not recoverable");
         vm.prank(address(0x999)); escrow.claim();
         require(token.balanceOf(address(0x999)) == BOUNTY, "unmatched USDC recovery transfer missing");
+        require(token.balanceOf(address(escrow)) == 0, "escrow retained deposited USDC");
     }
 
     function testRejectsWrongChallengeStakeAndOccupiedChallengeSlot() public {
@@ -140,6 +143,21 @@ contract RecallRaidEscrowTest {
         vm.prank(CHALLENGER); escrow.fundChallenge(id, BOUNTY / 5);
         vm.prank(CHALLENGER); vm.expectRevert(); escrow.fundChallenge(id, BOUNTY / 5);
         vm.prank(address(0x999)); escrow.fundChallenge(id, BOUNTY / 5);
+    }
+
+    function testOverturnBonusRoundingConservesEveryBaseUnit() public {
+        bytes32 id = keccak256("rounding-case");
+        uint256 bounty = 101;
+        uint256 stake = bounty / 5;
+        uint256 bonus = bounty * 1_500 / 10_000;
+        vm.prank(PAYER); escrow.fundInvestigation(id, bounty);
+        vm.prank(RELAYER); escrow.registerGenLayerCase(id, PAYER, bounty, GENLAYER_CONTRACT, INVESTIGATION_ID, _signRegistration(id, PAYER, bounty));
+        vm.prank(CHALLENGER); escrow.fundChallenge(id, stake);
+        bytes32 decision = keccak256("rounded-overturn");
+        vm.prank(RELAYER); escrow.relayAdjudication(id, GENLAYER_CONTRACT, INVESTIGATION_ID, 2, HUNTER, 9, CHALLENGER, true, bytes32(0), 0, decision, _signAdjudication(id, 2, HUNTER, 9, CHALLENGER, true, decision));
+        require(escrow.claimable(HUNTER) == bounty - bonus, "rounding remainder missing");
+        require(escrow.claimable(CHALLENGER) == stake + bonus, "rounded challenger reward wrong");
+        require(escrow.claimable(HUNTER) + escrow.claimable(CHALLENGER) == bounty + stake, "rounded deposits not conserved");
     }
 
     function testNoIssueRefundsSubmitterWithAttestedVerdict() public {

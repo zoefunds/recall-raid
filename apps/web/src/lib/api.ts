@@ -30,6 +30,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError('We could not reach RecallRaid servers. Check your connection and try again.');
   }
   if (!res.ok) {
+    const payload = await res.json().catch(() => null) as { error?: { code?: string; message?: string } } | null;
+    if (payload?.error?.code === 'genlayer_rate_limited') {
+      throw new ApiError(payload.error.message ?? 'GenLayer is temporarily rate-limited. Please try again later.', res.status);
+    }
     throw new ApiError(
       res.status === 404 ? 'Not found.' : 'The server had a problem handling that request.',
       res.status,

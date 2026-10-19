@@ -60,9 +60,16 @@ async function buildServer() {
     // Full detail (stack trace, message) is only ever logged server-side —
     // the client response is a stable, minimal {error:{code,message}} shape.
     app.log.error(err);
-    const statusCode = err.statusCode ?? 500;
-    const code = err instanceof ApiError ? err.code : statusCode === 500 ? "internal_server_error" : "error";
-    const message = statusCode === 500 ? "Internal server error" : err.message;
+    const upstreamRateLimited = /rate limit exceeded|requests per (hour|day)/i.test(err.message);
+    const statusCode = upstreamRateLimited ? 503 : (err.statusCode ?? 500);
+    const code = upstreamRateLimited
+      ? "genlayer_rate_limited"
+      : err instanceof ApiError ? err.code : statusCode === 500 ? "internal_server_error" : "error";
+    // Do not expose provider internals, but distinguish a temporary GenLayer
+    // quota from an invalid hunt/transaction or an application failure.
+    const message = upstreamRateLimited
+      ? "GenLayer is temporarily rate-limited. Your finalized hunt is safe; please try syncing again after the quota resets."
+      : statusCode === 500 ? "Internal server error" : err.message;
     reply.code(statusCode).send({ error: { code, message } });
   });
 

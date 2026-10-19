@@ -3,14 +3,15 @@
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { requestEvidenceUploadUrl, syncInvestigation, syncEvidenceForInvestigation } from '@/lib/api';
+import { requestEvidenceUploadUrl, syncInvestigation, syncEvidenceForInvestigation, syncInvestigationUntilVisible } from '@/lib/api';
 import { sha256Hex } from '@/lib/hash';
 import { usdcToBaseUnits } from '@/lib/format';
 import { fundInvestigation, makeEscrowId, type BaseTransactionProgress } from '@/lib/base-sepolia';
 import { useContractWrite } from '@/hooks/useContractWrite';
-import type { TxLifecycleStatus } from '@/lib/genlayer-client';
+import { callContractView, type TxLifecycleStatus } from '@/lib/genlayer-client';
 import { useConnectedAddress } from '@/components/ConnectWalletButton';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { TransactionStatusModal } from '@/components/TransactionStatusModal';
@@ -69,6 +70,7 @@ export default function SubmitEvidencePage() {
   const [baseFunding, setBaseFunding] = useState<BaseTransactionProgress>({ status: 'idle' });
   const [baseFundingHashes, setBaseFundingHashes] = useState<{ approvalHash: string; fundingHash: string } | null>(null);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const write = useContractWrite();
   const { address, connector } = useAccount();
@@ -210,23 +212,20 @@ export default function SubmitEvidencePage() {
         return;
       }
 
-      // Parse the returned investigation_id from the write result if the
-      // client surfaces it; fall back to letting the user find it via the
-      // hunts list if the return shape differs.
-      let investigationId: number | null = null;
-      try {
-        const parsed = typeof submitRes.result === 'string' ? JSON.parse(submitRes.result) : submitRes.result;
-        investigationId = (parsed as { investigation_id?: number })?.investigation_id ?? null;
-      } catch {
-        investigationId = null;
-      }
+      // The SDK has used more than one return-payload nesting across
+      // StudioNet versions. Prefer the returned id, but independently find
+      // the newest matching on-chain record if that payload shape changes.
+      // This is safe because base_case_id is unique and was just funded by
+      // this wallet.
+      let investigationId = investigationIdFromResult(submitRes.result)
+        ?? await findSubmittedInvestigationId(baseCaseId, address);
 
       if (investigationId != null) {
-        // Seed the cache immediately from the confirmed submit_investigation
-        // tx — otherwise the investigation detail page the user is about to
-        // land on would 404 ("not in the cache yet") until the next
-        // deadline-watcher sweep.
-        await syncInvestigation(investigationId, submitRes.txHash);
+        // Poll the API cache immediately after finality. GenVM finality and
+        // its read endpoint can briefly disagree, so one failed sync must
+        // never hide a confirmed investigation from its creator.
+        await syncInvestigationUntilVisible(investigationId, submitRes.txHash);
+        await queryClient.invalidateQueries({ queryKey: ['investigations'] });
 
         const uploads = await Promise.all(
           [
@@ -272,11 +271,7 @@ export default function SubmitEvidencePage() {
         }
         router.push(`/hunts/${investigationId}`);
       } else {
-        // The write succeeded but the investigation_id couldn't be parsed
-        // from the return value — evidence uploads need a real id to
-        // attach to, so send the user to the hunts list rather than
-        // silently dropping their evidence files.
-        router.push('/hunts');
+        throw new Error('The investigation finalized but could not be located on GenLayer. Please retry shortly using the transaction link.');
       }
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Something went wrong uploading evidence.');
@@ -453,6 +448,72 @@ export default function SubmitEvidencePage() {
       )}
     </div>
   );
+}
+
+function investigationIdFromResult(result: unknown): number | null {
+  const seen = new Set<unknown>();
+  const visit = (value: unknown): number | null => {
+    if (value === null || value === undefined || seen.has(value)) return null;
+    if (typeof value === 'string') {
+      try {
+        return visit(JSON.parse(value));
+      } catch {
+        return null;
+      }
+    }
+    if (typeof value === 'number') return Number.isInteger(value) && value > 0 ? value : null;
+    if (typeof value !== 'object') return null;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = visit(item);
+        if (found != null) return found;
+      }
+      return null;
+    }
+    const record = value as Record<string, unknown>;
+    const direct = record.investigation_id ?? record.investigationId;
+    if (typeof direct === 'number' && Number.isInteger(direct) && direct > 0) return direct;
+    if (typeof direct === 'string' && /^\d+$/.test(direct) && Number(direct) > 0) return Number(direct);
+    for (const nested of Object.values(record)) {
+      const found = visit(nested);
+      if (found != null) return found;
+    }
+    return null;
+  };
+  return visit(result);
+}
+
+async function findSubmittedInvestigationId(baseCaseId: string, submitter: string): Promise<number | null> {
+  // Poll the chain directly only when the finalized write receipt has no
+  // usable result. The normal path avoids these additional reads entirely.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const rawCount = await callContractView<unknown>({ method: 'get_investigation_count' });
+      const count = Number(rawCount);
+      if (Number.isInteger(count) && count > 0) {
+        // A case id is unique, so checking the newest few records avoids a
+        // broad scan while covering concurrent submissions.
+        for (let id = count; id >= Math.max(1, count - 12); id--) {
+          const investigation = await callContractView<{ base_case_id?: string; submitter?: string }>({
+            method: 'get_investigation',
+            args: [id],
+          });
+          if (
+            investigation.base_case_id?.toLowerCase() === baseCaseId.toLowerCase()
+            && investigation.submitter?.toLowerCase() === submitter.toLowerCase()
+          ) {
+            return id;
+          }
+        }
+      }
+    } catch {
+      // The next bounded poll handles the same short propagation delay that
+      // can affect API sync immediately after transaction finality.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+  }
+  return null;
 }
 
 function StepIndicator({ step }: { step: number }) {

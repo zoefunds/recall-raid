@@ -172,6 +172,36 @@ export function syncInvestigation(id: number | string, txHash?: string): Promise
   return apiFetch(`/investigations/${id}/sync`, { method: 'POST', body: JSON.stringify({ txHash }) });
 }
 
+/**
+ * A GenVM receipt can be finalized a few seconds before the read endpoint
+ * serving the API sees the resulting contract state.  A single sync call at
+ * that boundary made newly-created hunts appear to be missing even though
+ * their on-chain transaction had succeeded.  Keep polling the explicit sync
+ * endpoint for a short, bounded period so the creator is routed only after
+ * the API cache has the canonical chain row.
+ */
+export async function syncInvestigationUntilVisible(
+  id: number | string,
+  txHash?: string,
+  attempts = 8,
+): Promise<{ investigation: Investigation }> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await syncInvestigation(id, txHash);
+    } catch (error) {
+      lastError = error;
+      // Retrying an expired/invalid session cannot make it valid; all other
+      // failures may be the expected short RPC/indexing delay after finality.
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) throw error;
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, Math.min(1_000 * (attempt + 1), 4_000)));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('The finalized investigation has not become readable yet.');
+}
+
 export function relayInvestigation(id: number | string): Promise<{ relayed: boolean; relayTxHash?: string; decisionHash?: string }> {
   return apiFetch(`/investigations/${id}/relay`, { method: 'POST', body: '{}' });
 }

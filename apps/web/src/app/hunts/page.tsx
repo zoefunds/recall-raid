@@ -2,14 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { fetchInvestigations } from '@/lib/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchInvestigations, syncInvestigationUntilVisible } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { HAZARD_BAR_CLASS, HazardChip, InvestigationStatusChip, VerdictChip } from '@/components/ui/StatusChip';
 import { VERDICT_DESCRIPTION } from '@/types/contract';
 import { CardSkeleton, EmptyState, ErrorState } from '@/components/ui/States';
 import { usdcBaseUnitsToDisplay, usdcToBaseUnits } from '@/lib/format';
 import { Sidebar, SidebarSection } from '@/components/nav/Sidebar';
+import { useWalletSession } from '@/hooks/useWalletSession';
 
 const HAZARD_OPTIONS = [
   { value: 1, label: 'Critical' },
@@ -24,6 +26,14 @@ export default function HuntsPage() {
   const [category, setCategory] = useState('');
   const [minBounty, setMinBounty] = useState(0); // USDC
   const [page, setPage] = useState(0);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveryId, setRecoveryId] = useState('');
+  const [recoveryTxHash, setRecoveryTxHash] = useState('');
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveredId, setRecoveredId] = useState<number | null>(null);
+  const [recovering, setRecovering] = useState(false);
+  const queryClient = useQueryClient();
+  const { ensureSession } = useWalletSession();
 
   const params = useMemo(
     () => ({
@@ -48,6 +58,36 @@ export default function HuntsPage() {
   function toggleHazard(v: number) {
     setPage(0);
     setHazardFilters((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+  }
+
+  async function recoverFinalizedInvestigation() {
+    const id = Number(recoveryId);
+    if (!Number.isInteger(id) || id <= 0) {
+      setRecoveryError('Enter a valid investigation ID.');
+      return;
+    }
+    if (!/^0x[a-fA-F0-9]{64}$/.test(recoveryTxHash)) {
+      setRecoveryError('Enter the finalized GenLayer transaction hash for this investigation.');
+      return;
+    }
+
+    setRecovering(true);
+    setRecoveryError(null);
+    setRecoveredId(null);
+    try {
+      // The API authenticates this wallet and independently verifies the
+      // finalized transaction, contract, submitter, case ID, and bounty
+      // before it writes the cache or registers the Base escrow case.
+      await ensureSession();
+      const { investigation } = await syncInvestigationUntilVisible(id, recoveryTxHash);
+      setPage(0);
+      await queryClient.invalidateQueries({ queryKey: ['investigations'] });
+      setRecoveredId(investigation.id);
+    } catch (error) {
+      setRecoveryError(error instanceof Error ? error.message : 'Could not sync this investigation.');
+    } finally {
+      setRecovering(false);
+    }
   }
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
@@ -103,6 +143,52 @@ export default function HuntsPage() {
           <h1 className="font-sans text-headline-lg">Active Hunts</h1>
           {data && <span className="font-mono text-body-sm text-muted">{data.total} total</span>}
         </div>
+
+        <Card className="mb-5">
+          <CardBody>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-mono text-label-caps uppercase text-primary">Missing a finalized hunt?</div>
+                <p className="mt-1 text-body-sm text-muted">Sync it from its GenLayer transaction without trusting browser-supplied case data.</p>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShowRecovery((visible) => !visible)}>
+                {showRecovery ? 'Close sync' : 'Sync finalized hunt'}
+              </Button>
+            </div>
+            {showRecovery && (
+              <div className="mt-4 grid gap-3 border-t border-border-subtle pt-4 md:grid-cols-[140px_1fr_auto] md:items-end">
+                <label className="block">
+                  <span className="mb-1 block font-mono text-label-caps uppercase text-muted">Hunt ID</span>
+                  <input
+                    inputMode="numeric"
+                    value={recoveryId}
+                    onChange={(event) => setRecoveryId(event.target.value.replace(/\D/g, ''))}
+                    placeholder="e.g. 4"
+                    className="w-full rounded border border-border-subtle bg-bg-deep px-3 py-2 font-mono text-data-mono text-on-surface placeholder:text-muted focus:border-primary focus:outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block font-mono text-label-caps uppercase text-muted">Finalized GenLayer transaction</span>
+                  <input
+                    value={recoveryTxHash}
+                    onChange={(event) => setRecoveryTxHash(event.target.value.trim())}
+                    placeholder="0x…"
+                    className="w-full rounded border border-border-subtle bg-bg-deep px-3 py-2 font-mono text-data-mono text-on-surface placeholder:text-muted focus:border-primary focus:outline-none"
+                  />
+                </label>
+                <Button type="button" loading={recovering} onClick={recoverFinalizedInvestigation}>Sync hunt</Button>
+                <div className="md:col-span-3">
+                  {recoveryError && <p className="text-body-sm text-danger">{recoveryError}</p>}
+                  {recoveredId != null && (
+                    <p className="text-body-sm text-status-safe">
+                      Hunt #{recoveredId} is synced. <Link className="underline" href={`/hunts/${recoveredId}`}>Open it</Link>
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardBody>
+        </Card>
 
         {isError ? (
           <ErrorState title="Could not load hunts" hint="The API may be unreachable." onRetry={() => refetch()} />
